@@ -85,4 +85,16 @@ impl SessionQueue {
         let pending = self.pending.lock().await;
         pending.iter().position(|qt| qt.task.id == task_id)
     }
+
+    pub async fn is_session_active(&self, session_id: &str) -> bool {
+        self.manager.is_active(session_id).await
+    }
+
+    pub async fn stop_session(&self, session_id: &str) -> anyhow::Result<()> {
+        self.manager.stop_session(session_id).await
+    }
+
+    pub async fn active_count(&self) -> usize {
+        self.manager.active_count().await
+    }
 }

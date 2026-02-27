@@ -1,4 +1,4 @@
-use crate::api::AppState;
+use super::TaskApiState;
 use crate::models::{CreateTask, UpdateTask};
 use axum::{
     extract::{Path, Query, State},
@@ -10,11 +10,6 @@ use axum::{
 use serde::Deserialize;
 use tracing::{debug, error, info, instrument};
 
-#[derive(Clone)]
-pub struct TaskApiState {
-    pub repo: crate::db::TaskRepository,
-}
-
 #[derive(Deserialize, Debug)]
 struct ListQuery {
     stage: Option<String>,
@@ -25,7 +20,7 @@ struct MoveRequest {
     stage: String,
 }
 
-pub fn task_routes() -> Router<AppState> {
+pub fn task_routes() -> Router<TaskApiState> {
     Router::new()
         .route("/", get(list_tasks).post(create_task))
         .route("/:id", get(get_task).patch(update_task).delete(delete_task))
@@ -34,11 +29,11 @@ pub fn task_routes() -> Router<AppState> {
 
 #[instrument(skip(state))]
 async fn list_tasks(
-    State(state): State<AppState>,
+    State(state): State<TaskApiState>,
     Query(query): Query<ListQuery>,
 ) -> impl IntoResponse {
     debug!(stage = ?query.stage, "API: Listing tasks");
-    match state.tasks.list(query.stage.as_deref()).await {
+    match state.repo.list(query.stage.as_deref()).await {
         Ok(tasks) => {
             debug!(count = tasks.len(), "API: Tasks retrieved");
             Json(tasks).into_response()
@@ -56,11 +51,11 @@ async fn list_tasks(
 
 #[instrument(skip(state))]
 async fn get_task(
-    State(state): State<AppState>,
+    State(state): State<TaskApiState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     debug!(task_id = %id, "API: Getting task");
-    match state.tasks.find(&id).await {
+    match state.repo.find(&id).await {
         Ok(task) => {
             debug!(task_id = %id, "API: Task retrieved");
             Json(task).into_response()
@@ -78,11 +73,11 @@ async fn get_task(
 
 #[instrument(skip(state))]
 async fn create_task(
-    State(state): State<AppState>,
+    State(state): State<TaskApiState>,
     Json(create): Json<CreateTask>,
 ) -> impl IntoResponse {
     info!(title = %create.title, project_path = %create.project_path, "API: Creating task");
-    match state.tasks.create(create).await {
+    match state.repo.create(create).await {
         Ok(task) => {
             info!(task_id = %task.id, "API: Task created");
             (StatusCode::CREATED, Json(task)).into_response()
@@ -100,12 +95,12 @@ async fn create_task(
 
 #[instrument(skip(state))]
 async fn update_task(
-    State(state): State<AppState>,
+    State(state): State<TaskApiState>,
     Path(id): Path<String>,
     Json(update): Json<UpdateTask>,
 ) -> impl IntoResponse {
     info!(task_id = %id, "API: Updating task");
-    match state.tasks.update(&id, update).await {
+    match state.repo.update(&id, update).await {
         Ok(task) => {
             info!(task_id = %id, new_stage = %task.stage, "API: Task updated");
             Json(task).into_response()
@@ -123,11 +118,11 @@ async fn update_task(
 
 #[instrument(skip(state))]
 async fn delete_task(
-    State(state): State<AppState>,
+    State(state): State<TaskApiState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     info!(task_id = %id, "API: Deleting task");
-    match state.tasks.delete(&id).await {
+    match state.repo.delete(&id).await {
         Ok(()) => {
             info!(task_id = %id, "API: Task deleted");
             StatusCode::NO_CONTENT.into_response()
@@ -145,12 +140,12 @@ async fn delete_task(
 
 #[instrument(skip(state))]
 async fn move_task(
-    State(state): State<AppState>,
+    State(state): State<TaskApiState>,
     Path(id): Path<String>,
     Json(body): Json<MoveRequest>,
 ) -> impl IntoResponse {
     info!(task_id = %id, to_stage = %body.stage, "API: Moving task");
-    match state.tasks.move_to_stage(&id, &body.stage).await {
+    match state.repo.move_to_stage(&id, &body.stage).await {
         Ok(task) => {
             info!(task_id = %id, new_stage = %task.stage, "API: Task moved");
             Json(task).into_response()

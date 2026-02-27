@@ -1,22 +1,44 @@
-mod logs;
-mod routes;
-mod tasks;
+use crate::db::{LogRepository, SessionRepository, TaskRepository};
+use crate::claude::SessionQueue;
+use std::sync::Arc;
 
-pub use logs::LogApiState;
-pub use routes::create_router;
-pub use tasks::TaskApiState;
-
-use crate::db::{LogRepository, TaskRepository};
-
+// Define state types first before the submodules
 #[derive(Clone)]
 pub struct AppState {
     pub tasks: TaskRepository,
     pub logs: LogRepository,
+    pub sessions: SessionRepository,
+    pub queue: Option<Arc<SessionQueue>>,
+}
+
+#[derive(Clone)]
+pub struct TaskApiState {
+    pub repo: TaskRepository,
+}
+
+#[derive(Clone)]
+pub struct LogApiState {
+    pub repo: LogRepository,
+}
+
+#[derive(Clone)]
+pub struct SessionApiState {
+    pub queue: Arc<SessionQueue>,
 }
 
 impl AppState {
-    pub fn new(tasks: TaskRepository, logs: LogRepository) -> Self {
-        Self { tasks, logs }
+    pub fn new(tasks: TaskRepository, logs: LogRepository, sessions: SessionRepository) -> Self {
+        Self {
+            tasks,
+            logs,
+            sessions,
+            queue: None,
+        }
+    }
+
+    pub fn with_queue(mut self, queue: Arc<SessionQueue>) -> Self {
+        self.queue = Some(queue);
+        self
     }
 }
 
@@ -32,3 +54,18 @@ impl From<AppState> for LogApiState {
         LogApiState { repo: state.logs }
     }
 }
+
+impl From<AppState> for SessionApiState {
+    fn from(state: AppState) -> Self {
+        SessionApiState {
+            queue: state.queue.expect("SessionQueue not initialized"),
+        }
+    }
+}
+
+mod logs;
+mod routes;
+mod sessions;
+mod tasks;
+
+pub use routes::create_router;

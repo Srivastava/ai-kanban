@@ -1,4 +1,4 @@
-use crate::api::AppState;
+use super::LogApiState;
 use crate::models::{CreateLog, LogFilter};
 use axum::{
     extract::{Query, State},
@@ -10,11 +10,6 @@ use axum::{
 use serde::Deserialize;
 use tracing::{debug, error, info, instrument, warn};
 
-#[derive(Clone)]
-pub struct LogApiState {
-    pub repo: crate::db::LogRepository,
-}
-
 #[derive(Deserialize, Debug)]
 struct LogQuery {
     level: Option<String>,
@@ -25,14 +20,14 @@ struct LogQuery {
     offset: Option<i32>,
 }
 
-pub fn log_routes() -> Router<AppState> {
+pub fn log_routes() -> Router<LogApiState> {
     Router::new()
         .route("/", get(list_logs).post(create_log))
 }
 
 #[instrument(skip(state))]
 async fn list_logs(
-    State(state): State<AppState>,
+    State(state): State<LogApiState>,
     Query(query): Query<LogQuery>,
 ) -> impl IntoResponse {
     debug!(
@@ -52,7 +47,7 @@ async fn list_logs(
         offset: query.offset,
     };
 
-    match state.logs.list(filter).await {
+    match state.repo.list(filter).await {
         Ok(logs) => {
             debug!(count = logs.len(), "API: Logs retrieved");
             Json(logs).into_response()
@@ -70,7 +65,7 @@ async fn list_logs(
 
 #[instrument(skip(state))]
 async fn create_log(
-    State(state): State<AppState>,
+    State(state): State<LogApiState>,
     Json(create): Json<CreateLog>,
 ) -> impl IntoResponse {
     info!(
@@ -94,7 +89,7 @@ async fn create_log(
     create.level = level;
     create.source = Some(create.source.unwrap_or_else(|| "frontend".to_string()));
 
-    match state.logs.create(create).await {
+    match state.repo.create(create).await {
         Ok(log) => {
             info!(log_id = %log.id, "API: Log entry created");
             (StatusCode::CREATED, Json(log)).into_response()

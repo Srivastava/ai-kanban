@@ -1,7 +1,9 @@
 use ai_kanban_backend::api::{create_router, AppState};
-use ai_kanban_backend::db::{create_pool, LogRepository, TaskRepository};
+use ai_kanban_backend::claude::ClaudeManager;
+use ai_kanban_backend::db::{create_pool, LogRepository, SessionRepository, TaskRepository};
 use ai_kanban_backend::logging::DbLayer;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -14,6 +16,14 @@ async fn main() -> anyhow::Result<()> {
     // Create repositories
     let task_repo = TaskRepository::new(pool.clone());
     let log_repo = LogRepository::new(pool.clone());
+    let session_repo = SessionRepository::new(pool.clone());
+
+    // Initialize Claude manager and session queue
+    let claude_manager = Arc::new(ClaudeManager::new(session_repo.clone()));
+    let queue = Arc::new(ai_kanban_backend::claude::SessionQueue::new(
+        claude_manager,
+        task_repo.clone(),
+    ));
 
     // Initialize logging with DB layer
     let db_layer = DbLayer::new(log_repo.clone());
@@ -28,8 +38,8 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database initialized at {}", db_path);
     tracing::info!("Logging system initialized");
 
-    // Create state
-    let state = AppState::new(task_repo, log_repo);
+    // Create state with queue
+    let state = AppState::new(task_repo, log_repo, session_repo).with_queue(queue);
     tracing::debug!("Application state created");
 
     // Build app with CORS
