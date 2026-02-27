@@ -1,6 +1,7 @@
-use ai_kanban_backend::db::create_pool;
-use axum::{routing::get, Router};
+use ai_kanban_backend::api::{create_router, TaskApiState};
+use ai_kanban_backend::db::{create_pool, TaskRepository};
 use std::net::SocketAddr;
+use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -14,12 +15,21 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize database
     let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data/ai-kanban.db".into());
-    let _pool = create_pool(&db_path).await?;
+    let pool = create_pool(&db_path).await?;
     tracing::info!("Database initialized at {}", db_path);
 
-    let app = Router::new()
-        .route("/health", get(|| async { "ok" }))
-        .route("/db-health", get(|| async { "db ok" }));
+    // Create state
+    let state = TaskApiState {
+        repo: TaskRepository::new(pool),
+    };
+
+    // Build app with CORS
+    let app = create_router(state).layer(
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any),
+    );
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
     tracing::info!("Listening on {}", addr);

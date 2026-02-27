@@ -2,6 +2,7 @@ use crate::models::{CreateTask, Task, UpdateTask};
 use anyhow::{anyhow, Result};
 use sqlx::SqlitePool;
 
+#[derive(Clone)]
 pub struct TaskRepository {
     pool: SqlitePool,
 }
