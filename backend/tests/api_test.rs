@@ -1,14 +1,19 @@
 use ai_kanban_backend::api::AppState;
-use ai_kanban_backend::db::{create_pool, LogRepository, TaskRepository};
+use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
+use ai_kanban_backend::db::{create_pool, LogRepository, SessionRepository, TaskRepository};
 use axum_test::TestServer;
 use axum_test::http::StatusCode;
+use std::sync::Arc;
 
 async fn setup_test_server() -> TestServer {
     let db_path = format!("/tmp/test-api-{}.db", uuid::Uuid::new_v4());
     let pool = create_pool(&db_path).await.expect("Failed to create pool");
     let task_repo = TaskRepository::new(pool.clone());
-    let log_repo = LogRepository::new(pool);
-    let state = AppState::new(task_repo, log_repo);
+    let log_repo = LogRepository::new(pool.clone());
+    let session_repo = SessionRepository::new(pool);
+    let manager = Arc::new(ClaudeManager::new(session_repo.clone()));
+    let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
+    let state = AppState::new(task_repo, log_repo, session_repo).with_queue(queue);
     TestServer::new(ai_kanban_backend::api::create_router(state)).unwrap()
 }
 
