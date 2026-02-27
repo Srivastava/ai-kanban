@@ -1,7 +1,8 @@
 'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { Stage } from '@/types/task';
 
@@ -15,8 +16,7 @@ const stages: { value: Stage | 'all'; label: string }[] = [
   { value: 'done', label: 'Done' },
 ];
 
-export function Sidebar() {
-  const pathname = usePathname();
+function SidebarContent() {
   const searchParams = useSearchParams();
   const currentStage = searchParams.get('stage') || 'all';
 
@@ -39,5 +39,28 @@ export function Sidebar() {
         ))}
       </nav>
     </aside>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <Suspense
+      fallback={
+        <aside className="w-64 border-r border-border bg-sidebar min-h-screen p-4">
+          <nav className="space-y-1">
+            {stages.map((stage) => (
+              <div
+                key={stage.value}
+                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground"
+              >
+                {stage.label}
+              </div>
+            ))}
+          </nav>
+        </aside>
+      }
+    >
+      <SidebarContent />
+    </Suspense>
   );
 }
