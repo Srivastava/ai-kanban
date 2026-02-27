@@ -26,9 +26,11 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     tracing::info!("Database initialized at {}", db_path);
+    tracing::info!("Logging system initialized");
 
     // Create state
     let state = AppState::new(task_repo, log_repo);
+    tracing::debug!("Application state created");
 
     // Build app with CORS
     let app = create_router(state).layer(
@@ -39,10 +41,13 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
-    tracing::info!("Listening on {}", addr);
+    tracing::info!("Server starting on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
+    tracing::info!("Server listening on {}", addr);
+
     axum::serve(listener, app).await?;
 
+    tracing::info!("Server shutdown");
     Ok(())
 }
