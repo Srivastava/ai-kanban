@@ -1,0 +1,75 @@
+use serde::{Deserialize, Serialize};
+
+/// Messages from client to server
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ClientMessage {
+    #[serde(rename = "subscribe_task")]
+    SubscribeTask { task_id: String },
+
+    #[serde(rename = "subscribe_session")]
+    SubscribeSession { session_id: String },
+
+    #[serde(rename = "ping")]
+    Ping,
+}
+
+/// Messages from server to client
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ServerMessage {
+    #[serde(rename = "task_updated")]
+    TaskUpdated { task: serde_json::Value },
+
+    #[serde(rename = "session_output")]
+    SessionOutput {
+        session_id: String,
+        output: String,
+        is_error: bool,
+    },
+
+    #[serde(rename = "session_status")]
+    SessionStatus {
+        session_id: String,
+        status: String,
+    },
+
+    #[serde(rename = "pong")]
+    Pong,
+
+    #[serde(rename = "error")]
+    Error { message: String },
+
+    #[serde(rename = "subscribed")]
+    Subscribed { topic: String },
+}
+
+impl ServerMessage {
+    pub fn session_output(session_id: String, output: String, is_error: bool) -> Self {
+        ServerMessage::SessionOutput {
+            session_id,
+            output,
+            is_error,
+        }
+    }
+
+    pub fn session_status(session_id: String, status: String) -> Self {
+        ServerMessage::SessionStatus { session_id, status }
+    }
+
+    pub fn pong() -> Self {
+        ServerMessage::Pong
+    }
+
+    pub fn error(message: impl Into<String>) -> Self {
+        ServerMessage::Error {
+            message: message.into(),
+        }
+    }
+
+    pub fn subscribed(topic: impl Into<String>) -> Self {
+        ServerMessage::Subscribed {
+            topic: topic.into(),
+        }
+    }
+}
