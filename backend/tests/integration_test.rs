@@ -1,3 +1,4 @@
+use ai_kanban_backend::api::{AppState, LogApiState, TaskApiState};
 use ai_kanban_backend::db::{create_pool, LogRepository, TaskRepository};
 use ai_kanban_backend::models::{CreateLog, CreateTask, Log, LogFilter, Stage, Task, UpdateTask};
 
@@ -840,4 +841,55 @@ async fn test_log_repository_combined_filters() {
     }).await.unwrap();
     assert_eq!(filtered.len(), 1);
     assert_eq!(filtered[0].message, "Backend error");
+}
+
+// ==================== AppState Tests ====================
+
+#[tokio::test]
+async fn test_app_state_new() {
+    let (task_repo, log_repo) = setup_test_db().await;
+    
+    let state = AppState::new(task_repo.clone(), log_repo.clone());
+    
+    // Verify the state is created (repositories are Clone)
+    let _ = state.tasks;
+    let _ = state.logs;
+}
+
+#[tokio::test]
+async fn test_app_state_into_task_api_state() {
+    let (task_repo, log_repo) = setup_test_db().await;
+    
+    let state = AppState::new(task_repo, log_repo);
+    let task_api_state: TaskApiState = state.into();
+    
+    // Verify we can use the task repository
+    let task = task_api_state.repo.create(CreateTask {
+        title: "Test".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+    
+    assert!(!task.id.is_empty());
+}
+
+#[tokio::test]
+async fn test_app_state_into_log_api_state() {
+    let (task_repo, log_repo) = setup_test_db().await;
+    
+    let state = AppState::new(task_repo, log_repo);
+    let log_api_state: LogApiState = state.into();
+    
+    // Verify we can use the log repository
+    let log = log_api_state.repo.create(CreateLog {
+        level: "INFO".to_string(),
+        message: "Test".to_string(),
+        target: None,
+        source: None,
+        task_id: None,
+        session_id: None,
+        metadata: None,
+    }).await.unwrap();
+    
+    assert!(log.id > 0);
 }
