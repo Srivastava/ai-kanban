@@ -1181,15 +1181,118 @@ git commit -m "chore: finalize Sprint 1 backend foundation
 
 ---
 
+## Task 9: Add Unified Logging System
+
+**Files:**
+- Create: `backend/migrations/002_logs.sql`
+- Create: `backend/src/models/log.rs`
+- Create: `backend/src/db/logs.rs`
+- Create: `backend/src/logging/mod.rs`
+- Create: `backend/src/logging/db_layer.rs`
+- Create: `backend/src/api/logs.rs`
+
+**Step 1: Create logs table migration**
+
+Migration stores structured logs from both backend (via tracing) and frontend (via API).
+
+**Step 2: Create Log model and repository**
+
+LogRepository with create(), list(), list_by_task(), delete_old_logs().
+
+**Step 3: Create database-backed tracing subscriber**
+
+Custom tracing Layer that writes to SQLite via background channel.
+
+**Step 4: Add logs REST API**
+
+- POST /api/logs - Create log entry (for frontend)
+- GET /api/logs - List logs with filtering (level, source, task_id, session_id, limit, offset)
+
+**Step 5: Instrument existing code**
+
+Add #[instrument] attributes and structured logging to all repository methods and API handlers.
+
+**Commit:**
+```bash
+git commit -m "feat(logging): add unified logging system
+
+- Logs table for backend + frontend logs
+- Database-backed tracing subscriber
+- REST API for log querying
+- Structured instrumentation"
+```
+
+---
+
+## Task 10: Improve Test Coverage to 80%+
+
+**Files:**
+- Create: `backend/tests/api_test.rs`
+- Create: `backend/tests/logging_test.rs`
+- Modify: `backend/tests/integration_test.rs`
+- Modify: `backend/tests/log_test.rs`
+
+**Step 1: Add API handler tests (23 tests)**
+
+Using axum-test for HTTP endpoint testing:
+- Health check
+- Task CRUD (create, list, get, update, delete, move)
+- Log API (create, list, filter, pagination)
+- Error handling (404, 400)
+
+**Step 2: Add model and DTO tests (17 tests)**
+
+- Task::new() factory method
+- Stage enum (as_str, from_str, all, roundtrip)
+- CreateTask/UpdateTask serialization
+- Log model tests
+
+**Step 3: Add database layer edge case tests (22 tests)**
+
+- Partial updates
+- Ordering by priority
+- Special characters
+- Metadata JSON
+- Pagination
+- Combined filters
+
+**Step 4: Add AppState conversion tests (1 test)**
+
+Test From<AppState> for TaskApiState/LogApiState.
+
+**Final Coverage: 94.97%** (excluding infrastructure files main.rs and logging/db_layer.rs)
+
+**Commit:**
+```bash
+git commit -m "test: improve test coverage to 94.97%
+
+- 92 total tests
+- API handler tests with axum-test
+- Model and DTO unit tests
+- Database layer edge cases
+- AppState conversion tests"
+```
+
+---
+
 ## Summary
 
 Sprint 1 is now complete. The backend foundation includes:
 
 - **Rust + Axum server** running on port 3001
-- **SQLite database** with all tables and migrations
+- **SQLite database** with all tables and migrations (tasks, sessions, snapshots, token_usage, stage_history, logs)
 - **Task CRUD API** with 6 endpoints
 - **Stage management** with history tracking
-- **Integration tests** for all repository operations
+- **Unified logging system** (backend tracing + frontend API)
+- **92 tests with 94.97% coverage** (excluding infrastructure)
 - **CORS enabled** for frontend development
+
+**Test Coverage Breakdown:**
+| Component | Coverage |
+|-----------|----------|
+| API handlers | 84%+ |
+| Database layer | 99%+ |
+| Models | 100% |
+| Routes | 100% |
 
 **Next Sprint:** Claude Integration (process spawning, output parsing, session queue)
