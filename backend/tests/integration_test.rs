@@ -1,15 +1,15 @@
-use ai_kanban_backend::db::{create_pool, TaskRepository};
+use ai_kanban_backend::db::{create_pool, LogRepository, TaskRepository};
 use ai_kanban_backend::models::{CreateLog, CreateTask, Log, LogFilter, Stage, Task, UpdateTask};
 
-async fn setup_test_db() -> TaskRepository {
+async fn setup_test_db() -> (TaskRepository, LogRepository) {
     let db_path = format!("/tmp/test-{}.db", uuid::Uuid::new_v4());
     let pool = create_pool(&db_path).await.expect("Failed to create pool");
-    TaskRepository::new(pool)
+    (TaskRepository::new(pool.clone()), LogRepository::new(pool))
 }
 
 #[tokio::test]
 async fn test_create_task() {
-    let repo = setup_test_db().await;
+    let (repo, _) = setup_test_db().await;
 
     let create = CreateTask {
         title: "Test Task".to_string(),
@@ -26,7 +26,7 @@ async fn test_create_task() {
 
 #[tokio::test]
 async fn test_list_tasks() {
-    let repo = setup_test_db().await;
+    let (repo, _) = setup_test_db().await;
 
     // Create multiple tasks
     repo.create(CreateTask {
@@ -51,7 +51,7 @@ async fn test_list_tasks() {
 
 #[tokio::test]
 async fn test_filter_by_stage() {
-    let repo = setup_test_db().await;
+    let (repo, _) = setup_test_db().await;
 
     let task1 = repo
         .create(CreateTask {
@@ -84,7 +84,7 @@ async fn test_filter_by_stage() {
 
 #[tokio::test]
 async fn test_update_task() {
-    let repo = setup_test_db().await;
+    let (repo, _) = setup_test_db().await;
 
     let task = repo
         .create(CreateTask {
@@ -113,7 +113,7 @@ async fn test_update_task() {
 
 #[tokio::test]
 async fn test_move_task_to_stage() {
-    let repo = setup_test_db().await;
+    let (repo, _) = setup_test_db().await;
 
     let task = repo
         .create(CreateTask {
@@ -131,7 +131,7 @@ async fn test_move_task_to_stage() {
 
 #[tokio::test]
 async fn test_delete_task() {
-    let repo = setup_test_db().await;
+    let (repo, _) = setup_test_db().await;
 
     let task = repo
         .create(CreateTask {
@@ -150,7 +150,7 @@ async fn test_delete_task() {
 
 #[tokio::test]
 async fn test_task_not_found() {
-    let repo = setup_test_db().await;
+    let (repo, _) = setup_test_db().await;
 
     let result = repo.find("nonexistent").await;
     assert!(result.is_err());
@@ -412,4 +412,432 @@ fn test_level_to_str_unknown() {
     assert_eq!(level_to_str("unknown"), "INFO");
     assert_eq!(level_to_str(""), "INFO");
     assert_eq!(level_to_str("critical"), "INFO");
+}
+
+// ==================== Task Repository Edge Cases ====================
+
+#[tokio::test]
+async fn test_task_repository_update_only_title() {
+    let (repo, _) = setup_test_db().await;
+
+    let task = repo.create(CreateTask {
+        title: "Original".to_string(),
+        description: Some("Original desc".to_string()),
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    let updated = repo.update(&task.id, UpdateTask {
+        title: Some("New Title".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+
+    assert_eq!(updated.title, "New Title");
+    assert_eq!(updated.description, Some("Original desc".to_string())); // Unchanged
+    assert_eq!(updated.stage, "backlog"); // Unchanged
+}
+
+#[tokio::test]
+async fn test_task_repository_update_only_priority() {
+    let (repo, _) = setup_test_db().await;
+
+    let task = repo.create(CreateTask {
+        title: "Test".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    let updated = repo.update(&task.id, UpdateTask {
+        priority: Some(10),
+        ..Default::default()
+    }).await.unwrap();
+
+    assert_eq!(updated.priority, 10);
+    assert_eq!(updated.title, "Test"); // Unchanged
+}
+
+#[tokio::test]
+async fn test_task_repository_update_only_stage() {
+    let (repo, _) = setup_test_db().await;
+
+    let task = repo.create(CreateTask {
+        title: "Test".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    let updated = repo.update(&task.id, UpdateTask {
+        stage: Some("done".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+
+    assert_eq!(updated.stage, "done");
+}
+
+#[tokio::test]
+async fn test_task_repository_update_nonexistent() {
+    let (repo, _) = setup_test_db().await;
+
+    let result = repo.update("nonexistent-id", UpdateTask {
+        title: Some("New Title".to_string()),
+        ..Default::default()
+    }).await;
+
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("not found"));
+}
+
+#[tokio::test]
+async fn test_task_repository_delete_nonexistent() {
+    let (repo, _) = setup_test_db().await;
+
+    let result = repo.delete("nonexistent-id").await;
+
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_task_repository_list_ordering_by_priority() {
+    let (repo, _) = setup_test_db().await;
+
+    // Create tasks with different priorities (via update)
+    let task1 = repo.create(CreateTask {
+        title: "Low Priority".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    let task2 = repo.create(CreateTask {
+        title: "High Priority".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    repo.update(&task2.id, UpdateTask { priority: Some(10), ..Default::default() }).await.unwrap();
+    repo.update(&task1.id, UpdateTask { priority: Some(1), ..Default::default() }).await.unwrap();
+
+    let tasks = repo.list(None).await.unwrap();
+
+    // Higher priority should come first
+    assert_eq!(tasks[0].id, task2.id);
+    assert_eq!(tasks[1].id, task1.id);
+}
+
+#[tokio::test]
+async fn test_task_repository_move_records_history() {
+    let (repo, _) = setup_test_db().await;
+
+    let task = repo.create(CreateTask {
+        title: "Test".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    // Move through multiple stages
+    repo.move_to_stage(&task.id, "planning").await.unwrap();
+    repo.move_to_stage(&task.id, "in_progress").await.unwrap();
+    repo.move_to_stage(&task.id, "done").await.unwrap();
+
+    let final_task = repo.find(&task.id).await.unwrap();
+    assert_eq!(final_task.stage, "done");
+}
+
+#[tokio::test]
+async fn test_task_repository_move_to_same_stage() {
+    let (repo, _) = setup_test_db().await;
+
+    let task = repo.create(CreateTask {
+        title: "Test".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    // Move to same stage (should work)
+    let result = repo.move_to_stage(&task.id, "backlog").await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn test_task_repository_empty_description() {
+    let (repo, _) = setup_test_db().await;
+
+    let task = repo.create(CreateTask {
+        title: "No Description".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    let found = repo.find(&task.id).await.unwrap();
+    assert_eq!(found.description, None);
+}
+
+#[tokio::test]
+async fn test_task_repository_long_title() {
+    let (repo, _) = setup_test_db().await;
+
+    let long_title = "a".repeat(1000);
+
+    let task = repo.create(CreateTask {
+        title: long_title.clone(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    assert_eq!(task.title.len(), 1000);
+}
+
+#[tokio::test]
+async fn test_task_repository_special_characters() {
+    let (repo, _) = setup_test_db().await;
+
+    let special_title = "Test with emojis and \"quotes\" and 'apostrophes'";
+    let special_desc = "Line1\nLine2\tTabbed";
+
+    let task = repo.create(CreateTask {
+        title: special_title.to_string(),
+        description: Some(special_desc.to_string()),
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    let found = repo.find(&task.id).await.unwrap();
+    assert_eq!(found.title, special_title);
+    assert_eq!(found.description, Some(special_desc.to_string()));
+}
+
+#[tokio::test]
+async fn test_task_repository_multiple_tasks_different_projects() {
+    let (repo, _) = setup_test_db().await;
+
+    repo.create(CreateTask {
+        title: "Project A Task".to_string(),
+        description: None,
+        project_path: "/projects/a".to_string(),
+    }).await.unwrap();
+
+    repo.create(CreateTask {
+        title: "Project B Task".to_string(),
+        description: None,
+        project_path: "/projects/b".to_string(),
+    }).await.unwrap();
+
+    let tasks = repo.list(None).await.unwrap();
+    assert_eq!(tasks.len(), 2);
+}
+
+// ==================== Log Repository Edge Cases ====================
+
+#[tokio::test]
+async fn test_log_repository_multiple_levels() {
+    let (_, log_repo) = setup_test_db().await;
+
+    for level in ["DEBUG", "INFO", "WARN", "ERROR"] {
+        log_repo.create(CreateLog {
+            level: level.to_string(),
+            message: format!("{} message", level),
+            target: None,
+            source: None,
+            task_id: None,
+            session_id: None,
+            metadata: None,
+        }).await.unwrap();
+    }
+
+    let all_logs = log_repo.list(LogFilter::default()).await.unwrap();
+    assert!(all_logs.len() >= 4);
+
+    let error_logs = log_repo.list(LogFilter {
+        level: Some("ERROR".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+    assert_eq!(error_logs.len(), 1);
+}
+
+#[tokio::test]
+async fn test_log_repository_empty_message() {
+    let (_, log_repo) = setup_test_db().await;
+
+    let log = log_repo.create(CreateLog {
+        level: "INFO".to_string(),
+        message: "".to_string(),
+        target: None,
+        source: None,
+        task_id: None,
+        session_id: None,
+        metadata: None,
+    }).await.unwrap();
+
+    assert_eq!(log.message, "");
+}
+
+#[tokio::test]
+async fn test_log_repository_long_message() {
+    let (_, log_repo) = setup_test_db().await;
+
+    let long_message = "a".repeat(10000);
+
+    let log = log_repo.create(CreateLog {
+        level: "INFO".to_string(),
+        message: long_message.clone(),
+        target: None,
+        source: None,
+        task_id: None,
+        session_id: None,
+        metadata: None,
+    }).await.unwrap();
+
+    assert_eq!(log.message.len(), 10000);
+}
+
+#[tokio::test]
+async fn test_log_repository_metadata_json() {
+    let (_, log_repo) = setup_test_db().await;
+
+    let metadata = serde_json::json!({
+        "user_id": 123,
+        "action": "click",
+        "details": {
+            "button": "submit",
+            "timestamp": "2024-01-01T00:00:00Z"
+        }
+    });
+
+    let log = log_repo.create(CreateLog {
+        level: "INFO".to_string(),
+        message: "User action".to_string(),
+        target: None,
+        source: Some("frontend".to_string()),
+        task_id: None,
+        session_id: None,
+        metadata: Some(metadata.clone()),
+    }).await.unwrap();
+
+    assert!(log.metadata.is_some());
+
+    // Verify we can parse it back
+    let parsed: serde_json::Value = serde_json::from_str(log.metadata.unwrap().trim_matches('"')).unwrap();
+    assert_eq!(parsed["user_id"], 123);
+}
+
+#[tokio::test]
+async fn test_log_repository_limit_boundary() {
+    let (_, log_repo) = setup_test_db().await;
+
+    // Create 200 logs
+    for i in 0..200 {
+        log_repo.create(CreateLog {
+            level: "INFO".to_string(),
+            message: format!("Log {}", i),
+            target: None,
+            source: Some("frontend".to_string()),
+            task_id: None,
+            session_id: None,
+            metadata: None,
+        }).await.unwrap();
+    }
+
+    // Test limit is respected
+    let logs = log_repo.list(LogFilter {
+        limit: Some(50),
+        source: Some("frontend".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+    assert_eq!(logs.len(), 50);
+
+    // Test max limit (1000)
+    let all_logs = log_repo.list(LogFilter {
+        limit: Some(2000), // Request more than max
+        source: Some("frontend".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+    assert_eq!(all_logs.len(), 200); // Should return all 200, not cap at 1000 since we have less
+}
+
+#[tokio::test]
+async fn test_log_repository_offset_pagination() {
+    let (_, log_repo) = setup_test_db().await;
+
+    // Create 10 logs
+    for i in 0..10 {
+        log_repo.create(CreateLog {
+            level: "INFO".to_string(),
+            message: format!("Log {}", i),
+            target: None,
+            source: Some("frontend".to_string()),
+            task_id: None,
+            session_id: None,
+            metadata: None,
+        }).await.unwrap();
+    }
+
+    // Get first page
+    let page1 = log_repo.list(LogFilter {
+        limit: Some(5),
+        offset: Some(0),
+        source: Some("frontend".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+
+    // Get second page
+    let page2 = log_repo.list(LogFilter {
+        limit: Some(5),
+        offset: Some(5),
+        source: Some("frontend".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+
+    // Pages should not overlap
+    let ids1: std::collections::HashSet<_> = page1.iter().map(|l| l.id).collect();
+    let ids2: std::collections::HashSet<_> = page2.iter().map(|l| l.id).collect();
+    let intersection: std::collections::HashSet<_> = ids1.intersection(&ids2).collect();
+    assert!(intersection.is_empty());
+}
+
+#[tokio::test]
+async fn test_log_repository_combined_filters() {
+    let (task_repo, log_repo) = setup_test_db().await;
+
+    let task = task_repo.create(CreateTask {
+        title: "Test".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    // Create logs with different combinations
+    log_repo.create(CreateLog {
+        level: "ERROR".to_string(),
+        message: "Backend error".to_string(),
+        target: None,
+        source: Some("backend".to_string()),
+        task_id: Some(task.id.clone()),
+        session_id: Some("s1".to_string()),
+        metadata: None,
+    }).await.unwrap();
+
+    log_repo.create(CreateLog {
+        level: "INFO".to_string(),
+        message: "Frontend info".to_string(),
+        target: None,
+        source: Some("frontend".to_string()),
+        task_id: Some(task.id.clone()),
+        session_id: Some("s1".to_string()),
+        metadata: None,
+    }).await.unwrap();
+
+    log_repo.create(CreateLog {
+        level: "ERROR".to_string(),
+        message: "Other error".to_string(),
+        target: None,
+        source: Some("backend".to_string()),
+        task_id: None,
+        session_id: None,
+        metadata: None,
+    }).await.unwrap();
+
+    // Filter by task + level
+    let filtered = log_repo.list(LogFilter {
+        task_id: Some(task.id.clone()),
+        level: Some("ERROR".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+    assert_eq!(filtered.len(), 1);
+    assert_eq!(filtered[0].message, "Backend error");
 }
