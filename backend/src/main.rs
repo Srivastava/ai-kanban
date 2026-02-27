@@ -2,6 +2,7 @@ use ai_kanban_backend::api::{create_router, AppState};
 use ai_kanban_backend::claude::ClaudeManager;
 use ai_kanban_backend::db::{create_pool, LogRepository, SessionRepository, TaskRepository};
 use ai_kanban_backend::logging::DbLayer;
+use axum::Extension;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
@@ -21,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     // Initialize Claude manager and session queue
     let claude_manager = Arc::new(ClaudeManager::new(session_repo.clone()));
     let queue = Arc::new(ai_kanban_backend::claude::SessionQueue::new(
-        claude_manager,
+        claude_manager.clone(),
         task_repo.clone(),
     ));
 
@@ -42,13 +43,15 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState::new(task_repo, log_repo, session_repo).with_queue(queue);
     tracing::debug!("Application state created");
 
-    // Build app with CORS
-    let app = create_router(state).layer(
-        CorsLayer::new()
-            .allow_origin(Any)
-            .allow_methods(Any)
-            .allow_headers(Any),
-    );
+    // Build app with CORS and Extension for WebSocket
+    let app = create_router(state)
+        .layer(Extension(claude_manager.clone()))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        );
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
     tracing::info!("Server starting on {}", addr);
