@@ -41,7 +41,7 @@ export function useUpdateTask() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateTask }) =>
       apiClient<Task>(`/api/tasks/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         body: JSON.stringify(data),
       }),
     onSuccess: (_, { id }) => {

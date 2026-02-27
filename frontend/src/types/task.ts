@@ -5,6 +5,8 @@ export interface Task {
   title: string;
   description: string | null;
   stage: Stage;
+  project_path: string;
+  session_id: string | null;
   priority: number;
   created_at: string;
   updated_at: string;
@@ -13,8 +15,7 @@ export interface Task {
 export interface CreateTask {
   title: string;
   description?: string;
-  stage?: Stage;
-  priority?: number;
+  project_path: string;
 }
 
 export interface UpdateTask {

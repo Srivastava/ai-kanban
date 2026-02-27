@@ -12,35 +12,19 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useCreateTask } from '@/hooks/use-tasks';
-import type { Stage } from '@/types/task';
-
-const stages: { value: Stage; label: string }[] = [
-  { value: 'backlog', label: 'Backlog' },
-  { value: 'planning', label: 'Planning' },
-  { value: 'ready', label: 'Ready' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'review', label: 'Review' },
-  { value: 'done', label: 'Done' },
-];
 
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+const DEFAULT_PROJECT_PATH = '/';
+
 export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [stage, setStage] = useState<Stage>('backlog');
-  const [priority, setPriority] = useState('0');
+  const [projectPath, setProjectPath] = useState(DEFAULT_PROJECT_PATH);
 
   const createTask = useCreateTask();
 
@@ -52,15 +36,13 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     await createTask.mutateAsync({
       title: title.trim(),
       description: description.trim() || undefined,
-      stage,
-      priority: parseInt(priority, 10) || 0,
+      project_path: projectPath.trim() || DEFAULT_PROJECT_PATH,
     });
 
     // Reset form
     setTitle('');
     setDescription('');
-    setStage('backlog');
-    setPriority('0');
+    setProjectPath(DEFAULT_PROJECT_PATH);
     onOpenChange(false);
   };
 
@@ -99,36 +81,16 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
                 rows={3}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="stage" className="text-sm font-medium">
-                  Stage
-                </label>
-                <Select value={stage} onValueChange={(v) => setStage(v as Stage)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select stage" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {stages.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>
-                        {s.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="priority" className="text-sm font-medium">
-                  Priority
-                </label>
-                <Input
-                  id="priority"
-                  type="number"
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value)}
-                  placeholder="0"
-                />
-              </div>
+            <div className="grid gap-2">
+              <label htmlFor="projectPath" className="text-sm font-medium">
+                Project Path
+              </label>
+              <Input
+                id="projectPath"
+                value={projectPath}
+                onChange={(e) => setProjectPath(e.target.value)}
+                placeholder="/"
+              />
             </div>
           </div>
           <DialogFooter>
