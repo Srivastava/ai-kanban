@@ -102,8 +102,30 @@ impl TaskRepository {
     }
 
     pub async fn delete(&self, id: &str) -> Result<()> {
+        // First verify task exists
+        let task = self.find(id).await?;
+
+        // Delete related records in child tables
+        sqlx::query("DELETE FROM stage_history WHERE task_id = ?")
+            .bind(&task.id)
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM token_usage WHERE task_id = ?")
+            .bind(&task.id)
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM snapshots WHERE task_id = ?")
+            .bind(&task.id)
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM sessions WHERE task_id = ?")
+            .bind(&task.id)
+            .execute(&self.pool)
+            .await?;
+
+        // Then delete the task
         let result = sqlx::query("DELETE FROM tasks WHERE id = ?")
-            .bind(id)
+            .bind(&task.id)
             .execute(&self.pool)
             .await?;
 
