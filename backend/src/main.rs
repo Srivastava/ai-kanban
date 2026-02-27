@@ -1,27 +1,34 @@
-use ai_kanban_backend::api::{create_router, TaskApiState};
-use ai_kanban_backend::db::{create_pool, TaskRepository};
+use ai_kanban_backend::api::{create_router, AppState};
+use ai_kanban_backend::db::{create_pool, LogRepository, TaskRepository};
+use ai_kanban_backend::logging::DbLayer;
 use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
     // Initialize database
     let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data/ai-kanban.db".into());
     let pool = create_pool(&db_path).await?;
+
+    // Create repositories
+    let task_repo = TaskRepository::new(pool.clone());
+    let log_repo = LogRepository::new(pool.clone());
+
+    // Initialize logging with DB layer
+    let db_layer = DbLayer::new(log_repo.clone());
+    tracing_subscriber::registry()
+        .with(EnvFilter::new(
+            std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into()),
+        ))
+        .with(tracing_subscriber::fmt::layer())
+        .with(db_layer)
+        .init();
+
     tracing::info!("Database initialized at {}", db_path);
 
     // Create state
-    let state = TaskApiState {
-        repo: TaskRepository::new(pool),
-    };
+    let state = AppState::new(task_repo, log_repo);
 
     // Build app with CORS
     let app = create_router(state).layer(
