@@ -21,6 +21,7 @@ export default function LogsPage() {
   const [levelFilter, setLevelFilter] = useState<LogLevel | undefined>();
   const [sourceFilter, setSourceFilter] = useState<LogSource | undefined>();
   const [search, setSearch] = useState('');
+  const [taskIdFilter, setTaskIdFilter] = useState('');
   const [isLive, setIsLive] = useState(true);
 
   useEffect(() => {
@@ -34,9 +35,13 @@ export default function LogsPage() {
     logger.debug('LogsPage: filter changed', { levelFilter, sourceFilter, search, isLive });
   }, [levelFilter, sourceFilter, search, isLive]);
 
+  // UUID pattern — only pass to server when input looks complete
+  const isUuid = (s: string) => /^[0-9a-f-]{36}$/i.test(s.trim());
+
   const serverFilter = {
     level: levelFilter,
     source: sourceFilter,
+    task_id: isUuid(taskIdFilter) ? taskIdFilter.trim() : undefined,
   };
 
   const { logs, isLoading, newCount, loadNewLogs, isLiveRef } = useLogs(serverFilter);
@@ -50,6 +55,7 @@ export default function LogsPage() {
   const clientFilter: LogFilter = {
     ...serverFilter,
     search: search || undefined,
+    task_id: serverFilter.task_id,
   };
 
   useEffect(() => {
@@ -157,6 +163,32 @@ export default function LogsPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 max-w-xs rounded-md border border-border bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           />
+
+          {/* Task ID filter */}
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              placeholder="Task ID (UUID)..."
+              value={taskIdFilter}
+              onChange={(e) => setTaskIdFilter(e.target.value)}
+              className={`w-72 rounded-md border bg-background px-3 py-1.5 pr-7 text-sm font-mono placeholder:text-muted-foreground placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-ring transition-colors ${
+                taskIdFilter && isUuid(taskIdFilter)
+                  ? 'border-primary ring-1 ring-primary/30'
+                  : taskIdFilter
+                  ? 'border-amber-400'
+                  : 'border-border'
+              }`}
+            />
+            {taskIdFilter && (
+              <button
+                onClick={() => setTaskIdFilter('')}
+                className="absolute right-2 text-muted-foreground hover:text-foreground text-xs"
+                title="Clear task filter"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {/* New logs banner */}

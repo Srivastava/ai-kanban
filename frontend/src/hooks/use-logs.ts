@@ -30,14 +30,18 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
       if (filter.source) params.set('source', filter.source);
       if (filter.task_id) params.set('task_id', filter.task_id);
       if (filter.session_id) params.set('session_id', filter.session_id);
-      // Fetch logs from the last 1 hour
-      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      params.set('since', since);
+      // Fetch logs from the last 1 hour — skip when filtering by task/session
+      // so older logs from a specific task are still visible
+      if (!filter.task_id && !filter.session_id) {
+        const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        params.set('since', since);
+      }
       params.set('limit', '500');
       const url = `/api/logs?${params.toString()}`;
       logger.debug('useLogs: built URL', { url, filter });
       return url;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [filter.level, filter.source, filter.task_id, filter.session_id]
   );
 
