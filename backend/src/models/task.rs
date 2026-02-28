@@ -12,6 +12,7 @@ pub struct Task {
     pub project_path: String,
     pub session_id: Option<String>,
     pub priority: i32,
+    pub context: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -29,6 +30,7 @@ pub struct UpdateTask {
     pub description: Option<String>,
     pub stage: Option<String>,
     pub priority: Option<i32>,
+    pub context: Option<String>,
 }
 
 impl Task {
@@ -42,6 +44,7 @@ impl Task {
             project_path: create.project_path,
             session_id: None,
             priority: 0,
+            context: None,
             created_at: now,
             updated_at: now,
         }

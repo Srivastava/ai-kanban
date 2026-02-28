@@ -63,8 +63,8 @@ impl TaskRepository {
 
         sqlx::query(
             r#"
-            INSERT INTO tasks (id, title, description, stage, project_path, session_id, priority, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (id, title, description, stage, project_path, session_id, priority, context, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&task.id)
@@ -74,6 +74,7 @@ impl TaskRepository {
         .bind(&task.project_path)
         .bind(&task.session_id)
         .bind(task.priority)
+        .bind(&task.context)
         .bind(task.created_at.to_rfc3339())
         .bind(task.updated_at.to_rfc3339())
         .execute(&self.pool)
@@ -107,12 +108,15 @@ impl TaskRepository {
         if let Some(priority) = update.priority {
             task.priority = priority;
         }
+        if let Some(context) = update.context {
+            task.context = Some(context);
+        }
         task.updated_at = chrono::Utc::now();
 
         sqlx::query(
             r#"
             UPDATE tasks
-            SET title = ?, description = ?, stage = ?, priority = ?, updated_at = ?
+            SET title = ?, description = ?, stage = ?, priority = ?, context = ?, updated_at = ?
             WHERE id = ?
             "#,
         )
@@ -120,6 +124,7 @@ impl TaskRepository {
         .bind(&task.description)
         .bind(&task.stage)
         .bind(task.priority)
+        .bind(&task.context)
         .bind(task.updated_at.to_rfc3339())
         .bind(id)
         .execute(&self.pool)

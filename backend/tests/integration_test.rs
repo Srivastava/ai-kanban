@@ -180,6 +180,7 @@ fn test_task_new() {
     assert_eq!(task.project_path, "/tmp/project");
     assert_eq!(task.session_id, None);
     assert_eq!(task.priority, 0);
+    assert_eq!(task.context, None);
     // Verify timestamps are recent
     let now = chrono::Utc::now();
     let diff = now.signed_duration_since(task.created_at);
@@ -207,6 +208,7 @@ fn test_update_task_default() {
     assert!(update.description.is_none());
     assert!(update.stage.is_none());
     assert!(update.priority.is_none());
+    assert!(update.context.is_none());
 }
 
 // ==================== Stage Enum Tests ====================
@@ -294,6 +296,7 @@ fn test_update_task_serialization() {
         description: None,
         stage: Some("in_progress".to_string()),
         priority: Some(5),
+        context: None,
     };
 
     let json = serde_json::to_string(&update).unwrap();
@@ -311,6 +314,7 @@ fn test_update_task_deserialization_partial() {
     assert_eq!(update.description, None);
     assert_eq!(update.stage, None);
     assert_eq!(update.priority, None);
+    assert_eq!(update.context, None);
 }
 
 // ==================== Task Serialization Tests ====================
@@ -573,6 +577,35 @@ async fn test_task_repository_empty_description() {
 
     let found = repo.find(&task.id).await.unwrap();
     assert_eq!(found.description, None);
+}
+
+#[tokio::test]
+async fn test_task_repository_context_field() {
+    let (repo, _, _) = setup_test_db().await;
+
+    // Create task without context
+    let task = repo.create(CreateTask {
+        title: "Test Context".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    // Verify context is None initially
+    let found = repo.find(&task.id).await.unwrap();
+    assert_eq!(found.context, None);
+
+    // Update with context
+    let markdown_context = "# Task Context\n\nThis is some markdown content.\n\n- Item 1\n- Item 2";
+    let updated = repo.update(&task.id, UpdateTask {
+        context: Some(markdown_context.to_string()),
+        ..Default::default()
+    }).await.unwrap();
+
+    assert_eq!(updated.context, Some(markdown_context.to_string()));
+
+    // Verify it persists
+    let found_again = repo.find(&task.id).await.unwrap();
+    assert_eq!(found_again.context, Some(markdown_context.to_string()));
 }
 
 #[tokio::test]
