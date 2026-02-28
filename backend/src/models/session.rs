@@ -17,7 +17,7 @@ pub struct Session {
 pub enum SessionStatus {
     Pending,
     Running,
-    Paused,
+    Stopped,
     Completed,
     Failed,
 }
@@ -27,7 +27,7 @@ impl SessionStatus {
         match self {
             SessionStatus::Pending => "pending",
             SessionStatus::Running => "running",
-            SessionStatus::Paused => "paused",
+            SessionStatus::Stopped => "stopped",
             SessionStatus::Completed => "completed",
             SessionStatus::Failed => "failed",
         }
@@ -37,7 +37,7 @@ impl SessionStatus {
         match s {
             "pending" => Some(SessionStatus::Pending),
             "running" => Some(SessionStatus::Running),
-            "paused" => Some(SessionStatus::Paused),
+            "stopped" => Some(SessionStatus::Stopped),
             "completed" => Some(SessionStatus::Completed),
             "failed" => Some(SessionStatus::Failed),
             _ => None,
@@ -45,7 +45,7 @@ impl SessionStatus {
     }
 
     pub fn all() -> &'static [&'static str] {
-        &["pending", "running", "paused", "completed", "failed"]
+        &["pending", "running", "stopped", "completed", "failed"]
     }
 }
 

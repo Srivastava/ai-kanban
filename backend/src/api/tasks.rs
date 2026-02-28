@@ -123,8 +123,11 @@ async fn delete_task(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     info!(task_id = %id, "API: Deleting task");
-    // Stop any running Claude process for this task
+    // Remove from pending queue and stop any running Claude process for this task
     if let Some(queue) = &state.queue {
+        // Remove from pending queue first
+        let _ = queue.dequeue(&id).await;
+        // Then stop any running session
         if let Some(session_id) = queue.get_active_session_for_task(&id).await {
             let _ = queue.stop_session(&session_id).await;
         }

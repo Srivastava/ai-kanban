@@ -212,7 +212,7 @@ async fn test_session_delete_not_found() {
 fn test_session_status_as_str() {
     assert_eq!(SessionStatus::Pending.as_str(), "pending");
     assert_eq!(SessionStatus::Running.as_str(), "running");
-    assert_eq!(SessionStatus::Paused.as_str(), "paused");
+    assert_eq!(SessionStatus::Stopped.as_str(), "stopped");
     assert_eq!(SessionStatus::Completed.as_str(), "completed");
     assert_eq!(SessionStatus::Failed.as_str(), "failed");
 }
@@ -221,7 +221,7 @@ fn test_session_status_as_str() {
 fn test_session_status_from_str() {
     assert_eq!(SessionStatus::from_str("pending"), Some(SessionStatus::Pending));
     assert_eq!(SessionStatus::from_str("running"), Some(SessionStatus::Running));
-    assert_eq!(SessionStatus::from_str("paused"), Some(SessionStatus::Paused));
+    assert_eq!(SessionStatus::from_str("stopped"), Some(SessionStatus::Stopped));
     assert_eq!(SessionStatus::from_str("completed"), Some(SessionStatus::Completed));
     assert_eq!(SessionStatus::from_str("failed"), Some(SessionStatus::Failed));
     assert_eq!(SessionStatus::from_str("invalid"), None);
@@ -233,7 +233,7 @@ fn test_session_status_all() {
     assert_eq!(all.len(), 5);
     assert!(all.contains(&"pending"));
     assert!(all.contains(&"running"));
-    assert!(all.contains(&"paused"));
+    assert!(all.contains(&"stopped"));
     assert!(all.contains(&"completed"));
     assert!(all.contains(&"failed"));
 }
