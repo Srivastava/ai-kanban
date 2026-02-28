@@ -7,14 +7,6 @@ import { useTasks } from '@/hooks/use-tasks';
 function KanbanContent() {
   const { data: tasks = [], isLoading, error } = useTasks();
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading tasks...</p>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -23,7 +15,7 @@ function KanbanContent() {
     );
   }
 
-  return <KanbanBoard tasks={tasks} />;
+  return <KanbanBoard tasks={tasks} isLoading={isLoading} />;
 }
 
 export default function KanbanPage() {

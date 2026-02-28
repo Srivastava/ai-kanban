@@ -3,6 +3,7 @@
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { KanbanCard } from './kanban-card';
+import { KanbanCardSkeleton } from './kanban-card-skeleton';
 import type { Task, Stage } from '@/types/task';
 
 const stageLabels: Record<Stage, string> = {
@@ -17,9 +18,10 @@ const stageLabels: Record<Stage, string> = {
 interface KanbanColumnProps {
   stage: Stage;
   tasks: Task[];
+  isLoading?: boolean;
 }
 
-export function KanbanColumn({ stage, tasks }: KanbanColumnProps) {
+export function KanbanColumn({ stage, tasks, isLoading }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage,
   });
@@ -38,15 +40,25 @@ export function KanbanColumn({ stage, tasks }: KanbanColumnProps) {
           isOver ? 'bg-muted/50' : ''
         }`}
       >
-        <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
-          {tasks.map((task) => (
-            <KanbanCard key={task.id} task={task} />
-          ))}
-        </SortableContext>
-        {tasks.length === 0 && (
-          <div className="text-center text-muted-foreground text-sm py-8">
-            No tasks
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <KanbanCardSkeleton key={i} />
+            ))}
           </div>
+        ) : (
+          <>
+            <SortableContext items={tasks.map(t => t.id)} strategy={verticalListSortingStrategy}>
+              {tasks.map((task) => (
+                <KanbanCard key={task.id} task={task} />
+              ))}
+            </SortableContext>
+            {tasks.length === 0 && (
+              <div className="text-center text-muted-foreground text-sm py-8">
+                No tasks
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

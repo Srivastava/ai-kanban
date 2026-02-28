@@ -19,9 +19,10 @@ const stages: Stage[] = ['backlog', 'planning', 'ready', 'in_progress', 'review'
 
 interface KanbanBoardProps {
   tasks: Task[];
+  isLoading?: boolean;
 }
 
-export function KanbanBoard({ tasks }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, isLoading }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const updateTask = useUpdateTask();
 
@@ -74,6 +75,7 @@ export function KanbanBoard({ tasks }: KanbanBoardProps) {
             key={stage}
             stage={stage}
             tasks={tasksByStage[stage]}
+            isLoading={isLoading}
           />
         ))}
       </div>

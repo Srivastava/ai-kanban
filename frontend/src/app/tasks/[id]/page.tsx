@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTask } from '@/hooks/use-tasks';
 import { TaskDetail } from '@/components/tasks/task-detail';
+import { TaskDetailSkeleton } from '@/components/tasks/task-detail-skeleton';
 
 export default function TaskDetailPage() {
   const params = useParams();
@@ -15,8 +16,16 @@ export default function TaskDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-muted-foreground">Loading task...</p>
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border px-6 py-4">
+          <Button variant="ghost" onClick={() => router.back()}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+        </header>
+        <main className="max-w-4xl mx-auto p-6">
+          <TaskDetailSkeleton />
+        </main>
       </div>
     );
   }

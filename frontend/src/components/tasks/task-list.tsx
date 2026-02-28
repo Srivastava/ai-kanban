@@ -1,6 +1,7 @@
 'use client';
 
 import { TaskCard } from './task-card';
+import { TaskCardSkeleton } from './task-card-skeleton';
 import type { Task } from '@/types/task';
 
 interface TaskListProps {
@@ -11,8 +12,10 @@ interface TaskListProps {
 export function TaskList({ tasks, isLoading }: TaskListProps) {
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">Loading tasks...</p>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <TaskCardSkeleton key={i} />
+        ))}
       </div>
     );
   }
