@@ -18,6 +18,11 @@ export async function apiClient<T>(
 ): Promise<T> {
   const url = `${getApiBase()}${endpoint}`;
   const method = options?.method ?? 'GET';
+  // Extract task_id / session_id from URL for richer error logs
+  const taskIdMatch = endpoint.match(/\/api\/tasks\/([0-9a-f-]{36})/i);
+  const sessionIdMatch = endpoint.match(/\/api\/sessions\/([0-9a-f-]{36})/i);
+  const urlTaskId = taskIdMatch?.[1];
+  const urlSessionId = sessionIdMatch?.[1];
 
   // Pre-fetch validation
   if (!endpoint) {
@@ -43,7 +48,8 @@ export async function apiClient<T>(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      logger.error(`API error response`, {
+      const errLog = logger.withContext({ task_id: urlTaskId, session_id: urlSessionId });
+      errLog.error(`API error response`, {
         method,
         endpoint,
         status: response.status,
@@ -69,7 +75,8 @@ export async function apiClient<T>(
     if (error instanceof ApiError) throw error;
 
     // Log network/unexpected errors
-    logger.error(`API network error`, {
+    const netLog = logger.withContext({ task_id: urlTaskId, session_id: urlSessionId });
+    netLog.error(`API network error`, {
       method,
       endpoint,
       url,

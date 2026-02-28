@@ -61,7 +61,10 @@ impl ClaudeManager {
 
         let prompt = build_prompt(&task.title, task.description.as_deref(), stage);
 
-        let mut child = Command::new("claude")
+        let claude_bin = std::env::var("CLAUDE_BIN")
+            .unwrap_or_else(|_| "/home/utility/.local/bin/claude".to_string());
+
+        let mut child = Command::new(&claude_bin)
             .arg("--print")
             .arg("--output-format").arg("stream-json")
             .arg(&prompt)
@@ -69,7 +72,7 @@ impl ClaudeManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| anyhow!("Failed to spawn Claude: {}", e))?;
+            .map_err(|e| anyhow!("Failed to spawn Claude (bin={}): {}", claude_bin, e))?;
 
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
         let stderr = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
