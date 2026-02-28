@@ -79,7 +79,14 @@ export function LogTable({ logs, filter }: Props) {
     .filter((log) => {
       if (filter.level && log.level !== filter.level) return false;
       if (filter.source && log.source !== filter.source) return false;
-      if (filter.search && !log.message.toLowerCase().includes(filter.search.toLowerCase())) return false;
+      if (filter.search) {
+        const q = filter.search.toLowerCase();
+        const inMessage = log.message.toLowerCase().includes(q);
+        const inMetadata = log.metadata ? log.metadata.toLowerCase().includes(q) : false;
+        const inTaskId = log.task_id ? log.task_id.toLowerCase().includes(q) : false;
+        const inTarget = log.target ? log.target.toLowerCase().includes(q) : false;
+        if (!inMessage && !inMetadata && !inTaskId && !inTarget) return false;
+      }
       return true;
     })
     .sort((a, b) => {

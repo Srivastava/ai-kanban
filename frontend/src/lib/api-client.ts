@@ -24,13 +24,16 @@ export async function apiClient<T>(
   const urlTaskId = taskIdMatch?.[1];
   const urlSessionId = sessionIdMatch?.[1];
 
+  // Scoped logger carrying task_id/session_id for all log calls in this request
+  const log = logger.withContext({ task_id: urlTaskId, session_id: urlSessionId });
+
   // Pre-fetch validation
   if (!endpoint) {
-    logger.error('API client called with empty endpoint', { options });
+    log.error('API client called with empty endpoint', { options });
     throw new Error('API endpoint is required');
   }
 
-  logger.debug(`API request starting`, {
+  log.debug(`API request starting`, {
     method,
     endpoint,
     url,
@@ -48,8 +51,7 @@ export async function apiClient<T>(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Unknown error');
-      const errLog = logger.withContext({ task_id: urlTaskId, session_id: urlSessionId });
-      errLog.error(`API error response`, {
+      log.error(`API error response`, {
         method,
         endpoint,
         status: response.status,
@@ -58,7 +60,7 @@ export async function apiClient<T>(
       throw new ApiError(response.status, errorText);
     }
 
-    logger.debug(`API request succeeded`, {
+    log.debug(`API request succeeded`, {
       method,
       endpoint,
       status: response.status,
@@ -74,9 +76,7 @@ export async function apiClient<T>(
     // Re-throw ApiError as-is (already logged above)
     if (error instanceof ApiError) throw error;
 
-    // Log network/unexpected errors
-    const netLog = logger.withContext({ task_id: urlTaskId, session_id: urlSessionId });
-    netLog.error(`API network error`, {
+    log.error(`API network error`, {
       method,
       endpoint,
       url,
