@@ -3,6 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 import { TaskSection } from './task-section';
 import { CommentThread } from './comment-thread';
+import { SessionControls } from '@/components/sessions/session-controls';
 import { useComments } from '@/hooks/use-comments';
 import type { Task, Stage } from '@/types/task';
 
@@ -49,6 +50,21 @@ export function TaskDetail({ task }: TaskDetailProps) {
       <TaskSection title="Context">
         <div className="prose prose-sm dark:prose-invert max-w-none">
           {task.context || <p className="text-muted-foreground italic">No context added yet</p>}
+        </div>
+      </TaskSection>
+
+      <TaskSection title="Session">
+        <div className="space-y-3">
+          <SessionControls
+            taskId={task.id}
+            sessionId={task.session_id || undefined}
+            status={task.session_id ? 'running' : undefined}
+          />
+          {task.session_id && (
+            <p className="text-xs text-muted-foreground">
+              Session ID: {task.session_id}
+            </p>
+          )}
         </div>
       </TaskSection>
 
