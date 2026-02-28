@@ -1,0 +1,283 @@
+use crate::db::{AnalyticsRepository, TokenEventRepository};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
+use serde::Deserialize;
+use tracing::{debug, error, info, instrument};
+
+use super::AppState;
+
+#[derive(Clone)]
+pub struct AnalyticsApiState {
+    pub analytics: AnalyticsRepository,
+}
+
+impl From<AppState> for AnalyticsApiState {
+    fn from(state: AppState) -> Self {
+        AnalyticsApiState {
+            analytics: AnalyticsRepository::new(state.token_events.pool().clone()),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+struct DaysQuery {
+    #[serde(default = "default_days")]
+    days: i64,
+}
+
+fn default_days() -> i64 {
+    30
+}
+
+#[derive(Deserialize, Debug)]
+struct WeeksQuery {
+    #[serde(default = "default_weeks")]
+    weeks: i64,
+}
+
+fn default_weeks() -> i64 {
+    12
+}
+
+#[derive(Deserialize, Debug)]
+struct MonthsQuery {
+    #[serde(default = "default_months")]
+    months: i64,
+}
+
+fn default_months() -> i64 {
+    12
+}
+
+pub fn analytics_routes() -> Router<AnalyticsApiState> {
+    Router::new()
+        .route("/overview", get(overview))
+        .route("/tokens/daily", get(daily_tokens))
+        .route("/tokens/weekly", get(weekly_tokens))
+        .route("/tokens/monthly", get(monthly_tokens))
+        .route("/tokens/by-task", get(tokens_by_task))
+        .route("/tokens/by-session", get(tokens_by_session))
+        .route("/tokens/by-tool", get(tokens_by_tool))
+        .route("/tokens/by-language", get(tokens_by_language))
+        .route("/tokens/efficiency", get(token_efficiency))
+        .route("/sessions/:id/timeline", get(session_timeline))
+}
+
+#[instrument(skip(state))]
+async fn overview(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    info!("API: Getting analytics overview");
+    match state.analytics.overview().await {
+        Ok(overview) => {
+            debug!("API: Analytics overview retrieved");
+            Json(overview).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get analytics overview");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn daily_tokens(
+    State(state): State<AnalyticsApiState>,
+    Query(query): Query<DaysQuery>,
+) -> impl IntoResponse {
+    info!(days = query.days, "API: Getting daily tokens");
+    match state.analytics.daily_tokens(query.days).await {
+        Ok(tokens) => {
+            debug!(count = tokens.len(), "API: Daily tokens retrieved");
+            Json(tokens).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get daily tokens");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn weekly_tokens(
+    State(state): State<AnalyticsApiState>,
+    Query(query): Query<WeeksQuery>,
+) -> impl IntoResponse {
+    info!(weeks = query.weeks, "API: Getting weekly tokens");
+    match state.analytics.weekly_tokens(query.weeks).await {
+        Ok(tokens) => {
+            debug!(count = tokens.len(), "API: Weekly tokens retrieved");
+            Json(tokens).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get weekly tokens");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn monthly_tokens(
+    State(state): State<AnalyticsApiState>,
+    Query(query): Query<MonthsQuery>,
+) -> impl IntoResponse {
+    info!(months = query.months, "API: Getting monthly tokens");
+    match state.analytics.monthly_tokens(query.months).await {
+        Ok(tokens) => {
+            debug!(count = tokens.len(), "API: Monthly tokens retrieved");
+            Json(tokens).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get monthly tokens");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn tokens_by_task(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    info!("API: Getting tokens by task");
+    match state.analytics.tokens_by_task().await {
+        Ok(tokens) => {
+            debug!(count = tokens.len(), "API: Tokens by task retrieved");
+            Json(tokens).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get tokens by task");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn tokens_by_session(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    info!("API: Getting tokens by session");
+    match state.analytics.tokens_by_session().await {
+        Ok(tokens) => {
+            debug!(count = tokens.len(), "API: Tokens by session retrieved");
+            Json(tokens).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get tokens by session");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn tokens_by_tool(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    info!("API: Getting tokens by tool");
+    match state.analytics.tokens_by_tool().await {
+        Ok(tokens) => {
+            debug!(count = tokens.len(), "API: Tokens by tool retrieved");
+            Json(tokens).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get tokens by tool");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn tokens_by_language(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    info!("API: Getting tokens by language");
+    match state.analytics.tokens_by_language().await {
+        Ok(tokens) => {
+            debug!(count = tokens.len(), "API: Tokens by language retrieved");
+            Json(tokens).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get tokens by language");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn token_efficiency(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    info!("API: Getting token efficiency");
+    match state.analytics.token_efficiency().await {
+        Ok(efficiency) => {
+            debug!(count = efficiency.len(), "API: Token efficiency retrieved");
+            Json(efficiency).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get token efficiency");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn session_timeline(
+    State(state): State<AnalyticsApiState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    info!(session_id = %session_id, "API: Getting session timeline");
+    match state.analytics.session_timeline(&session_id).await {
+        Ok(timeline) => {
+            debug!(count = timeline.len(), "API: Session timeline retrieved");
+            Json(timeline).into_response()
+        }
+        Err(e) => {
+            error!(session_id = %session_id, error = %e, "API: Failed to get session timeline");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}

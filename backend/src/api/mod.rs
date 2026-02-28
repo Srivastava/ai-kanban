@@ -89,6 +89,7 @@ impl From<AppState> for CommentApiState {
     }
 }
 
+mod analytics;
 mod comments;
 mod logs;
 mod routes;

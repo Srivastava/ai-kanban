@@ -12,6 +12,10 @@ impl TokenEventRepository {
         Self { pool }
     }
 
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
     pub async fn create(&self, create: CreateTokenEvent) -> Result<TokenEvent> {
         let now = chrono::Utc::now();
         let seq = create.sequence_no.unwrap_or(0);
