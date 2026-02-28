@@ -40,6 +40,17 @@ function SidebarContent() {
         >
           Kanban Board
         </Link>
+        <Link
+          href="/analytics"
+          className={cn(
+            'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            pathname === '/analytics'
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+          )}
+        >
+          Analytics
+        </Link>
         <div className="h-px bg-border my-2" />
         {stages.map((stage) => (
           <Link
@@ -68,6 +79,9 @@ export function Sidebar() {
           <nav className="space-y-1">
             <div className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground">
               Kanban Board
+            </div>
+            <div className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground">
+              Analytics
             </div>
             <div className="h-px bg-border my-2" />
             {stages.map((stage) => (
