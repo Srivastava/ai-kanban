@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
@@ -15,6 +15,13 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
   const isLiveRef = useRef(true);
 
   logger.debug('useLogs hook called', { filter, isLive: isLiveRef.current });
+
+  // Reset logs when server-side filter changes so stale data from prior filter doesn't linger
+  useEffect(() => {
+    setLogs([]);
+    setNewCount(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter.level, filter.source, filter.task_id, filter.session_id]);
 
   const buildUrl = useCallback(
     () => {
@@ -32,7 +39,7 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
   );
 
   const { isLoading } = useQuery({
-    queryKey: ['logs', filter],
+    queryKey: ['logs', filter.level, filter.source, filter.task_id, filter.session_id],
     queryFn: async () => {
       const url = buildUrl();
       logger.debug('useLogs: fetching logs', { url });

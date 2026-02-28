@@ -80,7 +80,7 @@ export function KanbanBoard({ tasks, isLoading }: KanbanBoardProps) {
         ))}
       </div>
       <DragOverlay>
-        {activeTask ? <KanbanCard task={activeTask} /> : null}
+        {activeTask ? <KanbanCard task={activeTask} isOverlay /> : null}
       </DragOverlay>
     </DndContext>
   );

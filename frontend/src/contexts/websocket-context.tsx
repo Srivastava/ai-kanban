@@ -14,7 +14,10 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
+const WS_URL =
+  typeof window !== 'undefined'
+    ? `ws://${window.location.hostname}:3001/ws`
+    : 'ws://localhost:3001/ws';
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [ws, setWs] = useState<WebSocket | null>(null);

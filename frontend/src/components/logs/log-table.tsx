@@ -1,133 +1,259 @@
 'use client';
 
-import { useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
+import { useState, useCallback, Fragment } from 'react';
 import { LogLevelBadge } from './log-level-badge';
 import { cn } from '@/lib/utils';
 import type { LogEntry, LogFilter, LogLevel } from '@/types/log';
+
+type SortKey = 'timestamp' | 'level' | 'source' | 'message';
+type SortDir = 'asc' | 'desc';
+
+const TZ = 'America/Los_Angeles';
+
+function formatLogTime(iso: string): string {
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+    hour12: false,
+  }).format(d);
+}
+
+function formatFullTime(iso: string): string {
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    fractionalSecondDigits: 3,
+    hour12: false,
+    timeZoneName: 'short',
+  }).format(d);
+}
+
+const LEVEL_ORDER: Record<LogLevel, number> = { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
 interface Props {
   logs: LogEntry[];
   filter: LogFilter;
 }
 
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  if (!active) {
+    return <span className="ml-1 opacity-25 text-[10px]">⇅</span>;
+  }
+  return <span className="ml-1 text-[10px]">{dir === 'asc' ? '↑' : '↓'}</span>;
+}
+
 export function LogTable({ logs, filter }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('timestamp');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
-  // Client-side text filter
-  const visible = logs.filter((log) => {
-    if (filter.search && !log.message.toLowerCase().includes(filter.search.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
+  const handleSort = useCallback((key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      setSortDir('desc');
+      return key;
+    });
+  }, []);
+
+  const visible = logs
+    .filter((log) => {
+      if (filter.level && log.level !== filter.level) return false;
+      if (filter.source && log.source !== filter.source) return false;
+      if (filter.search && !log.message.toLowerCase().includes(filter.search.toLowerCase())) return false;
+      return true;
+    })
+    .sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === 'timestamp') cmp = a.timestamp.localeCompare(b.timestamp);
+      else if (sortKey === 'level') cmp = LEVEL_ORDER[a.level as LogLevel] - LEVEL_ORDER[b.level as LogLevel];
+      else if (sortKey === 'source') cmp = a.source.localeCompare(b.source);
+      else if (sortKey === 'message') cmp = a.message.localeCompare(b.message);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
 
   if (visible.length === 0) {
     return (
-      <div className="flex items-center justify-center h-48">
+      <div className="flex items-center justify-center h-48 rounded-xl border border-border">
         <p className="text-muted-foreground text-sm">No logs match the current filters</p>
       </div>
     );
   }
 
-  return (
-    <div className="rounded-xl border border-border overflow-hidden">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-border bg-muted/30">
-            <th className="px-4 py-2 text-left font-medium text-muted-foreground w-32">Time</th>
-            <th className="px-4 py-2 text-left font-medium text-muted-foreground w-20">Level</th>
-            <th className="px-4 py-2 text-left font-medium text-muted-foreground w-24">Source</th>
-            <th className="px-4 py-2 text-left font-medium text-muted-foreground w-40">Target</th>
-            <th className="px-4 py-2 text-left font-medium text-muted-foreground">Message</th>
-            <th className="px-4 py-2 text-left font-medium text-muted-foreground w-24">Task</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {visible.map((log) => (
-            <>
-              <tr
-                key={log.id}
-                onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
-                className={cn(
-                  'cursor-pointer transition-colors hover:bg-muted/20',
-                  log.level === 'ERROR' && 'border-l-2 border-red-500 bg-red-500/5',
-                  log.level === 'WARN' && 'border-l-2 border-amber-500/50'
-                )}
-              >
-                <td className="px-4 py-2 text-xs text-muted-foreground font-mono whitespace-nowrap">
-                  <span title={log.timestamp}>
-                    {formatDistanceToNow(new Date(log.timestamp), { addSuffix: true })}
-                  </span>
-                </td>
-                <td className="px-4 py-2">
-                  <LogLevelBadge level={log.level as LogLevel} />
-                </td>
-                <td className="px-4 py-2 text-xs">
-                  <span
-                    className={cn(
-                      'font-mono',
-                      log.source === 'frontend' ? 'text-blue-400' : 'text-purple-400'
-                    )}
-                  >
-                    {log.source}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-xs text-muted-foreground font-mono truncate max-w-[160px]">
-                  {log.target ?? '—'}
-                </td>
-                <td className="px-4 py-2 text-xs max-w-0">
-                  <span className="block truncate">{log.message}</span>
-                </td>
-                <td className="px-4 py-2 text-xs text-muted-foreground font-mono truncate">
-                  {log.task_id ? log.task_id.slice(0, 8) + '…' : '—'}
-                </td>
-              </tr>
+  const thClass =
+    'px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground select-none cursor-pointer hover:text-foreground transition-colors whitespace-nowrap';
+  const thStaticClass =
+    'px-3 py-2.5 text-left text-xs font-semibold text-muted-foreground whitespace-nowrap';
 
-              {expandedId === log.id && (
-                <tr key={`${log.id}-detail`} className="bg-muted/10">
-                  <td colSpan={6} className="px-4 py-3">
-                    <div className="space-y-2 text-xs">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <span className="text-muted-foreground">Full timestamp:</span>{' '}
-                          <span className="font-mono">{log.timestamp}</span>
-                        </div>
-                        {log.task_id && (
+  return (
+    <div className="rounded-xl border border-border overflow-hidden flex flex-col">
+      <div className="overflow-auto max-h-[calc(100vh-300px)]">
+        <table className="w-full text-xs border-collapse">
+          <thead className="sticky top-0 z-10">
+            <tr className="border-b border-border bg-muted/60 backdrop-blur-sm">
+              <th className={thClass} style={{ width: 110 }} onClick={() => handleSort('timestamp')}>
+                Time <SortIcon active={sortKey === 'timestamp'} dir={sortDir} />
+              </th>
+              <th className={thClass} style={{ width: 72 }} onClick={() => handleSort('level')}>
+                Level <SortIcon active={sortKey === 'level'} dir={sortDir} />
+              </th>
+              <th className={thClass} style={{ width: 82 }} onClick={() => handleSort('source')}>
+                Source <SortIcon active={sortKey === 'source'} dir={sortDir} />
+              </th>
+              <th className={thStaticClass} style={{ width: 150 }}>
+                Target
+              </th>
+              <th className={thClass} onClick={() => handleSort('message')}>
+                Message <SortIcon active={sortKey === 'message'} dir={sortDir} />
+              </th>
+              <th className={thStaticClass} style={{ width: 88 }}>
+                Task
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((log, i) => (
+              <Fragment key={log.id}>
+                <tr
+                  onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+                  className={cn(
+                    'cursor-pointer transition-colors border-b border-border/40',
+                    i % 2 === 0 ? 'bg-background' : 'bg-muted/10',
+                    'hover:bg-primary/5',
+                    log.level === 'ERROR' &&
+                      'border-l-2 !border-l-red-500 bg-red-500/5 hover:bg-red-500/10',
+                    log.level === 'WARN' &&
+                      'border-l-2 !border-l-amber-400 bg-amber-500/5 hover:bg-amber-500/10',
+                    expandedId === log.id && '!bg-primary/8'
+                  )}
+                >
+                  <td className="px-3 py-1.5 font-mono text-muted-foreground whitespace-nowrap" title={formatFullTime(log.timestamp)}>
+                    {formatLogTime(log.timestamp)}
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <LogLevelBadge level={log.level as LogLevel} />
+                  </td>
+                  <td className="px-3 py-1.5">
+                    <span
+                      className={cn(
+                        'font-mono font-semibold',
+                        log.source === 'frontend' ? 'text-blue-400' : 'text-purple-400'
+                      )}
+                    >
+                      {log.source}
+                    </span>
+                  </td>
+                  <td
+                    className="px-3 py-1.5 font-mono text-muted-foreground truncate"
+                    style={{ maxWidth: 150 }}
+                    title={log.target ?? undefined}
+                  >
+                    {log.target ?? '—'}
+                  </td>
+                  <td className="px-3 py-1.5 max-w-0">
+                    <span
+                      className="block truncate text-foreground/90"
+                      title={log.message}
+                    >
+                      {log.message}
+                    </span>
+                  </td>
+                  <td className="px-3 py-1.5 font-mono text-muted-foreground whitespace-nowrap">
+                    {log.task_id ? (
+                      <button
+                        className="hover:text-foreground transition-colors cursor-pointer"
+                        title={`Click to copy: ${log.task_id}`}
+                        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(log.task_id!); }}
+                      >
+                        {log.task_id.slice(0, 8)}…
+                      </button>
+                    ) : '—'}
+                  </td>
+                </tr>
+
+                {expandedId === log.id && (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className={cn(
+                        'px-5 py-3 border-b border-border/40',
+                        'bg-muted/25 border-l-2',
+                        log.level === 'ERROR' ? 'border-l-red-500' : 'border-l-primary/40'
+                      )}
+                    >
+                      <div className="space-y-2 text-xs">
+                        <div className="flex flex-wrap gap-x-6 gap-y-1">
                           <div>
-                            <span className="text-muted-foreground">Task ID:</span>{' '}
-                            <span className="font-mono">{log.task_id}</span>
+                            <span className="text-muted-foreground">Timestamp: </span>
+                            <span className="font-mono">{formatFullTime(log.timestamp)}</span>
+                          </div>
+                          {log.task_id && (
+                            <div>
+                              <span className="text-muted-foreground">Task ID: </span>
+                              <span className="font-mono">{log.task_id}</span>
+                            </div>
+                          )}
+                          {log.session_id && (
+                            <div>
+                              <span className="text-muted-foreground">Session ID: </span>
+                              <span className="font-mono">{log.session_id}</span>
+                            </div>
+                          )}
+                        </div>
+                        {log.target && (
+                          <div>
+                            <span className="text-muted-foreground">Target: </span>
+                            <span className="font-mono">{log.target}</span>
                           </div>
                         )}
-                        {log.session_id && (
+                        {log.metadata && (
                           <div>
-                            <span className="text-muted-foreground">Session ID:</span>{' '}
-                            <span className="font-mono">{log.session_id}</span>
+                            <span className="text-muted-foreground block mb-1">Metadata:</span>
+                            <pre className="bg-muted rounded-lg p-2.5 overflow-auto max-h-48 text-xs leading-relaxed font-mono">
+                              {(() => {
+                                try {
+                                  return JSON.stringify(JSON.parse(log.metadata), null, 2);
+                                } catch {
+                                  return log.metadata;
+                                }
+                              })()}
+                            </pre>
                           </div>
                         )}
                       </div>
-                      {log.metadata && (
-                        <div>
-                          <span className="text-muted-foreground block mb-1">Metadata:</span>
-                          <pre className="bg-muted rounded p-2 overflow-auto max-h-32 text-xs">
-                            {(() => {
-                              try {
-                                return JSON.stringify(JSON.parse(log.metadata), null, 2);
-                              } catch {
-                                return log.metadata;
-                              }
-                            })()}
-                          </pre>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </>
-          ))}
-        </tbody>
-      </table>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="border-t border-border px-4 py-2 bg-muted/20 flex items-center justify-between shrink-0">
+        <span className="text-xs text-muted-foreground">
+          Showing <span className="font-medium text-foreground">{visible.length}</span> log
+          {visible.length !== 1 ? 's' : ''}
+          {logs.length !== visible.length && (
+            <span> &nbsp;·&nbsp; {logs.length} total loaded</span>
+          )}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          Sorted by <span className="font-medium text-foreground">{sortKey}</span>{' '}
+          {sortDir === 'asc' ? '↑' : '↓'}
+        </span>
+      </div>
     </div>
   );
 }

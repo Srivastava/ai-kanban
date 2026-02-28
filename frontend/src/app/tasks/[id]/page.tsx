@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useTask } from '@/hooks/use-tasks';
+import { useTask, useDeleteTask } from '@/hooks/use-tasks';
 import { TaskDetail } from '@/components/tasks/task-detail';
 import { TaskDetailSkeleton } from '@/components/tasks/task-detail-skeleton';
 
@@ -13,6 +13,13 @@ export default function TaskDetailPage() {
   const taskId = params.id as string;
 
   const { data: task, isLoading, error } = useTask(taskId);
+  const { mutate: deleteTask, isPending: isDeleting } = useDeleteTask();
+
+  const handleDelete = () => {
+    deleteTask(taskId, {
+      onSuccess: () => router.push('/'),
+    });
+  };
 
   if (isLoading) {
     return (
@@ -47,7 +54,7 @@ export default function TaskDetailPage() {
         </Button>
       </header>
       <main className="max-w-4xl mx-auto p-6">
-        <TaskDetail task={task} />
+        <TaskDetail task={task} onDelete={handleDelete} isDeleting={isDeleting} />
       </main>
     </div>
   );

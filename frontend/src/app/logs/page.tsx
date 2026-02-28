@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { LogTable } from '@/components/logs/log-table';
+import { LogStatsBar } from '@/components/logs/log-stats-bar';
+import { RecentErrorsPanel } from '@/components/logs/recent-errors-panel';
+import { LogRateChart } from '@/components/logs/log-rate-chart';
 import { useLogs } from '@/hooks/use-logs';
 import { logger } from '@/lib/logger';
 import type { LogLevel, LogSource, LogFilter } from '@/types/log';
@@ -37,6 +40,10 @@ export default function LogsPage() {
   };
 
   const { logs, isLoading, newCount, loadNewLogs, isLiveRef } = useLogs(serverFilter);
+
+  // Unfiltered query dedicated to powering the debug widgets so they always
+  // reflect the full log set regardless of the active level/source filter.
+  const { logs: allLogs } = useLogs({});
 
   isLiveRef.current = isLive;
 
@@ -162,8 +169,21 @@ export default function LogsPage() {
           </button>
         )}
 
-        {/* Table */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-6 space-y-4">
+          {/* Stats bar */}
+          <LogStatsBar
+            logs={allLogs}
+            activeLevel={levelFilter}
+            onLevelClick={handleLevelFilterChange}
+          />
+
+          {/* Log rate sparkline */}
+          <LogRateChart logs={allLogs} />
+
+          {/* Recent errors */}
+          <RecentErrorsPanel logs={allLogs} />
+
+          {/* Table */}
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => (

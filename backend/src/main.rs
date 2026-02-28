@@ -67,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
                 .allow_headers(Any),
         );
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3001));
     tracing::info!("Server starting on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;

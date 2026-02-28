@@ -1,4 +1,7 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+function getApiBase() {
+  if (typeof window !== 'undefined') return `http://${window.location.hostname}:3001`;
+  return 'http://localhost:3001';
+}
 const FLUSH_INTERVAL_MS = 5_000; // Reduced from 10s to 5s
 const MAX_BUFFER_SIZE = 10; // Reduced from 20 to 10
 
@@ -30,7 +33,7 @@ class Logger {
       this.flushTimer = setInterval(() => this.flush(), FLUSH_INTERVAL_MS);
       window.addEventListener('beforeunload', () => this.flushSync());
       // Log that logger is initialized
-      this.info('Logger initialized', { apiBase: API_BASE, flushInterval: FLUSH_INTERVAL_MS });
+      this.info('Logger initialized', { apiBase: getApiBase(), flushInterval: FLUSH_INTERVAL_MS });
     }
   }
 
@@ -107,7 +110,7 @@ class Logger {
     try {
       const results = await Promise.allSettled(
         entries.map((entry) =>
-          fetch(`${API_BASE}/api/logs`, {
+          fetch(`${getApiBase()}/api/logs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(entry),
@@ -129,7 +132,7 @@ class Logger {
     for (const entry of entries) {
       try {
         navigator.sendBeacon(
-          `${API_BASE}/api/logs`,
+          `${getApiBase()}/api/logs`,
           new Blob([JSON.stringify(entry)], { type: 'application/json' })
         );
       } catch {

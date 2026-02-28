@@ -1,6 +1,9 @@
 import { logger } from '@/lib/logger';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+function getApiBase() {
+  if (typeof window !== 'undefined') return `http://${window.location.hostname}:3001`;
+  return 'http://localhost:3001';
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -13,7 +16,7 @@ export async function apiClient<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  const url = `${API_BASE}${endpoint}`;
+  const url = `${getApiBase()}${endpoint}`;
   const method = options?.method ?? 'GET';
 
   // Pre-fetch validation
