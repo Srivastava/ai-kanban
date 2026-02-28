@@ -31,6 +31,7 @@ pub struct UpdateTask {
     pub stage: Option<String>,
     pub priority: Option<i32>,
     pub context: Option<String>,
+    pub session_id: Option<String>,
 }
 
 impl Task {

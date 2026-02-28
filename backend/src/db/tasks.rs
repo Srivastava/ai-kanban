@@ -111,12 +111,15 @@ impl TaskRepository {
         if let Some(context) = update.context {
             task.context = Some(context);
         }
+        if let Some(session_id) = update.session_id {
+            task.session_id = Some(session_id);
+        }
         task.updated_at = chrono::Utc::now();
 
         sqlx::query(
             r#"
             UPDATE tasks
-            SET title = ?, description = ?, stage = ?, priority = ?, context = ?, updated_at = ?
+            SET title = ?, description = ?, stage = ?, priority = ?, context = ?, session_id = ?, updated_at = ?
             WHERE id = ?
             "#,
         )
@@ -125,6 +128,7 @@ impl TaskRepository {
         .bind(&task.stage)
         .bind(task.priority)
         .bind(&task.context)
+        .bind(&task.session_id)
         .bind(task.updated_at.to_rfc3339())
         .bind(id)
         .execute(&self.pool)

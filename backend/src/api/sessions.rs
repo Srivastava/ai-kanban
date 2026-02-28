@@ -62,16 +62,12 @@ async fn get_session(
     State(state): State<SessionApiState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    if state.queue.is_session_active(&id).await {
-        Json(serde_json::json!({
-            "id": id,
-            "status": "running"
-        })).into_response()
-    } else {
-        (
+    match state.session_repo.find(&id).await {
+        Ok(session) => Json(session).into_response(),
+        Err(_) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "error": "Session not found" })),
-        ).into_response()
+        ).into_response(),
     }
 }
 

@@ -28,6 +28,7 @@ pub struct LogApiState {
 #[derive(Clone)]
 pub struct SessionApiState {
     pub queue: Arc<SessionQueue>,
+    pub session_repo: SessionRepository,
 }
 
 #[derive(Clone)]
@@ -81,6 +82,7 @@ impl From<AppState> for SessionApiState {
     fn from(state: AppState) -> Self {
         SessionApiState {
             queue: state.queue.expect("SessionQueue not initialized"),
+            session_repo: state.sessions,
         }
     }
 }

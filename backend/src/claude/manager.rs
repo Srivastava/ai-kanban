@@ -1,7 +1,7 @@
 use crate::claude::jsonl_parser::parse_jsonl_line;
 use crate::claude::prompts::build_prompt;
 use crate::db::{CommentRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
-use crate::models::{CreateTokenEvent, Session, Task, UpdateSession};
+use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -113,6 +113,17 @@ impl ClaudeManager {
             status: Some("running".to_string()),
             ..Default::default()
         }).await?;
+
+        // Link session to task
+        let task_repo_link = self.task_repo.clone();
+        let task_id_link = task_id.clone();
+        let session_id_link = session.id.clone();
+        tokio::spawn(async move {
+            let _ = task_repo_link.update(&task_id_link, UpdateTask {
+                session_id: Some(session_id_link),
+                ..Default::default()
+            }).await;
+        });
 
         // Snapshot project metrics at session start
         let project_metrics = count_project_files(&task_id);
