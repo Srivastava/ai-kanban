@@ -1,4 +1,5 @@
 mod manager;
+pub mod jsonl_parser;
 mod prompts;
 mod queue;
 
