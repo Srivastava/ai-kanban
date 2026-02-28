@@ -1,7 +1,7 @@
 use crate::claude::jsonl_parser::parse_jsonl_line;
 use crate::claude::prompts::build_prompt;
 use crate::db::{SessionMetricsRepository, SessionRepository, TokenEventRepository};
-use crate::models::{CreateTokenEvent, Session, Task};
+use crate::models::{CreateTokenEvent, Session, Task, UpdateSession};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -120,7 +120,7 @@ impl ClaudeManager {
         let output_tx = self.output_tx.clone();
         let token_event_repo = self.token_event_repo.clone();
         let task_id_for_events = task_id.clone();
-        tokio::task::spawn_blocking(move || {
+        let stdout_handle = tokio::task::spawn_blocking(move || {
             let reader = BufReader::new(stdout);
             let mut sequence_no: i64 = 0;
             for line in reader.lines() {
@@ -160,7 +160,7 @@ impl ClaudeManager {
 
         let session_id = session.id.clone();
         let output_tx = self.output_tx.clone();
-        tokio::task::spawn_blocking(move || {
+        let stderr_handle = tokio::task::spawn_blocking(move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines() {
                 if let Ok(text) = line {
@@ -172,6 +172,44 @@ impl ClaudeManager {
                     });
                 }
             }
+        });
+
+        // Completion task: once stdout+stderr close, wait on child, update session status
+        let session_id_for_completion = session.id.clone();
+        let active_sessions_for_completion = self.active_sessions.clone();
+        let session_repo_for_completion = self.session_repo.clone();
+        tokio::spawn(async move {
+            // Wait for both I/O reader threads to finish (they exit when streams close)
+            let _ = stdout_handle.await;
+            let _ = stderr_handle.await;
+
+            // Take the child out of active_sessions
+            let child_opt = {
+                let mut sessions = active_sessions_for_completion.write().await;
+                sessions.remove(&session_id_for_completion).map(|rs| rs.child)
+            };
+
+            // Wait on child to reap the zombie and get exit status
+            let exit_ok = if let Some(mut child) = child_opt {
+                match tokio::task::spawn_blocking(move || child.wait()).await {
+                    Ok(Ok(status)) => {
+                        info!(session_id = %session_id_for_completion, exit_code = ?status.code(), "Claude process exited");
+                        status.success()
+                    }
+                    _ => false,
+                }
+            } else {
+                // Session was already removed (e.g. manually stopped)
+                return;
+            };
+
+            let final_status = if exit_ok { "completed" } else { "failed" };
+            info!(session_id = %session_id_for_completion, status = %final_status, "Marking session complete");
+            let _ = session_repo_for_completion.update(&session_id_for_completion, UpdateSession {
+                status: Some(final_status.to_string()),
+                ended_at: Some(chrono::Utc::now()),
+                ..Default::default()
+            }).await;
         });
 
         Ok(session.id)
