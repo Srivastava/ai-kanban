@@ -1,6 +1,7 @@
+use crate::claude::jsonl_parser::parse_jsonl_line;
 use crate::claude::prompts::build_prompt;
-use crate::db::SessionRepository;
-use crate::models::{Session, Task};
+use crate::db::{SessionMetricsRepository, SessionRepository, TokenEventRepository};
+use crate::models::{CreateTokenEvent, Session, Task};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -26,15 +27,23 @@ pub struct ClaudeManager {
     active_sessions: Arc<RwLock<HashMap<String, RunningSession>>>,
     output_tx: broadcast::Sender<SessionOutput>,
     session_repo: SessionRepository,
+    token_event_repo: TokenEventRepository,
+    session_metrics_repo: SessionMetricsRepository,
 }
 
 impl ClaudeManager {
-    pub fn new(session_repo: SessionRepository) -> Self {
+    pub fn new(
+        session_repo: SessionRepository,
+        token_event_repo: TokenEventRepository,
+        session_metrics_repo: SessionMetricsRepository,
+    ) -> Self {
         let (output_tx, _) = broadcast::channel(1024);
         Self {
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
             output_tx,
             session_repo,
+            token_event_repo,
+            session_metrics_repo,
         }
     }
 
@@ -54,6 +63,7 @@ impl ClaudeManager {
 
         let mut child = Command::new("claude")
             .arg("--print")
+            .arg("--output-format").arg("stream-json")
             .arg(&prompt)
             .current_dir(&task.project_path)
             .stdout(Stdio::piped())
@@ -64,6 +74,7 @@ impl ClaudeManager {
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
         let stderr = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
 
+        let task_id = task.id.clone();
         {
             let mut sessions = self.active_sessions.write().await;
             sessions.insert(session.id.clone(), RunningSession {
@@ -78,13 +89,48 @@ impl ClaudeManager {
             ..Default::default()
         }).await?;
 
+        // Snapshot project metrics at session start
+        let project_metrics = count_project_files(&task_id);
+        let metrics_repo = self.session_metrics_repo.clone();
+        let session_id_for_metrics = session.id.clone();
+        tokio::spawn(async move {
+            let _ = metrics_repo.upsert(&session_id_for_metrics, project_metrics.0, project_metrics.1).await;
+        });
+
+        // Process stdout with JSONL parsing
         let session_id = session.id.clone();
         let output_tx = self.output_tx.clone();
+        let token_event_repo = self.token_event_repo.clone();
+        let task_id_for_events = task_id.clone();
         tokio::task::spawn_blocking(move || {
             let reader = BufReader::new(stdout);
+            let mut sequence_no: i64 = 0;
             for line in reader.lines() {
                 if let Ok(text) = line {
                     debug!(session_id = %session_id, "stdout: {}", text);
+
+                    // Try to parse as JSONL and extract token events
+                    if let Some(parsed) = parse_jsonl_line(&text) {
+                        let rt = tokio::runtime::Handle::current();
+                        let event = CreateTokenEvent {
+                            session_id: session_id.clone(),
+                            task_id: task_id_for_events.clone(),
+                            event_type: parsed.event_type,
+                            tool_name: parsed.tool_name,
+                            file_ext: parsed.file_ext,
+                            input_tokens: parsed.input_tokens,
+                            output_tokens: parsed.output_tokens,
+                            model: parsed.model,
+                            sequence_no: Some(sequence_no),
+                        };
+                        sequence_no += 1;
+
+                        let repo = token_event_repo.clone();
+                        rt.spawn(async move {
+                            let _ = repo.create(event).await;
+                        });
+                    }
+
                     let _ = output_tx.send(SessionOutput {
                         session_id: session_id.clone(),
                         line: text,
@@ -134,4 +180,33 @@ impl ClaudeManager {
     pub async fn is_active(&self, session_id: &str) -> bool {
         self.active_sessions.read().await.contains_key(session_id)
     }
+}
+
+fn count_project_files(project_path: &str) -> (i64, i64) {
+    use std::fs;
+    let mut file_count: i64 = 0;
+    let mut loc: i64 = 0;
+
+    fn visit_dir(path: &std::path::Path, file_count: &mut i64, loc: &mut i64) {
+        let Ok(entries) = fs::read_dir(path) else { return };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
+                if name.starts_with('.') || name == "node_modules" || name == "target" {
+                    continue;
+                }
+            }
+            if p.is_dir() {
+                visit_dir(&p, file_count, loc);
+            } else if p.is_file() {
+                *file_count += 1;
+                if let Ok(content) = fs::read_to_string(&p) {
+                    *loc += content.lines().count() as i64;
+                }
+            }
+        }
+    }
+
+    visit_dir(std::path::Path::new(project_path), &mut file_count, &mut loc);
+    (file_count, loc)
 }

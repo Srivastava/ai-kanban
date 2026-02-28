@@ -1,6 +1,6 @@
 use ai_kanban_backend::api::AppState;
 use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
-use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, SessionRepository, TaskRepository};
+use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use axum_test::TestServer;
 use axum_test::http::StatusCode;
 use std::sync::Arc;
@@ -11,10 +11,12 @@ async fn setup_test_server() -> TestServer {
     let task_repo = TaskRepository::new(pool.clone());
     let log_repo = LogRepository::new(pool.clone());
     let session_repo = SessionRepository::new(pool.clone());
-    let comment_repo = CommentRepository::new(pool);
-    let manager = Arc::new(ClaudeManager::new(session_repo.clone()));
+    let comment_repo = CommentRepository::new(pool.clone());
+    let token_event_repo = TokenEventRepository::new(pool.clone());
+    let session_metrics_repo = SessionMetricsRepository::new(pool);
+    let manager = Arc::new(ClaudeManager::new(session_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone()));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo).with_queue(queue);
+    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo).with_queue(queue);
     TestServer::new(ai_kanban_backend::api::create_router(state)).unwrap()
 }
 

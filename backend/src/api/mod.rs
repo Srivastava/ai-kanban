@@ -1,4 +1,4 @@
-use crate::db::{CommentRepository, LogRepository, SessionRepository, TaskRepository};
+use crate::db::{CommentRepository, LogRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use crate::claude::SessionQueue;
 use std::sync::Arc;
 
@@ -9,6 +9,8 @@ pub struct AppState {
     pub logs: LogRepository,
     pub sessions: SessionRepository,
     pub comments: CommentRepository,
+    pub token_events: TokenEventRepository,
+    pub session_metrics: SessionMetricsRepository,
     pub queue: Option<Arc<SessionQueue>>,
 }
 
@@ -38,12 +40,16 @@ impl AppState {
         logs: LogRepository,
         sessions: SessionRepository,
         comments: CommentRepository,
+        token_events: TokenEventRepository,
+        session_metrics: SessionMetricsRepository,
     ) -> Self {
         Self {
             tasks,
             logs,
             sessions,
             comments,
+            token_events,
+            session_metrics,
             queue: None,
         }
     }
