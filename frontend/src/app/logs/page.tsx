@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { LogTable } from '@/components/logs/log-table';
 import { useLogs } from '@/hooks/use-logs';
+import { logger } from '@/lib/logger';
 import type { LogLevel, LogSource, LogFilter } from '@/types/log';
 
 const LEVELS: LogLevel[] = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
@@ -19,6 +20,17 @@ export default function LogsPage() {
   const [search, setSearch] = useState('');
   const [isLive, setIsLive] = useState(true);
 
+  useEffect(() => {
+    logger.info('LogsPage mounted');
+    return () => {
+      logger.debug('LogsPage unmounted');
+    };
+  }, []);
+
+  useEffect(() => {
+    logger.debug('LogsPage: filter changed', { levelFilter, sourceFilter, search, isLive });
+  }, [levelFilter, sourceFilter, search, isLive]);
+
   const serverFilter = {
     level: levelFilter,
     source: sourceFilter,
@@ -31,6 +43,32 @@ export default function LogsPage() {
   const clientFilter: LogFilter = {
     ...serverFilter,
     search: search || undefined,
+  };
+
+  useEffect(() => {
+    logger.debug('LogsPage: logs updated', { count: logs.length, newCount, isLoading });
+  }, [logs.length, newCount, isLoading]);
+
+  const handleLevelFilterChange = (level: LogLevel | undefined) => {
+    logger.debug('LogsPage: level filter changed', { newLevel: level, previousLevel: levelFilter });
+    setLevelFilter(level);
+  };
+
+  const handleSourceFilterChange = (source: LogSource | undefined) => {
+    logger.debug('LogsPage: source filter changed', { newSource: source, previousSource: sourceFilter });
+    setSourceFilter(source);
+  };
+
+  const handleLiveToggle = () => {
+    const newValue = !isLive;
+    logger.debug('LogsPage: live toggle changed', { isLive: newValue });
+    setIsLive(newValue);
+  };
+
+  const handleLoadNewLogs = () => {
+    logger.debug('LogsPage: loading new logs', { newCount });
+    setIsLive(true);
+    loadNewLogs();
   };
 
   return (
@@ -48,7 +86,7 @@ export default function LogsPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Live</span>
             <button
-              onClick={() => setIsLive((v) => !v)}
+              onClick={handleLiveToggle}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                 isLive ? 'bg-primary' : 'bg-muted'
               }`}
@@ -67,7 +105,7 @@ export default function LogsPage() {
           {/* Level pills */}
           <div className="flex gap-1">
             <button
-              onClick={() => setLevelFilter(undefined)}
+              onClick={() => handleLevelFilterChange(undefined)}
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                 !levelFilter ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
               }`}
@@ -77,7 +115,7 @@ export default function LogsPage() {
             {LEVELS.map((l) => (
               <button
                 key={l}
-                onClick={() => setLevelFilter(levelFilter === l ? undefined : l)}
+                onClick={() => handleLevelFilterChange(levelFilter === l ? undefined : l)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                   levelFilter === l ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
                 }`}
@@ -92,7 +130,7 @@ export default function LogsPage() {
             {SOURCES.map((s) => (
               <button
                 key={s.value}
-                onClick={() => setSourceFilter(s.value === '' ? undefined : s.value as LogSource)}
+                onClick={() => handleSourceFilterChange(s.value === '' ? undefined : s.value as LogSource)}
                 className={`px-3 py-1 text-xs font-medium transition-colors ${
                   (sourceFilter ?? '') === s.value
                     ? 'bg-primary text-primary-foreground'
@@ -117,10 +155,7 @@ export default function LogsPage() {
         {/* New logs banner */}
         {newCount > 0 && (
           <button
-            onClick={() => {
-              setIsLive(true);
-              loadNewLogs();
-            }}
+            onClick={handleLoadNewLogs}
             className="mx-6 mt-3 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-sm text-primary text-center hover:bg-primary/20 transition-colors"
           >
             {newCount} new log{newCount > 1 ? 's' : ''} — click to load

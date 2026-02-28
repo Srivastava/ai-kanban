@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { logger } from '@/lib/logger';
 import type { LogEntry, LogFilter } from '@/types/log';
 
 const POLL_INTERVAL = 5_000;
@@ -13,6 +14,8 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
   const lastTimestampRef = useRef<string | null>(null);
   const isLiveRef = useRef(true);
 
+  logger.debug('useLogs hook called', { filter, isLive: isLiveRef.current });
+
   const buildUrl = useCallback(
     () => {
       const params = new URLSearchParams();
@@ -21,7 +24,9 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
       if (filter.task_id) params.set('task_id', filter.task_id);
       if (filter.session_id) params.set('session_id', filter.session_id);
       params.set('limit', '100');
-      return `/api/logs?${params.toString()}`;
+      const url = `/api/logs?${params.toString()}`;
+      logger.debug('useLogs: built URL', { url, filter });
+      return url;
     },
     [filter.level, filter.source, filter.task_id, filter.session_id]
   );
@@ -30,14 +35,21 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
     queryKey: ['logs', filter],
     queryFn: async () => {
       const url = buildUrl();
+      logger.debug('useLogs: fetching logs', { url });
       const fresh = await apiClient<LogEntry[]>(url);
+      logger.debug('useLogs: fetch complete', { count: fresh.length });
 
       setLogs((prev) => {
         // Deduplicate by id, keep newest first
         const existingIds = new Set(prev.map((l) => l.id));
         const newEntries = fresh.filter((l) => !existingIds.has(l.id));
 
-        if (newEntries.length === 0) return prev;
+        if (newEntries.length === 0) {
+          logger.debug('useLogs: no new entries', { prevCount: prev.length });
+          return prev;
+        }
+
+        logger.debug('useLogs: adding new entries', { newCount: newEntries.length, prevCount: prev.length, isLive: isLiveRef.current });
 
         if (isLiveRef.current) {
           setNewCount(0);
@@ -59,6 +71,7 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
   });
 
   const loadNewLogs = useCallback(() => {
+    logger.debug('useLogs: loadNewLogs called');
     setLogs((prev) => prev); // trigger a re-render after setting live
     setNewCount(0);
   }, []);

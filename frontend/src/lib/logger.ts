@@ -1,6 +1,6 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-const FLUSH_INTERVAL_MS = 10_000;
-const MAX_BUFFER_SIZE = 20;
+const FLUSH_INTERVAL_MS = 5_000; // Reduced from 10s to 5s
+const MAX_BUFFER_SIZE = 10; // Reduced from 20 to 10
 
 interface LogEntry {
   level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
@@ -29,6 +29,8 @@ class Logger {
     if (typeof window !== 'undefined') {
       this.flushTimer = setInterval(() => this.flush(), FLUSH_INTERVAL_MS);
       window.addEventListener('beforeunload', () => this.flushSync());
+      // Log that logger is initialized
+      this.info('Logger initialized', { apiBase: API_BASE, flushInterval: FLUSH_INTERVAL_MS });
     }
   }
 
@@ -54,6 +56,8 @@ class Logger {
 
   error(message: string, metadata?: Record<string, unknown>) {
     this.log('ERROR', message, metadata);
+    // Flush errors immediately
+    this.flush();
   }
 
   log(
@@ -80,6 +84,10 @@ class Logger {
       metadata,
     };
 
+    // Always log to console for immediate visibility
+    const consoleMethod = level === 'ERROR' ? 'error' : level === 'WARN' ? 'warn' : level === 'DEBUG' ? 'debug' : 'log';
+    console[consoleMethod](`[${level}] [frontend] ${message}`, metadata || '');
+
     this.buffer.push(entry);
 
     if (this.buffer.length >= MAX_BUFFER_SIZE) {
@@ -88,11 +96,16 @@ class Logger {
   }
 
   async flush() {
-    if (this.buffer.length === 0) return;
+    if (this.buffer.length === 0) {
+      console.debug('[Logger] Flush called but buffer is empty');
+      return;
+    }
 
     const entries = this.buffer.splice(0, this.buffer.length);
+    console.debug(`[Logger] Flushing ${entries.length} log entries to backend`);
+
     try {
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         entries.map((entry) =>
           fetch(`${API_BASE}/api/logs`, {
             method: 'POST',
@@ -101,8 +114,12 @@ class Logger {
           })
         )
       );
-    } catch {
-      // Silent drop
+
+      const succeeded = results.filter(r => r.status === 'fulfilled').length;
+      const failed = results.filter(r => r.status === 'rejected').length;
+      console.debug(`[Logger] Flush complete: ${succeeded} succeeded, ${failed} failed`);
+    } catch (err) {
+      console.error('[Logger] Flush failed:', err);
     }
   }
 
