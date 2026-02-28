@@ -2,6 +2,7 @@
 
 import { useUsageWindows } from '@/hooks/use-analytics';
 import { cn } from '@/lib/utils';
+import { RefreshCw } from 'lucide-react';
 
 const TZ = 'America/Los_Angeles';
 
@@ -59,7 +60,17 @@ function UsageGauge({ used, limit, colorClass }: GaugeProps) {
 }
 
 export function UsageWindowsCard() {
-  const { data, isLoading } = useUsageWindows();
+  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useUsageWindows();
+
+  const lastUpdated = dataUpdatedAt
+    ? new Intl.DateTimeFormat('en-US', {
+        timeZone: TZ,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      }).format(new Date(dataUpdatedAt))
+    : null;
 
   const reset5hr = formatReset(data?.reset_5hr ?? null);
   const resetWeek = formatReset(data?.reset_week ?? null);
@@ -70,11 +81,24 @@ export function UsageWindowsCard() {
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">Claude Rate Limits</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Tokens consumed in the current rolling windows
-        </p>
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Claude Rate Limits</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Tokens consumed in the current rolling windows
+            {lastUpdated && (
+              <span className="ml-2 opacity-60">· updated {lastUpdated}</span>
+            )}
+          </p>
+        </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          title="Refresh usage data"
+          className="shrink-0 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-40"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
+        </button>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
