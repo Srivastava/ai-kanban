@@ -4,6 +4,7 @@ export interface Task {
   id: string;
   title: string;
   description: string | null;
+  context: string | null;
   stage: Stage;
   project_path: string;
   session_id: string | null;
@@ -21,6 +22,7 @@ export interface CreateTask {
 export interface UpdateTask {
   title?: string;
   description?: string | null;
+  context?: string | null;
   stage?: Stage;
   priority?: number;
 }
