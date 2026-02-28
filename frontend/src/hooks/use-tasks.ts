@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { logger } from '@/lib/logger';
 import type { Task, CreateTask, UpdateTask, Stage } from '@/types/task';
 
 export function useTasks(stage?: Stage) {
@@ -29,8 +30,12 @@ export function useCreateTask() {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    onSuccess: () => {
+    onSuccess: (task) => {
+      logger.info('Task created', { taskId: task.id, title: task.title });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+    onError: (error) => {
+      logger.error('Failed to create task', { error: String(error) });
     },
   });
 }
@@ -44,9 +49,13 @@ export function useUpdateTask() {
         method: 'PATCH',
         body: JSON.stringify(data),
       }),
-    onSuccess: (_, { id }) => {
+    onSuccess: (task, { id }) => {
+      logger.info('Task updated', { taskId: id, title: task.title });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+    },
+    onError: (error, { id }) => {
+      logger.error('Failed to update task', { taskId: id, error: String(error) });
     },
   });
 }
@@ -59,8 +68,12 @@ export function useDeleteTask() {
       apiClient<void>(`/api/tasks/${id}`, {
         method: 'DELETE',
       }),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
+      logger.info('Task deleted', { taskId: id });
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+    onError: (error, id) => {
+      logger.error('Failed to delete task', { taskId: id, error: String(error) });
     },
   });
 }

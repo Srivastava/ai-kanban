@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/query-provider";
 import { WebSocketProvider } from "@/contexts/websocket-context";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,9 +30,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <WebSocketProvider>
-          <QueryProvider>{children}</QueryProvider>
-        </WebSocketProvider>
+        <ErrorBoundary>
+          <WebSocketProvider>
+            <QueryProvider>{children}</QueryProvider>
+          </WebSocketProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

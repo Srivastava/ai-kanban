@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { logger } from '@/lib/logger';
 
 type WebSocketStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -24,11 +25,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const socket = new WebSocket(WS_URL);
 
     socket.onopen = () => {
+      logger.info('WebSocket connected', { url: WS_URL });
       setStatus('connected');
       setWs(socket);
     };
 
     socket.onclose = () => {
+      logger.warn('WebSocket disconnected, reconnecting in 3s');
       setStatus('disconnected');
       setWs(null);
       // Reconnect after 3 seconds
@@ -48,12 +51,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           anyCallbacks.forEach((cb) => cb(message));
         }
       } catch {
-        console.error('Failed to parse WebSocket message');
+        logger.error('Failed to parse WebSocket message');
       }
     };
 
     socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      logger.error('WebSocket error', { error: String(error) });
     };
   }, [listeners]);
 
