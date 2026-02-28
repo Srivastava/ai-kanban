@@ -78,6 +78,7 @@ impl ClaudeManager {
 
         let mut child = Command::new(&claude_bin)
             .arg("--print")
+            .arg("--verbose")
             .arg("--output-format").arg("stream-json")
             .arg(&prompt)
             .current_dir(&project_path)

@@ -139,6 +139,9 @@ export function LogTable({ logs, filter }: Props) {
               <th className={thStaticClass} style={{ width: 88 }}>
                 Task
               </th>
+              <th className={thStaticClass} style={{ width: 88 }}>
+                Session
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -199,12 +202,23 @@ export function LogTable({ logs, filter }: Props) {
                       </button>
                     ) : '—'}
                   </td>
+                  <td className="px-3 py-1.5 font-mono text-muted-foreground whitespace-nowrap">
+                    {log.session_id ? (
+                      <button
+                        className="hover:text-foreground transition-colors cursor-pointer"
+                        title={`Click to copy: ${log.session_id}`}
+                        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(log.session_id!); }}
+                      >
+                        {log.session_id.slice(0, 8)}…
+                      </button>
+                    ) : '—'}
+                  </td>
                 </tr>
 
                 {expandedId === log.id && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className={cn(
                         'px-5 py-3 border-b border-border/40',
                         'bg-muted/25 border-l-2',

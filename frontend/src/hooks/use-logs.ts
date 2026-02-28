@@ -16,12 +16,13 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
 
   logger.debug('useLogs hook called', { filter, isLive: isLiveRef.current });
 
-  // Reset logs when server-side filter changes so stale data from prior filter doesn't linger
+  // Reset logs when the server-side filter changes (task_id/session_id only —
+  // level/source are now client-side so they don't need a reset)
   useEffect(() => {
     setLogs([]);
     setNewCount(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter.level, filter.source, filter.task_id, filter.session_id]);
+  }, [filter.task_id, filter.session_id]);
 
   const buildUrl = useCallback(
     () => {

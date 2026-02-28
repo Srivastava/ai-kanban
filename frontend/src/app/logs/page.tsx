@@ -38,9 +38,9 @@ export default function LogsPage() {
   // UUID pattern — only pass to server when input looks complete
   const isUuid = (s: string) => /^[0-9a-f-]{36}$/i.test(s.trim());
 
+  // Only task_id goes to the server — level/source/search are client-side only
+  // so they can all be combined without one narrowing the other's result set.
   const serverFilter = {
-    level: levelFilter,
-    source: sourceFilter,
     task_id: isUuid(taskIdFilter) ? taskIdFilter.trim() : undefined,
   };
 
@@ -53,9 +53,10 @@ export default function LogsPage() {
   isLiveRef.current = isLive;
 
   const clientFilter: LogFilter = {
-    ...serverFilter,
-    search: search || undefined,
+    level: levelFilter,
+    source: sourceFilter,
     task_id: serverFilter.task_id,
+    search: search || undefined,
   };
 
   useEffect(() => {
