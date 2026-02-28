@@ -64,11 +64,23 @@ impl ClaudeManager {
         let claude_bin = std::env::var("CLAUDE_BIN")
             .unwrap_or_else(|_| "/home/utility/.local/bin/claude".to_string());
 
+        // Expand leading ~ to $HOME (the OS does not expand shell tildes)
+        let project_path = if task.project_path.starts_with("~/") {
+            let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+            format!("{}/{}", home, &task.project_path[2..])
+        } else {
+            task.project_path.clone()
+        };
+
+        if !std::path::Path::new(&project_path).exists() {
+            return Err(anyhow!("Project path does not exist: {}", project_path));
+        }
+
         let mut child = Command::new(&claude_bin)
             .arg("--print")
             .arg("--output-format").arg("stream-json")
             .arg(&prompt)
-            .current_dir(&task.project_path)
+            .current_dir(&project_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
