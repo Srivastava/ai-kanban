@@ -1,6 +1,6 @@
 use ai_kanban_backend::api::{create_router, AppState};
 use ai_kanban_backend::claude::ClaudeManager;
-use ai_kanban_backend::db::{create_pool, LogRepository, SessionRepository, TaskRepository};
+use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, SessionRepository, TaskRepository};
 use ai_kanban_backend::logging::DbLayer;
 use axum::Extension;
 use std::net::SocketAddr;
@@ -18,6 +18,7 @@ async fn main() -> anyhow::Result<()> {
     let task_repo = TaskRepository::new(pool.clone());
     let log_repo = LogRepository::new(pool.clone());
     let session_repo = SessionRepository::new(pool.clone());
+    let comment_repo = CommentRepository::new(pool.clone());
 
     // Initialize Claude manager and session queue
     let claude_manager = Arc::new(ClaudeManager::new(session_repo.clone()));
@@ -40,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Logging system initialized");
 
     // Create state with queue
-    let state = AppState::new(task_repo, log_repo, session_repo).with_queue(queue);
+    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo).with_queue(queue);
     tracing::debug!("Application state created");
 
     // Build app with CORS and Extension for WebSocket

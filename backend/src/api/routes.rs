@@ -1,4 +1,5 @@
-use crate::api::{AppState, LogApiState, SessionApiState, TaskApiState};
+use crate::api::{AppState, CommentApiState, LogApiState, SessionApiState, TaskApiState};
+use crate::api::comments::comment_routes;
 use crate::api::logs::log_routes;
 use crate::api::sessions::session_routes;
 use crate::api::tasks::task_routes;
@@ -9,7 +10,8 @@ pub fn create_router(state: AppState) -> Router {
     // Extract individual states for each API module
     let session_state: SessionApiState = state.clone().into();
     let task_state: TaskApiState = state.clone().into();
-    let log_state: LogApiState = state.into();
+    let log_state: LogApiState = state.clone().into();
+    let comment_state: CommentApiState = state.into();
 
     Router::new()
         .route("/health", axum::routing::get(|| async { "ok" }))
@@ -19,4 +21,6 @@ pub fn create_router(state: AppState) -> Router {
         // For tasks and logs, we convert to their respective states
         .nest("/api/tasks", task_routes().with_state(task_state))
         .nest("/api/logs", log_routes().with_state(log_state))
+        // Comment routes - standalone endpoints for DELETE
+        .nest("/api/comments", comment_routes().with_state(comment_state))
 }

@@ -1,4 +1,4 @@
-use crate::db::{LogRepository, SessionRepository, TaskRepository};
+use crate::db::{CommentRepository, LogRepository, SessionRepository, TaskRepository};
 use crate::claude::SessionQueue;
 use std::sync::Arc;
 
@@ -8,6 +8,7 @@ pub struct AppState {
     pub tasks: TaskRepository,
     pub logs: LogRepository,
     pub sessions: SessionRepository,
+    pub comments: CommentRepository,
     pub queue: Option<Arc<SessionQueue>>,
 }
 
@@ -26,12 +27,23 @@ pub struct SessionApiState {
     pub queue: Arc<SessionQueue>,
 }
 
+#[derive(Clone)]
+pub struct CommentApiState {
+    pub repo: CommentRepository,
+}
+
 impl AppState {
-    pub fn new(tasks: TaskRepository, logs: LogRepository, sessions: SessionRepository) -> Self {
+    pub fn new(
+        tasks: TaskRepository,
+        logs: LogRepository,
+        sessions: SessionRepository,
+        comments: CommentRepository,
+    ) -> Self {
         Self {
             tasks,
             logs,
             sessions,
+            comments,
             queue: None,
         }
     }
@@ -63,6 +75,15 @@ impl From<AppState> for SessionApiState {
     }
 }
 
+impl From<AppState> for CommentApiState {
+    fn from(state: AppState) -> Self {
+        CommentApiState {
+            repo: state.comments,
+        }
+    }
+}
+
+mod comments;
 mod logs;
 mod routes;
 mod sessions;

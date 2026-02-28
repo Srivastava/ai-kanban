@@ -1,6 +1,6 @@
 use ai_kanban_backend::api::AppState;
 use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
-use ai_kanban_backend::db::{create_pool, LogRepository, SessionRepository, TaskRepository};
+use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, SessionRepository, TaskRepository};
 use axum_test::TestServer;
 use axum_test::http::StatusCode;
 use std::sync::Arc;
@@ -10,10 +10,11 @@ async fn setup_test_server() -> TestServer {
     let pool = create_pool(&db_path).await.expect("Failed to create pool");
     let task_repo = TaskRepository::new(pool.clone());
     let log_repo = LogRepository::new(pool.clone());
-    let session_repo = SessionRepository::new(pool);
+    let session_repo = SessionRepository::new(pool.clone());
+    let comment_repo = CommentRepository::new(pool);
     let manager = Arc::new(ClaudeManager::new(session_repo.clone()));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
-    let state = AppState::new(task_repo, log_repo, session_repo).with_queue(queue);
+    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo).with_queue(queue);
     TestServer::new(ai_kanban_backend::api::create_router(state)).unwrap()
 }
 
@@ -524,4 +525,204 @@ async fn test_api_list_logs_pagination() {
     let ids1: Vec<_> = logs1.iter().map(|l| l["id"].as_i64()).collect();
     let ids2: Vec<_> = logs2.iter().map(|l| l["id"].as_i64()).collect();
     assert!(!ids1.iter().any(|id| ids2.contains(id)));
+}
+
+// ==================== Comment API Tests ====================
+
+#[tokio::test]
+async fn test_api_list_comments_empty() {
+    let server = setup_test_server().await;
+
+    // Create a task first
+    let task_response = server
+        .post("/api/tasks")
+        .json(&serde_json::json!({
+            "title": "Task",
+            "project_path": "/tmp/test"
+        }))
+        .await;
+    let task: serde_json::Value = task_response.json();
+    let task_id = task["id"].as_str().unwrap();
+
+    let response = server
+        .get("/api/comments")
+        .add_query_params(&[("task_id", task_id)])
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+
+    let comments: Vec<serde_json::Value> = response.json();
+    assert!(comments.is_empty());
+}
+
+#[tokio::test]
+async fn test_api_create_comment() {
+    let server = setup_test_server().await;
+
+    // Create a task first
+    let task_response = server
+        .post("/api/tasks")
+        .json(&serde_json::json!({
+            "title": "Task",
+            "project_path": "/tmp/test"
+        }))
+        .await;
+    let task: serde_json::Value = task_response.json();
+    let task_id = task["id"].as_str().unwrap();
+
+    let response = server
+        .post("/api/comments")
+        .json(&serde_json::json!({
+            "task_id": task_id,
+            "content": "Test comment"
+        }))
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::CREATED);
+
+    let comment: serde_json::Value = response.json();
+    assert!(!comment["id"].as_str().unwrap().is_empty());
+    assert_eq!(comment["task_id"], task_id);
+    assert_eq!(comment["content"], "Test comment");
+    assert_eq!(comment["author"], "user");
+    assert!(comment["parent_id"].is_null());
+}
+
+#[tokio::test]
+async fn test_api_create_comment_with_parent() {
+    let server = setup_test_server().await;
+
+    // Create a task
+    let task_response = server
+        .post("/api/tasks")
+        .json(&serde_json::json!({
+            "title": "Task",
+            "project_path": "/tmp/test"
+        }))
+        .await;
+    let task: serde_json::Value = task_response.json();
+    let task_id = task["id"].as_str().unwrap();
+
+    // Create parent comment
+    let parent_response = server
+        .post("/api/comments")
+        .json(&serde_json::json!({
+            "task_id": task_id,
+            "content": "Parent comment"
+        }))
+        .await;
+    let parent: serde_json::Value = parent_response.json();
+    let parent_id = parent["id"].as_str().unwrap();
+
+    // Create reply
+    let reply_response = server
+        .post("/api/comments")
+        .json(&serde_json::json!({
+            "task_id": task_id,
+            "content": "Reply comment",
+            "parent_id": parent_id
+        }))
+        .await;
+
+    assert_eq!(reply_response.status_code(), StatusCode::CREATED);
+
+    let reply: serde_json::Value = reply_response.json();
+    assert_eq!(reply["parent_id"], parent_id);
+}
+
+#[tokio::test]
+async fn test_api_list_comments_with_replies() {
+    let server = setup_test_server().await;
+
+    // Create a task
+    let task_response = server
+        .post("/api/tasks")
+        .json(&serde_json::json!({
+            "title": "Task",
+            "project_path": "/tmp/test"
+        }))
+        .await;
+    let task: serde_json::Value = task_response.json();
+    let task_id = task["id"].as_str().unwrap();
+
+    // Create parent comment
+    let parent_response = server
+        .post("/api/comments")
+        .json(&serde_json::json!({
+            "task_id": task_id,
+            "content": "Parent"
+        }))
+        .await;
+    let parent: serde_json::Value = parent_response.json();
+    let parent_id = parent["id"].as_str().unwrap();
+
+    // Create reply
+    server
+        .post("/api/comments")
+        .json(&serde_json::json!({
+            "task_id": task_id,
+            "content": "Reply",
+            "parent_id": parent_id
+        }))
+        .await;
+
+    // List comments
+    let response = server
+        .get("/api/comments")
+        .add_query_params(&[("task_id", task_id)])
+        .await;
+
+    assert_eq!(response.status_code(), StatusCode::OK);
+
+    let comments: Vec<serde_json::Value> = response.json();
+    assert_eq!(comments.len(), 1);
+    assert_eq!(comments[0]["id"], parent_id);
+    assert_eq!(comments[0]["replies"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_api_delete_comment() {
+    let server = setup_test_server().await;
+
+    // Create a task
+    let task_response = server
+        .post("/api/tasks")
+        .json(&serde_json::json!({
+            "title": "Task",
+            "project_path": "/tmp/test"
+        }))
+        .await;
+    let task: serde_json::Value = task_response.json();
+    let task_id = task["id"].as_str().unwrap();
+
+    // Create comment
+    let comment_response = server
+        .post("/api/comments")
+        .json(&serde_json::json!({
+            "task_id": task_id,
+            "content": "To be deleted"
+        }))
+        .await;
+    let comment: serde_json::Value = comment_response.json();
+    let comment_id = comment["id"].as_str().unwrap();
+
+    // Delete the comment
+    let delete_response = server.delete(&format!("/api/comments/{}", comment_id)).await;
+    assert_eq!(delete_response.status_code(), StatusCode::NO_CONTENT);
+
+    // Verify it's gone
+    let list_response = server
+        .get("/api/comments")
+        .add_query_params(&[("task_id", task_id)])
+        .await;
+    let comments: Vec<serde_json::Value> = list_response.json();
+    assert!(comments.is_empty());
+}
+
+#[tokio::test]
+async fn test_api_delete_comment_not_found() {
+    let server = setup_test_server().await;
+
+    let response = server.delete("/api/comments/nonexistent-id").await;
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
 }
