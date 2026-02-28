@@ -13,28 +13,62 @@ export async function apiClient<T>(
   endpoint: string,
   options?: RequestInit
 ): Promise<T> {
-  logger.debug(`API request: ${options?.method ?? 'GET'} ${endpoint}`, {
-    method: options?.method ?? 'GET',
-    endpoint,
-  });
+  const url = `${API_BASE}${endpoint}`;
+  const method = options?.method ?? 'GET';
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => 'Unknown error');
-    logger.error(`API error: ${options?.method ?? 'GET'} ${endpoint} → ${response.status}`, {
-      endpoint,
-      status: response.status,
-      message: errorText,
-    });
-    throw new ApiError(response.status, errorText);
+  // Pre-fetch validation
+  if (!endpoint) {
+    logger.error('API client called with empty endpoint', { options });
+    throw new Error('API endpoint is required');
   }
 
-  return response.json();
+  logger.debug(`API request starting`, {
+    method,
+    endpoint,
+    url,
+    hasBody: !!options?.body,
+  });
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      logger.error(`API error response`, {
+        method,
+        endpoint,
+        status: response.status,
+        errorText,
+      });
+      throw new ApiError(response.status, errorText);
+    }
+
+    logger.debug(`API request succeeded`, {
+      method,
+      endpoint,
+      status: response.status,
+    });
+    return response.json();
+
+  } catch (error) {
+    // Re-throw ApiError as-is (already logged above)
+    if (error instanceof ApiError) throw error;
+
+    // Log network/unexpected errors
+    logger.error(`API network error`, {
+      method,
+      endpoint,
+      url,
+      errorType: error?.constructor?.name ?? 'Unknown',
+      errorMessage: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    throw error;
+  }
 }
