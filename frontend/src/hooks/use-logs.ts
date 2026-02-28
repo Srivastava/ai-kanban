@@ -1,0 +1,67 @@
+'use client';
+
+import { useState, useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
+import type { LogEntry, LogFilter } from '@/types/log';
+
+const POLL_INTERVAL = 5_000;
+
+export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [newCount, setNewCount] = useState(0);
+  const lastTimestampRef = useRef<string | null>(null);
+  const isLiveRef = useRef(true);
+
+  const buildUrl = useCallback(
+    () => {
+      const params = new URLSearchParams();
+      if (filter.level) params.set('level', filter.level);
+      if (filter.source) params.set('source', filter.source);
+      if (filter.task_id) params.set('task_id', filter.task_id);
+      if (filter.session_id) params.set('session_id', filter.session_id);
+      params.set('limit', '100');
+      return `/api/logs?${params.toString()}`;
+    },
+    [filter.level, filter.source, filter.task_id, filter.session_id]
+  );
+
+  const { isLoading } = useQuery({
+    queryKey: ['logs', filter],
+    queryFn: async () => {
+      const url = buildUrl();
+      const fresh = await apiClient<LogEntry[]>(url);
+
+      setLogs((prev) => {
+        // Deduplicate by id, keep newest first
+        const existingIds = new Set(prev.map((l) => l.id));
+        const newEntries = fresh.filter((l) => !existingIds.has(l.id));
+
+        if (newEntries.length === 0) return prev;
+
+        if (isLiveRef.current) {
+          setNewCount(0);
+          return [...newEntries, ...prev].slice(0, 500); // cap at 500
+        } else {
+          setNewCount((c) => c + newEntries.length);
+          return prev;
+        }
+      });
+
+      if (fresh.length > 0) {
+        lastTimestampRef.current = fresh[0].timestamp;
+      }
+
+      return fresh;
+    },
+    refetchInterval: POLL_INTERVAL,
+    refetchIntervalInBackground: false,
+  });
+
+  const loadNewLogs = useCallback(() => {
+    setLogs((prev) => prev); // trigger a re-render after setting live
+    setNewCount(0);
+  }, []);
+
+  return { logs, isLoading, newCount, loadNewLogs, isLiveRef };
+}
