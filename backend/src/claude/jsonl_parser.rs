@@ -111,3 +111,13 @@ fn extract_file_ext_from_input(input: Option<&serde_json::Value>) -> Option<Stri
         .and_then(|e| e.to_str())
         .map(|e| format!(".{}", e))
 }
+
+/// Extract the final result text from a Claude result line.
+/// Returns Some(text) for {"type":"result","subtype":"success","result":"..."}
+pub fn extract_result_text(line: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(line).ok()?;
+    if value.get("type")?.as_str()? != "result" {
+        return None;
+    }
+    value.get("result")?.as_str().map(|s| s.to_string())
+}

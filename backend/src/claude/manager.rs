@@ -1,4 +1,4 @@
-use crate::claude::jsonl_parser::parse_jsonl_line;
+use crate::claude::jsonl_parser::{extract_result_text, parse_jsonl_line};
 use crate::claude::prompts::build_prompt;
 use crate::db::{CommentRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
@@ -143,6 +143,7 @@ impl ClaudeManager {
         let stdout_handle = tokio::task::spawn_blocking(move || {
             let reader = BufReader::new(stdout);
             let mut sequence_no: i64 = 0;
+            let mut result_text: Option<String> = None;
             for line in reader.lines() {
                 if let Ok(text) = line {
                     debug!(session_id = %session_id, "stdout: {}", text);
@@ -169,6 +170,10 @@ impl ClaudeManager {
                         });
                     }
 
+                    if let Some(r) = extract_result_text(&text) {
+                        result_text = Some(r);
+                    }
+
                     let _ = output_tx.send(SessionOutput {
                         session_id: session_id.clone(),
                         line: text,
@@ -176,6 +181,7 @@ impl ClaudeManager {
                     });
                 }
             }
+            result_text
         });
 
         let session_id = session.id.clone();
@@ -198,9 +204,13 @@ impl ClaudeManager {
         let session_id_for_completion = session.id.clone();
         let active_sessions_for_completion = self.active_sessions.clone();
         let session_repo_for_completion = self.session_repo.clone();
+        let comment_repo_for_completion = self.comment_repo.clone();
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
-            let _ = stdout_handle.await;
+            let result_text = match stdout_handle.await {
+                Ok(text) => text,   // stdout_handle now returns Option<String>
+                Err(_) => None,
+            };
             let _ = stderr_handle.await;
 
             // Take the child out of active_sessions
@@ -230,6 +240,24 @@ impl ClaudeManager {
                 ended_at: Some(chrono::Utc::now()),
                 ..Default::default()
             }).await;
+
+            // Post Claude's response as a comment
+            if exit_ok {
+                if let Some(text) = result_text {
+                    if !text.is_empty() {
+                        // We need the task_id — fetch it from the session record
+                        if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
+                            use crate::models::CreateComment;
+                            let _ = comment_repo_for_completion.create(
+                                &session.task_id,
+                                "claude",
+                                CreateComment { content: text, parent_id: None },
+                            ).await;
+                            info!(session_id = %session_id_for_completion, "Posted Claude result as comment");
+                        }
+                    }
+                }
+            }
         });
 
         Ok(session.id)
