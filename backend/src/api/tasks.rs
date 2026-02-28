@@ -25,6 +25,7 @@ pub fn task_routes() -> Router<TaskApiState> {
         .route("/", get(list_tasks).post(create_task))
         .route("/:id", get(get_task).patch(update_task).delete(delete_task))
         .route("/:id/move", post(move_task))
+        .route("/:id/sessions", post(start_session))
 }
 
 #[instrument(skip(state))]
@@ -134,6 +135,51 @@ async fn delete_task(
                 Json(serde_json::json!({ "error": e.to_string() })),
             )
                 .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn start_session(
+    State(state): State<TaskApiState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    info!(task_id = %id, "API: Starting Claude session for task");
+
+    let task = match state.repo.find(&id).await {
+        Ok(t) => t,
+        Err(e) => {
+            error!(task_id = %id, error = %e, "API: Task not found for session start");
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            ).into_response();
+        }
+    };
+
+    let queue = match &state.queue {
+        Some(q) => q.clone(),
+        None => {
+            error!("API: Session queue not initialized");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "Session queue not available" })),
+            ).into_response();
+        }
+    };
+
+    let stage = task.stage.clone();
+    match queue.enqueue(task, stage).await {
+        Ok(()) => {
+            info!(task_id = %id, "API: Task enqueued for Claude session");
+            Json(serde_json::json!({ "status": "queued" })).into_response()
+        }
+        Err(e) => {
+            error!(task_id = %id, error = %e, "API: Failed to enqueue task");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            ).into_response()
         }
     }
 }

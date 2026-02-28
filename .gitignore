@@ -1,0 +1,7 @@
+# Log files
+logs/*.log
+logs/pids
+logs/archive-*/
+
+# OS
+.DS_Store

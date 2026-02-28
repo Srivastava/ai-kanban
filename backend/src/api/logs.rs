@@ -16,6 +16,7 @@ struct LogQuery {
     source: Option<String>,
     task_id: Option<String>,
     session_id: Option<String>,
+    since: Option<String>,
     limit: Option<i32>,
     offset: Option<i32>,
 }
@@ -43,6 +44,7 @@ async fn list_logs(
         source: query.source,
         task_id: query.task_id,
         session_id: query.session_id,
+        since: query.since,
         limit: query.limit,
         offset: query.offset,
     };

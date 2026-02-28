@@ -1,9 +1,11 @@
 'use client';
 
-import { useState, useCallback, Fragment } from 'react';
+import { useState, useCallback, Fragment, useEffect } from 'react';
 import { LogLevelBadge } from './log-level-badge';
 import { cn } from '@/lib/utils';
 import type { LogEntry, LogFilter, LogLevel } from '@/types/log';
+
+const PAGE_SIZE = 50;
 
 type SortKey = 'timestamp' | 'level' | 'source' | 'message';
 type SortDir = 'asc' | 'desc';
@@ -56,6 +58,7 @@ export function LogTable({ logs, filter }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('timestamp');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [page, setPage] = useState(0);
 
   const handleSort = useCallback((key: SortKey) => {
     setSortKey((prev) => {
@@ -66,7 +69,11 @@ export function LogTable({ logs, filter }: Props) {
       setSortDir('desc');
       return key;
     });
+    setPage(0);
   }, []);
+
+  // Reset to page 0 when filter or logs change
+  useEffect(() => { setPage(0); }, [filter.level, filter.source, filter.search, logs.length]);
 
   const visible = logs
     .filter((log) => {
@@ -83,6 +90,10 @@ export function LogTable({ logs, filter }: Props) {
       else if (sortKey === 'message') cmp = a.message.localeCompare(b.message);
       return sortDir === 'asc' ? cmp : -cmp;
     });
+
+  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageRows = visible.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   if (visible.length === 0) {
     return (
@@ -124,7 +135,7 @@ export function LogTable({ logs, filter }: Props) {
             </tr>
           </thead>
           <tbody>
-            {visible.map((log, i) => (
+            {pageRows.map((log, i) => (
               <Fragment key={log.id}>
                 <tr
                   onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
@@ -241,18 +252,62 @@ export function LogTable({ logs, filter }: Props) {
           </tbody>
         </table>
       </div>
-      <div className="border-t border-border px-4 py-2 bg-muted/20 flex items-center justify-between shrink-0">
-        <span className="text-xs text-muted-foreground">
-          Showing <span className="font-medium text-foreground">{visible.length}</span> log
+      <div className="border-t border-border px-4 py-2 bg-muted/20 flex items-center justify-between shrink-0 gap-4">
+        <span className="text-xs text-muted-foreground whitespace-nowrap">
+          <span className="font-medium text-foreground">{visible.length}</span> log
           {visible.length !== 1 ? 's' : ''}
           {logs.length !== visible.length && (
-            <span> &nbsp;·&nbsp; {logs.length} total loaded</span>
+            <span> &nbsp;·&nbsp; {logs.length} loaded</span>
           )}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          Sorted by <span className="font-medium text-foreground">{sortKey}</span>{' '}
+          &nbsp;·&nbsp; sorted by <span className="font-medium text-foreground">{sortKey}</span>{' '}
           {sortDir === 'asc' ? '↑' : '↓'}
         </span>
+
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              className="px-2 py-0.5 text-xs rounded border border-border disabled:opacity-30 hover:bg-muted/60 transition-colors"
+            >
+              ‹
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => {
+              // Show first, last, current ±1, and ellipsis
+              const show =
+                i === 0 || i === totalPages - 1 || Math.abs(i - safePage) <= 1;
+              if (!show) {
+                const prev = i - 1;
+                const prevShow =
+                  prev === 0 || prev === totalPages - 1 || Math.abs(prev - safePage) <= 1;
+                return prevShow ? (
+                  <span key={`ellipsis-${i}`} className="text-xs text-muted-foreground px-1">…</span>
+                ) : null;
+              }
+              return (
+                <button
+                  key={i}
+                  onClick={() => setPage(i)}
+                  className={cn(
+                    'min-w-[24px] px-1.5 py-0.5 text-xs rounded border transition-colors',
+                    i === safePage
+                      ? 'border-primary bg-primary/10 text-primary font-medium'
+                      : 'border-border hover:bg-muted/60'
+                  )}
+                >
+                  {i + 1}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={safePage === totalPages - 1}
+              className="px-2 py-0.5 text-xs rounded border border-border disabled:opacity-30 hover:bg-muted/60 transition-colors"
+            >
+              ›
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

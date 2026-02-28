@@ -57,6 +57,11 @@ export async function apiClient<T>(
       endpoint,
       status: response.status,
     });
+
+    // 204/205 No Content — skip JSON parse (e.g. DELETE responses)
+    if (response.status === 204 || response.status === 205) {
+      return undefined as T;
+    }
     return response.json();
 
   } catch (error) {

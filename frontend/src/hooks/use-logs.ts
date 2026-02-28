@@ -30,7 +30,10 @@ export function useLogs(filter: Omit<LogFilter, 'search'> = {}) {
       if (filter.source) params.set('source', filter.source);
       if (filter.task_id) params.set('task_id', filter.task_id);
       if (filter.session_id) params.set('session_id', filter.session_id);
-      params.set('limit', '100');
+      // Fetch logs from the last 1 hour
+      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      params.set('since', since);
+      params.set('limit', '500');
       const url = `/api/logs?${params.toString()}`;
       logger.debug('useLogs: built URL', { url, filter });
       return url;

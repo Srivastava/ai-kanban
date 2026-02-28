@@ -33,6 +33,7 @@ pub struct LogFilter {
     pub source: Option<String>,
     pub task_id: Option<String>,
     pub session_id: Option<String>,
+    pub since: Option<String>,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
 }

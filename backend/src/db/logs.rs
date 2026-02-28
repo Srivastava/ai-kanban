@@ -74,6 +74,10 @@ impl LogRepository {
             query.push_str(&format!(" AND session_id = ?"));
             binds.push(session_id.clone());
         }
+        if let Some(since) = &filter.since {
+            query.push_str(" AND timestamp >= ?");
+            binds.push(since.clone());
+        }
 
         query.push_str(" ORDER BY timestamp DESC LIMIT ? OFFSET ?");
 

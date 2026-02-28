@@ -17,6 +17,7 @@ pub struct AppState {
 #[derive(Clone)]
 pub struct TaskApiState {
     pub repo: TaskRepository,
+    pub queue: Option<Arc<SessionQueue>>,
 }
 
 #[derive(Clone)]
@@ -63,7 +64,10 @@ impl AppState {
 // Implement From<AppState> for individual states
 impl From<AppState> for TaskApiState {
     fn from(state: AppState) -> Self {
-        TaskApiState { repo: state.tasks }
+        TaskApiState {
+            repo: state.tasks,
+            queue: state.queue,
+        }
     }
 }
 
