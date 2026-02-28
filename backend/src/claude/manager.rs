@@ -242,7 +242,7 @@ impl ClaudeManager {
             info!(session_id = %session_id, "Stopping session");
             let _ = rs.child.kill();
             self.session_repo.update(session_id, crate::models::UpdateSession {
-                status: Some("paused".to_string()),
+                status: Some("stopped".to_string()),
                 ..Default::default()
             }).await?;
         }

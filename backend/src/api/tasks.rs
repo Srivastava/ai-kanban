@@ -123,6 +123,12 @@ async fn delete_task(
     Path(id): Path<String>,
 ) -> impl IntoResponse {
     info!(task_id = %id, "API: Deleting task");
+    // Stop any running Claude process for this task
+    if let Some(queue) = &state.queue {
+        if let Some(session_id) = queue.get_active_session_for_task(&id).await {
+            let _ = queue.stop_session(&session_id).await;
+        }
+    }
     match state.repo.delete(&id).await {
         Ok(()) => {
             info!(task_id = %id, "API: Task deleted");
@@ -194,6 +200,14 @@ async fn move_task(
     match state.repo.move_to_stage(&id, &body.stage).await {
         Ok(task) => {
             info!(task_id = %id, new_stage = %task.stage, "API: Task moved");
+            // Auto-stop session when task moves to Done
+            if body.stage == "done" {
+                if let Some(queue) = &state.queue {
+                    if let Some(session_id) = queue.get_active_session_for_task(&id).await {
+                        let _ = queue.stop_session(&session_id).await;
+                    }
+                }
+            }
             Json(task).into_response()
         }
         Err(e) => {
