@@ -119,10 +119,12 @@ impl ClaudeManager {
         let task_id_link = task_id.clone();
         let session_id_link = session.id.clone();
         tokio::spawn(async move {
-            let _ = task_repo_link.update(&task_id_link, UpdateTask {
+            if let Err(e) = task_repo_link.update(&task_id_link, UpdateTask {
                 session_id: Some(session_id_link),
                 ..Default::default()
-            }).await;
+            }).await {
+                warn!(task_id = %task_id_link, error = %e, "Failed to link session_id to task");
+            }
         });
 
         // Snapshot project metrics at session start
