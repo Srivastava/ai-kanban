@@ -81,6 +81,8 @@ impl ClaudeManager {
             .arg("--output-format").arg("stream-json")
             .arg(&prompt)
             .current_dir(&project_path)
+            // Unset CLAUDECODE so the CLI doesn't refuse to run inside another Claude session
+            .env_remove("CLAUDECODE")
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
