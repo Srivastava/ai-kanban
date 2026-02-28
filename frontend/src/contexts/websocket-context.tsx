@@ -1,0 +1,111 @@
+'use client';
+
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+
+type WebSocketStatus = 'connecting' | 'connected' | 'disconnected';
+
+interface WebSocketContextType {
+  ws: WebSocket | null;
+  status: WebSocketStatus;
+  subscribe: (eventType: string, callback: (data: unknown) => void) => () => void;
+  send: (data: object) => void;
+}
+
+const WebSocketContext = createContext<WebSocketContextType | null>(null);
+
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001/ws';
+
+export function WebSocketProvider({ children }: { children: ReactNode }) {
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [status, setStatus] = useState<WebSocketStatus>('connecting');
+  const [listeners, setListeners] = useState<Map<string, Set<(data: unknown) => void>>>(new Map());
+
+  const connect = useCallback(() => {
+    const socket = new WebSocket(WS_URL);
+
+    socket.onopen = () => {
+      setStatus('connected');
+      setWs(socket);
+    };
+
+    socket.onclose = () => {
+      setStatus('disconnected');
+      setWs(null);
+      // Reconnect after 3 seconds
+      setTimeout(connect, 3000);
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        const callbacks = listeners.get(message.type);
+        if (callbacks) {
+          callbacks.forEach((cb) => cb(message));
+        }
+        // Also call 'any' listeners
+        const anyCallbacks = listeners.get('*');
+        if (anyCallbacks) {
+          anyCallbacks.forEach((cb) => cb(message));
+        }
+      } catch {
+        console.error('Failed to parse WebSocket message');
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+  }, [listeners]);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      ws?.close();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const subscribe = useCallback((eventType: string, callback: (data: unknown) => void) => {
+    setListeners((prev) => {
+      const next = new Map(prev);
+      const callbacks = next.get(eventType) || new Set();
+      callbacks.add(callback);
+      next.set(eventType, callbacks);
+      return next;
+    });
+
+    return () => {
+      setListeners((prev) => {
+        const next = new Map(prev);
+        const callbacks = next.get(eventType);
+        if (callbacks) {
+          callbacks.delete(callback);
+          if (callbacks.size === 0) {
+            next.delete(eventType);
+          }
+        }
+        return next;
+      });
+    };
+  }, []);
+
+  const send = useCallback((data: object) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(data));
+    }
+  }, [ws]);
+
+  return (
+    <WebSocketContext.Provider value={{ ws, status, subscribe, send }}>
+      {children}
+    </WebSocketContext.Provider>
+  );
+}
+
+export function useWebSocket() {
+  const context = useContext(WebSocketContext);
+  if (!context) {
+    throw new Error('useWebSocket must be used within WebSocketProvider');
+  }
+  return context;
+}
