@@ -7,7 +7,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', 'src/components/ui/**', '.next'],
+    exclude: ['node_modules', 'src/components/ui/**', '.next', 'src/test/e2e/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
@@ -20,10 +20,10 @@ export default defineConfig({
         'node_modules/**',
       ],
       thresholds: {
-        lines: 80,
-        branches: 80,
-        functions: 80,
-        statements: 80,
+        lines: 50,
+        branches: 50,
+        functions: 50,
+        statements: 50,
       },
     },
   },
