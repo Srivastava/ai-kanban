@@ -545,8 +545,7 @@ async fn test_api_list_comments_empty() {
     let task_id = task["id"].as_str().unwrap();
 
     let response = server
-        .get("/api/comments")
-        .add_query_params(&[("task_id", task_id)])
+        .get(&format!("/api/tasks/{}/comments", task_id))
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
@@ -571,9 +570,8 @@ async fn test_api_create_comment() {
     let task_id = task["id"].as_str().unwrap();
 
     let response = server
-        .post("/api/comments")
+        .post(&format!("/api/tasks/{}/comments", task_id))
         .json(&serde_json::json!({
-            "task_id": task_id,
             "content": "Test comment"
         }))
         .await;
@@ -605,9 +603,8 @@ async fn test_api_create_comment_with_parent() {
 
     // Create parent comment
     let parent_response = server
-        .post("/api/comments")
+        .post(&format!("/api/tasks/{}/comments", task_id))
         .json(&serde_json::json!({
-            "task_id": task_id,
             "content": "Parent comment"
         }))
         .await;
@@ -616,9 +613,8 @@ async fn test_api_create_comment_with_parent() {
 
     // Create reply
     let reply_response = server
-        .post("/api/comments")
+        .post(&format!("/api/tasks/{}/comments", task_id))
         .json(&serde_json::json!({
-            "task_id": task_id,
             "content": "Reply comment",
             "parent_id": parent_id
         }))
@@ -647,9 +643,8 @@ async fn test_api_list_comments_with_replies() {
 
     // Create parent comment
     let parent_response = server
-        .post("/api/comments")
+        .post(&format!("/api/tasks/{}/comments", task_id))
         .json(&serde_json::json!({
-            "task_id": task_id,
             "content": "Parent"
         }))
         .await;
@@ -658,9 +653,8 @@ async fn test_api_list_comments_with_replies() {
 
     // Create reply
     server
-        .post("/api/comments")
+        .post(&format!("/api/tasks/{}/comments", task_id))
         .json(&serde_json::json!({
-            "task_id": task_id,
             "content": "Reply",
             "parent_id": parent_id
         }))
@@ -668,8 +662,7 @@ async fn test_api_list_comments_with_replies() {
 
     // List comments
     let response = server
-        .get("/api/comments")
-        .add_query_params(&[("task_id", task_id)])
+        .get(&format!("/api/tasks/{}/comments", task_id))
         .await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
@@ -697,9 +690,8 @@ async fn test_api_delete_comment() {
 
     // Create comment
     let comment_response = server
-        .post("/api/comments")
+        .post(&format!("/api/tasks/{}/comments", task_id))
         .json(&serde_json::json!({
-            "task_id": task_id,
             "content": "To be deleted"
         }))
         .await;
@@ -712,8 +704,7 @@ async fn test_api_delete_comment() {
 
     // Verify it's gone
     let list_response = server
-        .get("/api/comments")
-        .add_query_params(&[("task_id", task_id)])
+        .get(&format!("/api/tasks/{}/comments", task_id))
         .await;
     let comments: Vec<serde_json::Value> = list_response.json();
     assert!(comments.is_empty());

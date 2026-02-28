@@ -1,5 +1,5 @@
 use crate::api::{AppState, CommentApiState, LogApiState, SessionApiState, TaskApiState};
-use crate::api::comments::comment_routes;
+use crate::api::comments::{comment_routes, comment_standalone_routes};
 use crate::api::logs::log_routes;
 use crate::api::sessions::session_routes;
 use crate::api::tasks::task_routes;
@@ -21,6 +21,11 @@ pub fn create_router(state: AppState) -> Router {
         // For tasks and logs, we convert to their respective states
         .nest("/api/tasks", task_routes().with_state(task_state))
         .nest("/api/logs", log_routes().with_state(log_state))
-        // Comment routes - standalone endpoints for DELETE
-        .nest("/api/comments", comment_routes().with_state(comment_state))
+        // Comment routes nested under tasks (task_id comes from path)
+        .nest(
+            "/api/tasks/:task_id/comments",
+            comment_routes().with_state(comment_state.clone()),
+        )
+        // Standalone comment routes (delete by ID)
+        .nest("/api/comments", comment_standalone_routes().with_state(comment_state))
 }

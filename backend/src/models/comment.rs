@@ -19,14 +19,6 @@ pub struct CreateComment {
     pub parent_id: Option<String>,
 }
 
-/// API request to create a comment (includes task_id)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CreateCommentRequest {
-    pub task_id: String,
-    pub content: String,
-    pub parent_id: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CommentWithReplies {
     #[serde(flatten)]
