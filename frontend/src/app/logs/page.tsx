@@ -22,6 +22,7 @@ export default function LogsPage() {
   const [sourceFilter, setSourceFilter] = useState<LogSource | undefined>();
   const [search, setSearch] = useState('');
   const [taskIdFilter, setTaskIdFilter] = useState('');
+  const [sessionIdFilter, setSessionIdFilter] = useState('');
   const [isLive, setIsLive] = useState(true);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export default function LogsPage() {
   // so they can all be combined without one narrowing the other's result set.
   const serverFilter = {
     task_id: isUuid(taskIdFilter) ? taskIdFilter.trim() : undefined,
+    session_id: isUuid(sessionIdFilter) ? sessionIdFilter.trim() : undefined,
   };
 
   const { logs, isLoading, newCount, loadNewLogs, isLiveRef } = useLogs(serverFilter);
@@ -56,6 +58,7 @@ export default function LogsPage() {
     level: levelFilter,
     source: sourceFilter,
     task_id: serverFilter.task_id,
+    session_id: serverFilter.session_id,
     search: search || undefined,
   };
 
@@ -172,7 +175,7 @@ export default function LogsPage() {
               placeholder="Task ID (UUID)..."
               value={taskIdFilter}
               onChange={(e) => setTaskIdFilter(e.target.value)}
-              className={`w-72 rounded-md border bg-background px-3 py-1.5 pr-7 text-sm font-mono placeholder:text-muted-foreground placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-ring transition-colors ${
+              className={`w-60 rounded-md border bg-background px-3 py-1.5 pr-7 text-sm font-mono placeholder:text-muted-foreground placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-ring transition-colors ${
                 taskIdFilter && isUuid(taskIdFilter)
                   ? 'border-primary ring-1 ring-primary/30'
                   : taskIdFilter
@@ -185,6 +188,32 @@ export default function LogsPage() {
                 onClick={() => setTaskIdFilter('')}
                 className="absolute right-2 text-muted-foreground hover:text-foreground text-xs"
                 title="Clear task filter"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Session ID filter */}
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              placeholder="Session ID (UUID)..."
+              value={sessionIdFilter}
+              onChange={(e) => setSessionIdFilter(e.target.value)}
+              className={`w-60 rounded-md border bg-background px-3 py-1.5 pr-7 text-sm font-mono placeholder:text-muted-foreground placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-ring transition-colors ${
+                sessionIdFilter && isUuid(sessionIdFilter)
+                  ? 'border-violet-500 ring-1 ring-violet-500/30'
+                  : sessionIdFilter
+                  ? 'border-amber-400'
+                  : 'border-border'
+              }`}
+            />
+            {sessionIdFilter && (
+              <button
+                onClick={() => setSessionIdFilter('')}
+                className="absolute right-2 text-muted-foreground hover:text-foreground text-xs"
+                title="Clear session filter"
               >
                 ✕
               </button>
