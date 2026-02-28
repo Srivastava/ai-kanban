@@ -1,9 +1,10 @@
 use crate::models::{
     AnalyticsOverview, DailyTokens, WeeklyTokens, MonthlyTokens,
     TaskTokens, SessionTokens, ToolTokens, LanguageTokens,
-    EfficiencyRow, SessionTimelineEvent,
+    EfficiencyRow, SessionTimelineEvent, UsageWindows,
 };
 use anyhow::Result;
+use chrono::{Datelike, Duration, Utc};
 use sqlx::{SqlitePool, sqlite::SqliteRow, Row};
 use tracing::{debug, instrument};
 
@@ -370,6 +371,74 @@ impl AnalyticsRepository {
                 }
             })
             .collect())
+    }
+
+    /// Get token usage in the last 5 hours and this calendar week, plus reset times.
+    #[instrument(skip(self))]
+    pub async fn usage_windows(&self, limit_5hr: i64, limit_week: i64) -> Result<UsageWindows> {
+        debug!("Fetching usage windows");
+
+        // --- 5-hour window ---
+        let row_5hr: SqliteRow = sqlx::query(
+            r#"
+            SELECT
+                COALESCE(SUM(input_tokens + output_tokens), 0) as tokens,
+                MIN(timestamp) as earliest
+            FROM token_events
+            WHERE timestamp >= datetime('now', '-5 hours')
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let tokens_5hr: i64 = row_5hr.get("tokens");
+        let earliest_5hr: Option<String> = row_5hr.get("earliest");
+
+        // Reset = earliest event in window + 5 hours
+        let reset_5hr = earliest_5hr.and_then(|ts| {
+            chrono::DateTime::parse_from_rfc3339(&ts)
+                .ok()
+                .map(|dt| (dt + Duration::hours(5)).to_rfc3339())
+        });
+
+        // --- Weekly window (Mon 00:00 UTC → next Mon 00:00 UTC) ---
+        let now = Utc::now();
+        let days_from_monday = now.weekday().num_days_from_monday() as i64;
+        let week_start = (now - Duration::days(days_from_monday))
+            .date_naive()
+            .format("%Y-%m-%d")
+            .to_string();
+
+        let row_week: SqliteRow = sqlx::query(
+            r#"
+            SELECT COALESCE(SUM(input_tokens + output_tokens), 0) as tokens
+            FROM token_events
+            WHERE DATE(timestamp) >= ?
+            "#,
+        )
+        .bind(&week_start)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let tokens_week: i64 = row_week.get("tokens");
+
+        // Reset = next Monday 00:00 UTC
+        let days_until_next_monday = 7 - days_from_monday;
+        let reset_week_dt = now + Duration::days(days_until_next_monday);
+        let reset_week = reset_week_dt
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map(|dt| dt.and_utc().to_rfc3339())
+            .unwrap_or_default();
+
+        Ok(UsageWindows {
+            tokens_5hr,
+            tokens_week,
+            limit_5hr,
+            limit_week,
+            reset_5hr,
+            reset_week,
+        })
     }
 
     /// Get session timeline events with cumulative token totals

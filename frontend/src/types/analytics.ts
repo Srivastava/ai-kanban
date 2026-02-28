@@ -75,3 +75,12 @@ export interface SessionTimelineEvent {
   cumulative_total: number;
   timestamp: string;
 }
+
+export interface UsageWindows {
+  tokens_5hr: number;
+  tokens_week: number;
+  limit_5hr: number;
+  limit_week: number;
+  reset_5hr: string | null;
+  reset_week: string;
+}

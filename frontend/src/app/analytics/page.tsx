@@ -1,5 +1,6 @@
 import { Sidebar } from '@/components/layout/sidebar';
 import { OverviewCards } from '@/components/analytics/overview-cards';
+import { UsageWindowsCard } from '@/components/analytics/usage-windows-card';
 import { TokenTimeChart } from '@/components/analytics/token-time-chart';
 import { ToolBreakdownChart } from '@/components/analytics/tool-breakdown-chart';
 import { LanguageChart } from '@/components/analytics/language-chart';
@@ -16,6 +17,7 @@ export default function AnalyticsPage() {
         </div>
         <main className="flex-1 p-6 space-y-6">
           <OverviewCards />
+          <UsageWindowsCard />
           <TokenTimeChart />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ToolBreakdownChart />

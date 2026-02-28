@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
 pub struct AnalyticsOverview {
@@ -75,6 +75,20 @@ pub struct EfficiencyRow {
     pub project_loc: i64,
     pub tokens_per_line: Option<f64>,
     pub tokens_per_loc: Option<f64>,
+}
+
+/// Token usage summary for rate-limit windows (5-hour and weekly).
+/// `limit_*` fields are 0 when not configured (no limit known).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UsageWindows {
+    pub tokens_5hr: i64,
+    pub tokens_week: i64,
+    pub limit_5hr: i64,
+    pub limit_week: i64,
+    /// ISO-8601 timestamp when the current 5-hr window resets (null if no usage)
+    pub reset_5hr: Option<String>,
+    /// ISO-8601 timestamp when the weekly window resets (always next Monday 00:00 UTC)
+    pub reset_week: String,
 }
 
 #[derive(Debug, Serialize)]

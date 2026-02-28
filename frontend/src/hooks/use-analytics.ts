@@ -6,7 +6,7 @@ import { logger } from '@/lib/logger';
 import type {
   AnalyticsOverview, DailyTokens, EfficiencyRow, LanguageTokens,
   MonthlyTokens, SessionTimelineEvent, SessionTokens, TaskTokens,
-  ToolTokens, WeeklyTokens,
+  ToolTokens, WeeklyTokens, UsageWindows,
 } from '@/types/analytics';
 
 export function useAnalyticsOverview() {
@@ -152,5 +152,18 @@ export function useSessionTimeline(sessionId: string | null) {
       return result;
     },
     enabled: !!sessionId,
+  });
+}
+export function useUsageWindows() {
+  logger.debug('useUsageWindows hook called');
+
+  return useQuery({
+    queryKey: ['analytics', 'usage-windows'],
+    queryFn: async () => {
+      const result = await apiClient<UsageWindows>('/api/analytics/usage-windows');
+      logger.debug('useUsageWindows: fetch complete', { tokens_5hr: result.tokens_5hr });
+      return result;
+    },
+    refetchInterval: 60_000, // refresh every minute
   });
 }
