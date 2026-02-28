@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTask } from '@/hooks/use-tasks';
+import { TaskDetail } from '@/components/tasks/task-detail';
 
 export default function TaskDetailPage() {
   const params = useParams();
@@ -37,7 +38,7 @@ export default function TaskDetailPage() {
         </Button>
       </header>
       <main className="max-w-4xl mx-auto p-6">
-        <div>Task detail coming soon</div>
+        <TaskDetail task={task} />
       </main>
     </div>
   );
