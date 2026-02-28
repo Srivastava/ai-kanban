@@ -97,4 +97,8 @@ impl SessionQueue {
     pub async fn active_count(&self) -> usize {
         self.manager.active_count().await
     }
+
+    pub async fn get_active_session_for_task(&self, task_id: &str) -> Option<String> {
+        self.manager.get_active_session_for_task(task_id).await
+    }
 }

@@ -1,6 +1,6 @@
 use crate::claude::jsonl_parser::parse_jsonl_line;
 use crate::claude::prompts::build_prompt;
-use crate::db::{SessionMetricsRepository, SessionRepository, TokenEventRepository};
+use crate::db::{CommentRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -29,6 +29,8 @@ pub struct ClaudeManager {
     session_repo: SessionRepository,
     token_event_repo: TokenEventRepository,
     session_metrics_repo: SessionMetricsRepository,
+    comment_repo: CommentRepository,
+    task_repo: TaskRepository,
 }
 
 impl ClaudeManager {
@@ -36,6 +38,8 @@ impl ClaudeManager {
         session_repo: SessionRepository,
         token_event_repo: TokenEventRepository,
         session_metrics_repo: SessionMetricsRepository,
+        comment_repo: CommentRepository,
+        task_repo: TaskRepository,
     ) -> Self {
         let (output_tx, _) = broadcast::channel(1024);
         Self {
@@ -44,6 +48,8 @@ impl ClaudeManager {
             session_repo,
             token_event_repo,
             session_metrics_repo,
+            comment_repo,
+            task_repo,
         }
     }
 
@@ -79,6 +85,7 @@ impl ClaudeManager {
         let mut child = Command::new(&claude_bin)
             .arg("--print")
             .arg("--verbose")
+            .arg("--dangerously-skip-permissions")
             .arg("--output-format").arg("stream-json")
             .arg(&prompt)
             .current_dir(&project_path)
@@ -235,6 +242,13 @@ impl ClaudeManager {
 
     pub async fn is_active(&self, session_id: &str) -> bool {
         self.active_sessions.read().await.contains_key(session_id)
+    }
+
+    pub async fn get_active_session_for_task(&self, task_id: &str) -> Option<String> {
+        let sessions = self.active_sessions.read().await;
+        sessions.iter()
+            .find(|(_, rs)| rs.task.id == task_id)
+            .map(|(session_id, _)| session_id.clone())
     }
 }
 

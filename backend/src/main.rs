@@ -27,6 +27,8 @@ async fn main() -> anyhow::Result<()> {
         session_repo.clone(),
         token_event_repo.clone(),
         session_metrics_repo.clone(),
+        comment_repo.clone(),
+        task_repo.clone(),
     ));
     let queue = Arc::new(ai_kanban_backend::claude::SessionQueue::new(
         claude_manager.clone(),
