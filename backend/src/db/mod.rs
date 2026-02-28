@@ -1,8 +1,10 @@
+mod comments;
 mod logs;
 mod pool;
 pub mod sessions;
 pub mod tasks;
 
+pub use comments::CommentRepository;
 pub use logs::LogRepository;
 pub use pool::create_pool;
 pub use sessions::SessionRepository;
