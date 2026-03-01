@@ -84,3 +84,29 @@ export interface UsageWindows {
   reset_5hr: string | null;
   reset_week: string;
 }
+
+export interface CostByTask {
+  task_id: string;
+  task_title: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
+export interface TokensByStage {
+  stage: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface SessionSummary {
+  total_sessions: number;
+  avg_tokens_per_session: number;
+  max_tokens_per_session: number;
+  total_cost_usd: number;
+}
+
+export interface BurnRate {
+  tokens_last_hour: number;
+  tokens_per_minute: number;
+}

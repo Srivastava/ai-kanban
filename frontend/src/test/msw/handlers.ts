@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { mockTask, mockTask2, mockLog, mockOverview } from './fixtures';
+import { mockTask, mockTask2, mockLog, mockOverview, mockCostByTask, mockTokensByStage, mockSessionSummary, mockBurnRate } from './fixtures';
 
 const API_BASE = 'http://localhost:3001';
 
@@ -89,6 +89,10 @@ export const handlers = [
   http.get(`${API_BASE}/api/analytics/sessions/:id/timeline`, () => {
     return HttpResponse.json([]);
   }),
+  http.get(`${API_BASE}/api/analytics/cost/by-task`, () => HttpResponse.json(mockCostByTask)),
+  http.get(`${API_BASE}/api/analytics/tokens/by-stage`, () => HttpResponse.json(mockTokensByStage)),
+  http.get(`${API_BASE}/api/analytics/sessions/summary`, () => HttpResponse.json(mockSessionSummary)),
+  http.get(`${API_BASE}/api/analytics/burn-rate`, () => HttpResponse.json(mockBurnRate)),
 
   // Sessions
   http.get(`${API_BASE}/api/sessions`, () => {

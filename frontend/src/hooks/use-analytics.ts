@@ -4,9 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
 import type {
-  AnalyticsOverview, DailyTokens, EfficiencyRow, LanguageTokens,
-  MonthlyTokens, SessionTimelineEvent, SessionTokens, TaskTokens,
-  ToolTokens, WeeklyTokens, UsageWindows,
+  AnalyticsOverview, BurnRate, CostByTask, DailyTokens, EfficiencyRow, LanguageTokens,
+  MonthlyTokens, SessionSummary, SessionTimelineEvent, SessionTokens, TaskTokens,
+  TokensByStage, ToolTokens, WeeklyTokens, UsageWindows,
 } from '@/types/analytics';
 
 export function useAnalyticsOverview() {
@@ -165,5 +165,51 @@ export function useUsageWindows() {
       return result;
     },
     refetchInterval: 60_000, // refresh every minute
+  });
+}
+
+export function useCostByTask() {
+  return useQuery({
+    queryKey: ['analytics', 'cost-by-task'],
+    queryFn: async () => {
+      const result = await apiClient<CostByTask[]>('/api/analytics/cost/by-task');
+      logger.debug('useCostByTask: fetch complete', { count: result.length });
+      return result;
+    },
+  });
+}
+
+export function useTokensByStage() {
+  return useQuery({
+    queryKey: ['analytics', 'by-stage'],
+    queryFn: async () => {
+      const result = await apiClient<TokensByStage[]>('/api/analytics/tokens/by-stage');
+      logger.debug('useTokensByStage: fetch complete', { count: result.length });
+      return result;
+    },
+  });
+}
+
+export function useSessionSummary() {
+  return useQuery({
+    queryKey: ['analytics', 'session-summary'],
+    queryFn: async () => {
+      const result = await apiClient<SessionSummary>('/api/analytics/sessions/summary');
+      logger.debug('useSessionSummary: fetch complete', { total: result.total_sessions });
+      return result;
+    },
+    refetchInterval: 30_000,
+  });
+}
+
+export function useBurnRate() {
+  return useQuery({
+    queryKey: ['analytics', 'burn-rate'],
+    queryFn: async () => {
+      const result = await apiClient<BurnRate>('/api/analytics/burn-rate');
+      logger.debug('useBurnRate: fetch complete', { tph: result.tokens_last_hour });
+      return result;
+    },
+    refetchInterval: 60_000,
   });
 }
