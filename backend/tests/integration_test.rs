@@ -300,6 +300,7 @@ fn test_update_task_serialization() {
         stage: Some("in_progress".to_string()),
         priority: Some(5),
         context: None,
+        session_id: None,
     };
 
     let json = serde_json::to_string(&update).unwrap();
@@ -943,7 +944,7 @@ async fn test_app_state_into_session_api_state() {
 
     let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo) = setup_test_db().await;
 
-    let manager = Arc::new(ClaudeManager::new(session_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone()));
+    let manager = Arc::new(ClaudeManager::new(session_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone(), comment_repo.clone(), task_repo.clone()));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
     let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo).with_queue(queue);
     let session_api_state: SessionApiState = state.into();

@@ -436,20 +436,34 @@ impl ClaudeManager {
 
     #[instrument(skip(self))]
     pub async fn stop_session(&self, session_id: &str) -> Result<()> {
-        let mut sessions = self.active_sessions.write().await;
-        if let Some(mut rs) = sessions.remove(session_id) {
-            info!(
-                session_id = %session_id,
-                task_id = %rs.task.id,
-                task_title = %rs.task.title,
-                "Stopping session"
-            );
-            let _ = rs.child.kill();
+        // Remove from active sessions and kill child (under write lock)
+        let removed = {
+            let mut sessions = self.active_sessions.write().await;
+            sessions.remove(session_id).map(|mut rs| {
+                info!(
+                    session_id = %session_id,
+                    task_id = %rs.task.id,
+                    task_title = %rs.task.title,
+                    "Stopping session"
+                );
+                let _ = rs.child.kill();
+                rs
+            })
+        }; // write lock dropped here
+
+        if removed.is_some() {
+            // Update DB (no lock held)
             self.session_repo.update(session_id, crate::models::UpdateSession {
                 status: Some("stopped".to_string()),
                 ended_at: Some(chrono::Utc::now()),
                 ..Default::default()
             }).await?;
+
+            // Notify WS clients that the session has stopped
+            let _ = self.output_tx.send(ClaudeEvent::SessionStatus {
+                session_id: session_id.to_string(),
+                status: "stopped".to_string(),
+            });
         }
         Ok(())
     }
