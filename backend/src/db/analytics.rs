@@ -1,7 +1,7 @@
 use crate::models::{
-    AnalyticsOverview, DailyTokens, WeeklyTokens, MonthlyTokens,
-    TaskTokens, SessionTokens, ToolTokens, LanguageTokens,
-    EfficiencyRow, SessionTimelineEvent, UsageWindows,
+    AnalyticsOverview, BurnRate, CostByTask, DailyTokens, WeeklyTokens, MonthlyTokens,
+    SessionSummary, TaskTokens, SessionTokens, ToolTokens, LanguageTokens,
+    EfficiencyRow, SessionTimelineEvent, TokensByStage, UsageWindows,
 };
 use anyhow::Result;
 use chrono::{Datelike, Duration, Utc};
@@ -438,6 +438,116 @@ impl AnalyticsRepository {
             limit_week,
             reset_5hr,
             reset_week,
+        })
+    }
+
+    #[instrument(skip(self))]
+    pub async fn cost_by_task(&self) -> Result<Vec<CostByTask>> {
+        debug!("Fetching cost by task");
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                te.task_id,
+                COALESCE(t.title, 'Unknown Task') as task_title,
+                SUM(te.input_tokens) as input_tokens,
+                SUM(te.output_tokens) as output_tokens,
+                CAST(
+                    SUM(te.input_tokens) * 3.0 / 1000000.0
+                    + SUM(te.output_tokens) * 15.0 / 1000000.0
+                AS REAL) as cost_usd
+            FROM token_events te
+            LEFT JOIN tasks t ON te.task_id = t.id
+            GROUP BY te.task_id, t.title
+            ORDER BY cost_usd DESC
+            LIMIT 20
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|row| CostByTask {
+            task_id: row.get("task_id"),
+            task_title: row.get("task_title"),
+            input_tokens: row.get("input_tokens"),
+            output_tokens: row.get("output_tokens"),
+            cost_usd: row.get("cost_usd"),
+        }).collect())
+    }
+
+    #[instrument(skip(self))]
+    pub async fn tokens_by_stage(&self) -> Result<Vec<TokensByStage>> {
+        debug!("Fetching tokens by stage");
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                t.stage,
+                SUM(te.input_tokens) as input_tokens,
+                SUM(te.output_tokens) as output_tokens
+            FROM token_events te
+            JOIN tasks t ON te.task_id = t.id
+            GROUP BY t.stage
+            ORDER BY t.stage ASC
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|row| TokensByStage {
+            stage: row.get("stage"),
+            input_tokens: row.get("input_tokens"),
+            output_tokens: row.get("output_tokens"),
+        }).collect())
+    }
+
+    #[instrument(skip(self))]
+    pub async fn session_summary(&self) -> Result<SessionSummary> {
+        debug!("Fetching session summary");
+        let row = sqlx::query(
+            r#"
+            SELECT
+                COUNT(*) as total_sessions,
+                CAST(COALESCE(AVG(session_total), 0) AS REAL) as avg_tokens_per_session,
+                COALESCE(MAX(session_total), 0) as max_tokens_per_session,
+                CAST(
+                    COALESCE(SUM(input_tokens), 0) * 3.0 / 1000000.0
+                    + COALESCE(SUM(output_tokens), 0) * 15.0 / 1000000.0
+                AS REAL) as total_cost_usd
+            FROM (
+                SELECT
+                    session_id,
+                    SUM(input_tokens) as input_tokens,
+                    SUM(output_tokens) as output_tokens,
+                    SUM(input_tokens + output_tokens) as session_total
+                FROM token_events
+                GROUP BY session_id
+            )
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(SessionSummary {
+            total_sessions: row.get("total_sessions"),
+            avg_tokens_per_session: row.get("avg_tokens_per_session"),
+            max_tokens_per_session: row.get("max_tokens_per_session"),
+            total_cost_usd: row.get("total_cost_usd"),
+        })
+    }
+
+    #[instrument(skip(self))]
+    pub async fn burn_rate(&self) -> Result<BurnRate> {
+        debug!("Fetching burn rate");
+        let row = sqlx::query(
+            r#"
+            SELECT
+                CAST(COALESCE(SUM(input_tokens + output_tokens), 0) AS REAL) as tokens_last_hour,
+                CAST(COALESCE(SUM(input_tokens + output_tokens), 0) / 60.0 AS REAL) as tokens_per_minute
+            FROM token_events
+            WHERE timestamp >= datetime('now', '-1 hour')
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(BurnRate {
+            tokens_last_hour: row.get("tokens_last_hour"),
+            tokens_per_minute: row.get("tokens_per_minute"),
         })
     }
 
