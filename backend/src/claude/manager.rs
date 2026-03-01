@@ -1,4 +1,4 @@
-use crate::claude::jsonl_parser::{extract_result_text, parse_jsonl_line};
+use crate::claude::jsonl_parser::{extract_result_text, parse_for_display, parse_jsonl_line};
 use crate::claude::prompts::build_prompt;
 use crate::db::{CommentRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
@@ -7,7 +7,9 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
+use tokio::time::Duration;
 use tracing::{debug, info, instrument, warn};
 
 #[derive(Debug, Clone)]
@@ -148,6 +150,53 @@ impl ClaudeManager {
             }
         });
 
+        // Advance task to planning stage when session starts
+        let task_repo_planning = self.task_repo.clone();
+        let task_id_planning = task_id.clone();
+        let output_tx_planning = self.output_tx.clone();
+        tokio::spawn(async move {
+            if let Err(e) = task_repo_planning.update(&task_id_planning, UpdateTask {
+                stage: Some("planning".to_string()),
+                ..Default::default()
+            }).await {
+                warn!(task_id = %task_id_planning, error = %e, "Failed to set task stage to planning");
+                return;
+            }
+            // Fetch updated task and broadcast TaskStageChanged
+            match task_repo_planning.find(&task_id_planning).await {
+                Ok(task) => {
+                    if let Ok(task_json) = serde_json::to_value(&task) {
+                        let _ = output_tx_planning.send(ClaudeEvent::TaskStageChanged {
+                            task_id: task_id_planning.clone(),
+                            task_json,
+                        });
+                    }
+                }
+                Err(e) => warn!(task_id = %task_id_planning, error = %e, "Failed to fetch task after planning update"),
+            }
+        });
+
+        // Heartbeat: emit every 5s while session is active
+        let session_id_hb = session.id.clone();
+        let active_sessions_hb = self.active_sessions.clone();
+        let output_tx_hb = self.output_tx.clone();
+        tokio::spawn(async move {
+            let start = Instant::now();
+            loop {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                let sessions = active_sessions_hb.read().await;
+                if !sessions.contains_key(&session_id_hb) {
+                    break;
+                }
+                drop(sessions);
+                let elapsed_secs = start.elapsed().as_secs();
+                let _ = output_tx_hb.send(ClaudeEvent::Heartbeat {
+                    session_id: session_id_hb.clone(),
+                    elapsed_secs,
+                });
+            }
+        });
+
         // Snapshot project metrics at session start
         let project_metrics = count_project_files(&task_id);
         let metrics_repo = self.session_metrics_repo.clone();
@@ -161,10 +210,13 @@ impl ClaudeManager {
         let output_tx = self.output_tx.clone();
         let token_event_repo = self.token_event_repo.clone();
         let task_id_for_events = task_id.clone();
+        let task_repo_for_stage = self.task_repo.clone();
+        let output_tx_for_stage = self.output_tx.clone();
         let stdout_handle = tokio::task::spawn_blocking(move || {
             let reader = BufReader::new(stdout);
             let mut sequence_no: i64 = 0;
             let mut result_text: Option<String> = None;
+            let mut first_tool_seen = false;
             for line in reader.lines() {
                 if let Ok(text) = line {
                     debug!(session_id = %session_id, "stdout: {}", text);
@@ -195,11 +247,46 @@ impl ClaudeManager {
                         result_text = Some(r);
                     }
 
-                    let _ = output_tx.send(ClaudeEvent::Output {
-                        session_id: session_id.clone(),
-                        text,
-                        is_error: false,
-                    });
+                    // Parse for display and emit human-readable output
+                    let (display_text, has_tool) = parse_for_display(&text);
+
+                    // First tool use → advance task to in_progress
+                    if has_tool && !first_tool_seen {
+                        first_tool_seen = true;
+                        let rt = tokio::runtime::Handle::current();
+                        let task_repo_tool = task_repo_for_stage.clone();
+                        let task_id_tool = task_id_for_events.clone();
+                        let output_tx_tool = output_tx_for_stage.clone();
+                        rt.spawn(async move {
+                            if let Err(e) = task_repo_tool.update(&task_id_tool, UpdateTask {
+                                stage: Some("in_progress".to_string()),
+                                ..Default::default()
+                            }).await {
+                                warn!(task_id = %task_id_tool, error = %e, "Failed to set task stage to in_progress");
+                                return;
+                            }
+                            match task_repo_tool.find(&task_id_tool).await {
+                                Ok(task) => {
+                                    if let Ok(task_json) = serde_json::to_value(&task) {
+                                        let _ = output_tx_tool.send(ClaudeEvent::TaskStageChanged {
+                                            task_id: task_id_tool.clone(),
+                                            task_json,
+                                        });
+                                    }
+                                }
+                                Err(e) => warn!(task_id = %task_id_tool, error = %e, "Failed to fetch task after in_progress update"),
+                            }
+                        });
+                    }
+
+                    // Emit display line (only if there's something to show)
+                    if let Some(display) = display_text {
+                        let _ = output_tx.send(ClaudeEvent::Output {
+                            session_id: session_id.clone(),
+                            text: display,
+                            is_error: false,
+                        });
+                    }
                 }
             }
             result_text
@@ -226,6 +313,8 @@ impl ClaudeManager {
         let active_sessions_for_completion = self.active_sessions.clone();
         let session_repo_for_completion = self.session_repo.clone();
         let comment_repo_for_completion = self.comment_repo.clone();
+        let output_tx_for_completion = self.output_tx.clone();
+        let task_repo_for_completion = self.task_repo.clone();
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
             let result_text = match stdout_handle.await {
@@ -270,6 +359,39 @@ impl ClaudeManager {
                 ended_at: Some(chrono::Utc::now()),
                 ..Default::default()
             }).await;
+
+            // Emit session status via WS
+            let _ = output_tx_for_completion.send(ClaudeEvent::SessionStatus {
+                session_id: session_id_for_completion.clone(),
+                status: final_status.to_string(),
+            });
+
+            // On success: advance task to review stage
+            if exit_ok {
+                match session_repo_for_completion.find(&session_id_for_completion).await {
+                    Ok(session) => {
+                        if let Err(e) = task_repo_for_completion.update(&session.task_id, UpdateTask {
+                            stage: Some("review".to_string()),
+                            ..Default::default()
+                        }).await {
+                            warn!(task_id = %session.task_id, error = %e, "Failed to set task stage to review");
+                        } else {
+                            match task_repo_for_completion.find(&session.task_id).await {
+                                Ok(task) => {
+                                    if let Ok(task_json) = serde_json::to_value(&task) {
+                                        let _ = output_tx_for_completion.send(ClaudeEvent::TaskStageChanged {
+                                            task_id: session.task_id.clone(),
+                                            task_json,
+                                        });
+                                    }
+                                }
+                                Err(e) => warn!(task_id = %session.task_id, error = %e, "Failed to fetch task after review update"),
+                            }
+                        }
+                    }
+                    Err(e) => warn!(session_id = %session_id_for_completion, error = %e, "Failed to fetch session for task review update"),
+                }
+            }
 
             // Post Claude's response as a comment
             if exit_ok {
