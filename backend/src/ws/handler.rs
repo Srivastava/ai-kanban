@@ -1,4 +1,4 @@
-use crate::claude::ClaudeManager;
+use crate::claude::{ClaudeEvent, ClaudeManager};
 use crate::ws::{ClientMessage, ServerMessage};
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
@@ -31,43 +31,65 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
 
     // Task to send messages to client
     let mut send_task = tokio::spawn(async move {
-        use crate::claude::ClaudeEvent;
         while let Ok(event) = output_rx.recv().await {
-            let (session_id, text, is_error) = match event {
-                ClaudeEvent::Output { session_id, text, is_error } => (session_id, text, is_error),
-                ClaudeEvent::Heartbeat { .. }
-                | ClaudeEvent::SessionStatus { .. }
-                | ClaudeEvent::TaskStageChanged { .. } => continue,
-            };
+            let msg: Option<ServerMessage> = {
+                let sub = sub_send.read().await;
+                let subscribed_id = sub.as_deref();
 
-            let sub = sub_send.read().await;
-            let should_send = match sub.as_deref() {
-                Some(id) => id == session_id,
-                None => true,
-            };
-            drop(sub);
-
-            if !should_send {
-                continue;
-            }
-
-            let msg = ServerMessage::session_output(
-                session_id,
-                text,
-                is_error,
-            );
-
-            let json = match serde_json::to_string(&msg) {
-                Ok(j) => j,
-                Err(e) => {
-                    error!("Failed to serialize message: {}", e);
-                    continue;
+                match &event {
+                    ClaudeEvent::Output { session_id, text, is_error } => {
+                        let should_send = subscribed_id.map_or(true, |id| id == session_id);
+                        if should_send {
+                            Some(ServerMessage::session_output(
+                                session_id.clone(),
+                                text.clone(),
+                                *is_error,
+                            ))
+                        } else {
+                            None
+                        }
+                    }
+                    ClaudeEvent::Heartbeat { session_id, elapsed_secs } => {
+                        let should_send = subscribed_id.map_or(true, |id| id == session_id);
+                        if should_send {
+                            Some(ServerMessage::session_heartbeat(
+                                session_id.clone(),
+                                *elapsed_secs,
+                            ))
+                        } else {
+                            None
+                        }
+                    }
+                    ClaudeEvent::SessionStatus { session_id, status } => {
+                        let should_send = subscribed_id.map_or(true, |id| id == session_id);
+                        if should_send {
+                            Some(ServerMessage::session_status(
+                                session_id.clone(),
+                                status.clone(),
+                            ))
+                        } else {
+                            None
+                        }
+                    }
+                    ClaudeEvent::TaskStageChanged { task_json, .. } => {
+                        // Broadcast to all — no session filter
+                        Some(ServerMessage::TaskUpdated { task: task_json.clone() })
+                    }
                 }
             };
 
-            if sender.send(Message::Text(json)).await.is_err() {
-                debug!("Client disconnected (send)");
-                break;
+            if let Some(msg) = msg {
+                let json = match serde_json::to_string(&msg) {
+                    Ok(j) => j,
+                    Err(e) => {
+                        error!("Failed to serialize message: {}", e);
+                        continue;
+                    }
+                };
+                if sender.send(Message::Text(json)).await.is_err() {
+                    debug!("Client disconnected (send)");
+                    break;
+                }
             }
         }
     });
