@@ -1,4 +1,4 @@
-use crate::db::{AnalyticsRepository, TokenEventRepository};
+use crate::db::AnalyticsRepository;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
