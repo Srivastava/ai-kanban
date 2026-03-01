@@ -1,13 +1,12 @@
-export type SessionStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type SessionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
 
 export interface Session {
   id: string;
   task_id: string;
   status: SessionStatus;
-  result: string | null;
-  error: string | null;
-  created_at: string;
-  updated_at: string;
+  started_at: string;
+  ended_at: string | null;
+  error_message: string | null;
 }
 
 export interface QueueStatus {
