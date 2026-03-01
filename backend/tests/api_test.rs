@@ -719,3 +719,42 @@ async fn test_api_delete_comment_not_found() {
     let response = server.delete("/api/comments/nonexistent-id").await;
     assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
 }
+
+// ==================== New Analytics API Tests ====================
+
+#[tokio::test]
+async fn test_analytics_cost_by_task_empty() {
+    let server = setup_test_server().await;
+    let response = server.get("/api/analytics/cost/by-task").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let body: Vec<serde_json::Value> = response.json();
+    assert!(body.is_empty());
+}
+
+#[tokio::test]
+async fn test_analytics_tokens_by_stage_empty() {
+    let server = setup_test_server().await;
+    let response = server.get("/api/analytics/tokens/by-stage").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let body: Vec<serde_json::Value> = response.json();
+    assert!(body.is_empty());
+}
+
+#[tokio::test]
+async fn test_analytics_session_summary_zero() {
+    let server = setup_test_server().await;
+    let response = server.get("/api/analytics/sessions/summary").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["total_sessions"], 0);
+}
+
+#[tokio::test]
+async fn test_analytics_burn_rate_structure() {
+    let server = setup_test_server().await;
+    let response = server.get("/api/analytics/burn-rate").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let body: serde_json::Value = response.json();
+    assert!(body["tokens_last_hour"].is_number());
+    assert!(body["tokens_per_minute"].is_number());
+}

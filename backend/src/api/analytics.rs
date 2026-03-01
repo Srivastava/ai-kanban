@@ -66,7 +66,12 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         .route("/tokens/by-tool", get(tokens_by_tool))
         .route("/tokens/by-language", get(tokens_by_language))
         .route("/tokens/efficiency", get(token_efficiency))
+        .route("/tokens/by-stage", get(tokens_by_stage))
+        // literal route BEFORE param route to avoid "summary" being treated as session ID
+        .route("/sessions/summary", get(session_summary))
         .route("/sessions/:id/timeline", get(session_timeline))
+        .route("/cost/by-task", get(cost_by_task))
+        .route("/burn-rate", get(burn_rate))
 }
 
 #[instrument(skip(state))]
@@ -309,5 +314,41 @@ async fn session_timeline(
             )
                 .into_response()
         }
+    }
+}
+
+#[instrument(skip(state))]
+async fn cost_by_task(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
+    info!("API: Getting cost by task");
+    match state.analytics.cost_by_task().await {
+        Ok(data) => { debug!(count = data.len(), "retrieved"); Json(data).into_response() }
+        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+    }
+}
+
+#[instrument(skip(state))]
+async fn tokens_by_stage(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
+    info!("API: Getting tokens by stage");
+    match state.analytics.tokens_by_stage().await {
+        Ok(data) => { debug!(count = data.len(), "retrieved"); Json(data).into_response() }
+        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+    }
+}
+
+#[instrument(skip(state))]
+async fn session_summary(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
+    info!("API: Getting session summary");
+    match state.analytics.session_summary().await {
+        Ok(data) => { debug!("retrieved"); Json(data).into_response() }
+        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+    }
+}
+
+#[instrument(skip(state))]
+async fn burn_rate(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
+    info!("API: Getting burn rate");
+    match state.analytics.burn_rate().await {
+        Ok(data) => { debug!("retrieved"); Json(data).into_response() }
+        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
     }
 }
