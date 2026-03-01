@@ -31,10 +31,18 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
 
     // Task to send messages to client
     let mut send_task = tokio::spawn(async move {
-        while let Ok(output) = output_rx.recv().await {
+        use crate::claude::ClaudeEvent;
+        while let Ok(event) = output_rx.recv().await {
+            let (session_id, text, is_error) = match event {
+                ClaudeEvent::Output { session_id, text, is_error } => (session_id, text, is_error),
+                ClaudeEvent::Heartbeat { .. }
+                | ClaudeEvent::SessionStatus { .. }
+                | ClaudeEvent::TaskStageChanged { .. } => continue,
+            };
+
             let sub = sub_send.read().await;
             let should_send = match sub.as_deref() {
-                Some(id) => id == output.session_id,
+                Some(id) => id == session_id,
                 None => true,
             };
             drop(sub);
@@ -44,9 +52,9 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
             }
 
             let msg = ServerMessage::session_output(
-                output.session_id,
-                output.line,
-                output.is_error,
+                session_id,
+                text,
+                is_error,
             );
 
             let json = match serde_json::to_string(&msg) {

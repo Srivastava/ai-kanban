@@ -121,3 +121,136 @@ pub fn extract_result_text(line: &str) -> Option<String> {
     }
     value.get("result")?.as_str().map(|s| s.to_string())
 }
+
+/// Parse a JSONL line into a human-readable display string and whether a tool_use was found.
+/// Returns (Option<display_text>, has_tool_use).
+/// Returns (None, false) for lines that should be skipped (system events, non-JSON, etc).
+pub fn parse_for_display(line: &str) -> (Option<String>, bool) {
+    let value: serde_json::Value = match serde_json::from_str(line) {
+        Ok(v) => v,
+        Err(_) => return (None, false),
+    };
+
+    match value.get("type").and_then(|t| t.as_str()) {
+        Some("assistant") => parse_assistant_for_display(&value),
+        Some("result") => {
+            let text = match value.get("subtype").and_then(|s| s.as_str()) {
+                Some("success") => Some("✅ Session complete".to_string()),
+                _ => {
+                    let msg = value
+                        .get("error")
+                        .and_then(|e| e.as_str())
+                        .unwrap_or("unknown error");
+                    Some(format!("❌ Error: {}", msg))
+                }
+            };
+            (text, false)
+        }
+        _ => (None, false), // system, tool results, unknown — skip
+    }
+}
+
+fn parse_assistant_for_display(value: &serde_json::Value) -> (Option<String>, bool) {
+    let message = match value.get("message") {
+        Some(m) => m,
+        None => return (None, false),
+    };
+    let content = match message.get("content").and_then(|c| c.as_array()) {
+        Some(c) => c,
+        None => return (None, false),
+    };
+
+    // Look for tool_use first (takes priority over text)
+    for item in content {
+        if item.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
+            let name = item
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("Unknown");
+            let input = item.get("input");
+            let text = format_tool_display(name, input);
+            return (Some(text), true);
+        }
+    }
+
+    // Fall back to text content
+    for item in content {
+        if item.get("type").and_then(|t| t.as_str()) == Some("text") {
+            if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
+                if !text.trim().is_empty() {
+                    let truncated = if text.len() > 120 {
+                        format!("{}...", &text[..120])
+                    } else {
+                        text.to_string()
+                    };
+                    return (Some(format!("🤔 {}", truncated)), false);
+                }
+            }
+        }
+    }
+
+    (None, false)
+}
+
+fn format_tool_display(name: &str, input: Option<&serde_json::Value>) -> String {
+    match name {
+        "Read" => {
+            let path = get_input_path(input).unwrap_or_default();
+            format!("📖 Read: {}", path)
+        }
+        "Write" | "Edit" | "NotebookEdit" => {
+            let path = get_input_path(input).unwrap_or_default();
+            format!("✏️ {}: {}", name, path)
+        }
+        "Bash" => {
+            let cmd = input
+                .and_then(|i| i.get("command"))
+                .and_then(|c| c.as_str())
+                .unwrap_or("");
+            let preview = if cmd.len() > 80 { &cmd[..80] } else { cmd };
+            format!("⚡ Bash: {}", preview)
+        }
+        "Glob" => {
+            let pattern = input
+                .and_then(|i| i.get("pattern"))
+                .and_then(|p| p.as_str())
+                .unwrap_or("");
+            format!("🔍 Glob: {}", pattern)
+        }
+        "Grep" => {
+            let pattern = input
+                .and_then(|i| i.get("pattern"))
+                .and_then(|p| p.as_str())
+                .unwrap_or("");
+            format!("🔍 Grep: {}", pattern)
+        }
+        _ => {
+            // Generic: show first string value from input
+            let arg = get_first_string_value(input).unwrap_or_default();
+            format!("🔧 {}: {}", name, arg)
+        }
+    }
+}
+
+fn get_input_path(input: Option<&serde_json::Value>) -> Option<String> {
+    let input = input?;
+    input
+        .get("file_path")
+        .or_else(|| input.get("path"))
+        .or_else(|| input.get("notebook_path"))
+        .and_then(|p| p.as_str())
+        .map(|s| s.to_string())
+}
+
+fn get_first_string_value(input: Option<&serde_json::Value>) -> Option<String> {
+    let obj = input?.as_object()?;
+    for (_, v) in obj {
+        if let Some(s) = v.as_str() {
+            if !s.is_empty() {
+                let preview = if s.len() > 80 { &s[..80] } else { s };
+                return Some(preview.to_string());
+            }
+        }
+    }
+    None
+}
