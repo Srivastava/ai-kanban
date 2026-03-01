@@ -58,14 +58,14 @@ impl ClaudeManager {
     }
 
     #[instrument(skip(self, task))]
-    pub async fn start_session(&self, task: Task, stage: &str) -> Result<String> {
+    pub async fn start_session(&self, task: Task, stage: &str, conversation_context: Option<String>) -> Result<String> {
         let session = self.session_repo.create(crate::models::CreateSession {
             task_id: task.id.clone(),
         }).await?;
 
         info!(session_id = %session.id, task_id = %task.id, "Starting Claude session");
 
-        let prompt = build_prompt(&task.title, task.description.as_deref(), stage);
+        let prompt = build_prompt(&task.title, task.description.as_deref(), stage, conversation_context.as_deref());
 
         let claude_bin = std::env::var("CLAUDE_BIN")
             .unwrap_or_else(|_| "/home/utility/.local/bin/claude".to_string());

@@ -26,6 +26,7 @@ pub fn task_routes() -> Router<TaskApiState> {
         .route("/:id", get(get_task).patch(update_task).delete(delete_task))
         .route("/:id/move", post(move_task))
         .route("/:id/sessions", post(start_session))
+        .route("/:id/sessions/continue", post(continue_session))
 }
 
 #[instrument(skip(state))]
@@ -178,7 +179,7 @@ async fn start_session(
     };
 
     let stage = task.stage.clone();
-    match queue.enqueue(task, stage).await {
+    match queue.enqueue(task, stage, None).await {
         Ok(()) => {
             info!(task_id = %id, "API: Task enqueued for Claude session");
             Json(serde_json::json!({ "status": "queued" })).into_response()
@@ -190,6 +191,47 @@ async fn start_session(
                 Json(serde_json::json!({ "error": e.to_string() })),
             ).into_response()
         }
+    }
+}
+
+#[instrument(skip(state))]
+async fn continue_session(
+    State(state): State<TaskApiState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    info!(task_id = %id, "API: Continuing Claude session with comment history");
+
+    let task = match state.repo.find(&id).await {
+        Ok(t) => t,
+        Err(e) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": e.to_string() }))).into_response(),
+    };
+
+    let queue = match &state.queue {
+        Some(q) => q.clone(),
+        None => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Queue not available" }))).into_response(),
+    };
+
+    // Build conversation context from comment thread
+    let comments = state.comment_repo.list_for_task(&id).await.unwrap_or_default();
+    let conversation_context = if comments.is_empty() {
+        None
+    } else {
+        let history = comments.iter().flat_map(|c| {
+            let prefix = if c.comment.author == "claude" { "[Claude]" } else { "[You]" };
+            let mut lines = vec![format!("{}: {}", prefix, c.comment.content)];
+            for reply in &c.replies {
+                let rprefix = if reply.author == "claude" { "[Claude]" } else { "[You]" };
+                lines.push(format!("  {}: {}", rprefix, reply.content));
+            }
+            lines
+        }).collect::<Vec<_>>().join("\n");
+        Some(history)
+    };
+
+    let stage = task.stage.clone();
+    match queue.enqueue(task, stage, conversation_context).await {
+        Ok(()) => Json(serde_json::json!({ "status": "queued" })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response(),
     }
 }
 

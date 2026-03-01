@@ -12,6 +12,7 @@ pub struct QueuedTask {
     pub task: Task,
     pub stage: String,
     pub queued_at: chrono::DateTime<chrono::Utc>,
+    pub conversation_context: Option<String>,
 }
 
 pub struct SessionQueue {
@@ -32,12 +33,12 @@ impl SessionQueue {
     }
 
     #[instrument(skip(self, task))]
-    pub async fn enqueue(&self, task: Task, stage: String) -> Result<()> {
+    pub async fn enqueue(&self, task: Task, stage: String, conversation_context: Option<String>) -> Result<()> {
         let active_count = self.manager.active_count().await;
 
         if active_count < self.max_concurrent {
             info!(task_id = %task.id, "Starting task immediately");
-            self.manager.start_session(task, &stage).await?;
+            self.manager.start_session(task, &stage, conversation_context).await?;
         } else {
             info!(task_id = %task.id, "Queuing task ({} active)", active_count);
             let mut pending = self.pending.lock().await;
@@ -45,6 +46,7 @@ impl SessionQueue {
                 task,
                 stage,
                 queued_at: chrono::Utc::now(),
+                conversation_context,
             });
         }
 
@@ -60,7 +62,7 @@ impl SessionQueue {
         if let Some(queued) = pending.pop_front() {
             info!(task_id = %queued.task.id, "Starting queued task");
             drop(pending);
-            self.manager.start_session(queued.task, &queued.stage).await?;
+            self.manager.start_session(queued.task, &queued.stage, queued.conversation_context).await?;
         }
 
         Ok(())

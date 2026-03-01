@@ -1,4 +1,9 @@
-pub fn build_prompt(task_title: &str, task_description: Option<&str>, stage: &str) -> String {
+pub fn build_prompt(
+    task_title: &str,
+    task_description: Option<&str>,
+    stage: &str,
+    conversation_context: Option<&str>,
+) -> String {
     let stage_instructions = match stage {
         "planning" => "You are in PLANNING mode. Analyze the task and create a detailed implementation plan. Do NOT make any code changes.",
         "in_progress" => "You are in IN_PROGRESS mode. Implement the task according to the plan. Make code changes as needed.",
@@ -10,8 +15,12 @@ pub fn build_prompt(task_title: &str, task_description: Option<&str>, stage: &st
         .map(|d| format!("\n\nTask Description:\n{}", d))
         .unwrap_or_default();
 
+    let conversation_section = conversation_context
+        .map(|c| format!("\n\n## Conversation History\n{}", c))
+        .unwrap_or_default();
+
     format!(
-        "# Task: {}\n\n{}{}\n\n## Instructions\n- Work on this task in the project context\n- Use available tools as needed\n- Report progress clearly",
-        task_title, stage_instructions, description_section
+        "# Task: {}\n\n{}{}{}\n\n## Instructions\n- Work on this task in the project context\n- Use available tools as needed\n- Report progress clearly",
+        task_title, stage_instructions, description_section, conversation_section
     )
 }
