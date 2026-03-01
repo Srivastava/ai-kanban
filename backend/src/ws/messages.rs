@@ -34,6 +34,12 @@ pub enum ServerMessage {
         status: String,
     },
 
+    #[serde(rename = "session_heartbeat")]
+    SessionHeartbeat {
+        session_id: String,
+        elapsed_secs: u64,
+    },
+
     #[serde(rename = "pong")]
     Pong,
 
@@ -55,6 +61,10 @@ impl ServerMessage {
 
     pub fn session_status(session_id: String, status: String) -> Self {
         ServerMessage::SessionStatus { session_id, status }
+    }
+
+    pub fn session_heartbeat(session_id: String, elapsed_secs: u64) -> Self {
+        ServerMessage::SessionHeartbeat { session_id, elapsed_secs }
     }
 
     pub fn pong() -> Self {

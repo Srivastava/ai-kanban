@@ -150,3 +150,16 @@ fn test_server_message_session_status_completed() {
     let json = serde_json::to_string(&msg).unwrap();
     assert!(json.contains("\"status\":\"completed\""));
 }
+
+#[test]
+fn test_server_message_session_heartbeat() {
+    let msg = ServerMessage::SessionHeartbeat {
+        session_id: "session-abc".to_string(),
+        elapsed_secs: 42,
+    };
+
+    let json = serde_json::to_string(&msg).unwrap();
+    assert!(json.contains("\"type\":\"session_heartbeat\""));
+    assert!(json.contains("\"session_id\":\"session-abc\""));
+    assert!(json.contains("\"elapsed_secs\":42"));
+}
