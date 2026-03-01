@@ -11,10 +11,24 @@ use tokio::sync::{broadcast, RwLock};
 use tracing::{debug, info, instrument, warn};
 
 #[derive(Debug, Clone)]
-pub struct SessionOutput {
-    pub session_id: String,
-    pub line: String,
-    pub is_error: bool,
+pub enum ClaudeEvent {
+    Output {
+        session_id: String,
+        text: String,
+        is_error: bool,
+    },
+    Heartbeat {
+        session_id: String,
+        elapsed_secs: u64,
+    },
+    SessionStatus {
+        session_id: String,
+        status: String,
+    },
+    TaskStageChanged {
+        task_id: String,
+        task_json: serde_json::Value,
+    },
 }
 
 struct RunningSession {
@@ -25,7 +39,7 @@ struct RunningSession {
 
 pub struct ClaudeManager {
     active_sessions: Arc<RwLock<HashMap<String, RunningSession>>>,
-    output_tx: broadcast::Sender<SessionOutput>,
+    output_tx: broadcast::Sender<ClaudeEvent>,
     session_repo: SessionRepository,
     token_event_repo: TokenEventRepository,
     session_metrics_repo: SessionMetricsRepository,
@@ -53,7 +67,7 @@ impl ClaudeManager {
         }
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<SessionOutput> {
+    pub fn subscribe(&self) -> broadcast::Receiver<ClaudeEvent> {
         self.output_tx.subscribe()
     }
 
@@ -181,9 +195,9 @@ impl ClaudeManager {
                         result_text = Some(r);
                     }
 
-                    let _ = output_tx.send(SessionOutput {
+                    let _ = output_tx.send(ClaudeEvent::Output {
                         session_id: session_id.clone(),
-                        line: text,
+                        text,
                         is_error: false,
                     });
                 }
@@ -198,9 +212,9 @@ impl ClaudeManager {
             for line in reader.lines() {
                 if let Ok(text) = line {
                     warn!(session_id = %session_id, "stderr: {}", text);
-                    let _ = output_tx.send(SessionOutput {
+                    let _ = output_tx.send(ClaudeEvent::Output {
                         session_id: session_id.clone(),
-                        line: text,
+                        text,
                         is_error: true,
                     });
                 }
