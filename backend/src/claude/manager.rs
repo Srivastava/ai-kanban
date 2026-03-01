@@ -198,7 +198,7 @@ impl ClaudeManager {
         });
 
         // Snapshot project metrics at session start
-        let project_metrics = count_project_files(&task_id);
+        let project_metrics = count_project_files(&project_path);
         let metrics_repo = self.session_metrics_repo.clone();
         let session_id_for_metrics = session.id.clone();
         tokio::spawn(async move {
