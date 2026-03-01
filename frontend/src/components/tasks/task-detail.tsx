@@ -7,8 +7,10 @@ import { Trash2, Pencil, Check, X } from 'lucide-react';
 import { TaskSection } from './task-section';
 import { CommentThread } from './comment-thread';
 import { SessionControls } from '@/components/sessions/session-controls';
+import { LiveOutputPanel } from '@/components/sessions/live-output-panel';
 import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 import { useComments } from '@/hooks/use-comments';
+import { useSession } from '@/hooks/use-sessions';
 import { useUpdateTask } from '@/hooks/use-tasks';
 import type { Task, Stage } from '@/types/task';
 
@@ -112,6 +114,9 @@ function InlineEditField({
 export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetailProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { data: comments = [], isLoading: commentsLoading } = useComments(task.id);
+  const { data: session } = useSession(task.session_id);
+  const sessionStatus = session?.status ?? null;
+  const hasClaudeComments = comments.some((c) => c.author === 'claude');
 
   return (
     <div>
@@ -165,13 +170,17 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
         <div className="space-y-3">
           <SessionControls
             taskId={task.id}
-            sessionId={task.session_id || undefined}
-            status={task.session_id ? 'running' : undefined}
+            sessionId={task.session_id ?? undefined}
+            status={sessionStatus}
+            hasClaudeComments={hasClaudeComments}
           />
           {task.session_id && (
-            <p className="text-xs text-muted-foreground">
-              Session ID: {task.session_id}
-            </p>
+            <>
+              <p className="text-xs text-muted-foreground font-mono">
+                Session: {task.session_id}
+              </p>
+              <LiveOutputPanel sessionId={task.session_id} status={sessionStatus} />
+            </>
           )}
         </div>
       </TaskSection>
