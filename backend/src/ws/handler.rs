@@ -24,9 +24,25 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
 
     info!("WebSocket client connected");
 
+    // Shared state for which session this client is subscribed to
+    let subscribed_session: Arc<tokio::sync::RwLock<Option<String>>> =
+        Arc::new(tokio::sync::RwLock::new(None));
+    let sub_send = subscribed_session.clone();
+
     // Task to send messages to client
     let mut send_task = tokio::spawn(async move {
         while let Ok(output) = output_rx.recv().await {
+            let sub = sub_send.read().await;
+            let should_send = match sub.as_deref() {
+                Some(id) => id == output.session_id,
+                None => true,
+            };
+            drop(sub);
+
+            if !should_send {
+                continue;
+            }
+
             let msg = ServerMessage::session_output(
                 output.session_id,
                 output.line,
@@ -42,7 +58,7 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
             };
 
             if sender.send(Message::Text(json)).await.is_err() {
-                debug!("Client disconnected");
+                debug!("Client disconnected (send)");
                 break;
             }
         }
@@ -53,11 +69,16 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
         while let Some(msg) = receiver.next().await {
             if let Ok(Message::Text(text)) = &msg {
                 match serde_json::from_str::<ClientMessage>(&text) {
+                    Ok(ClientMessage::SubscribeSession { session_id }) => {
+                        info!(session_id = %session_id, "Client subscribed to session");
+                        let mut sub = subscribed_session.write().await;
+                        *sub = Some(session_id);
+                    }
+                    Ok(ClientMessage::Ping) => {
+                        debug!("Ping received");
+                    }
                     Ok(client_msg) => {
                         debug!("Received: {:?}", client_msg);
-                        // Handle messages here if needed
-                        // For now, we just log them
-                        let _ = client_msg;
                     }
                     Err(e) => {
                         warn!("Failed to parse client message: {}", e);
