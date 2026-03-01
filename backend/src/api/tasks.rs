@@ -34,14 +34,14 @@ async fn list_tasks(
     State(state): State<TaskApiState>,
     Query(query): Query<ListQuery>,
 ) -> impl IntoResponse {
-    debug!(stage = ?query.stage, "API: Listing tasks");
+    debug!(stage_filter = ?query.stage, "Listing tasks");
     match state.repo.list(query.stage.as_deref()).await {
         Ok(tasks) => {
-            debug!(count = tasks.len(), "API: Tasks retrieved");
+            debug!(count = tasks.len(), stage_filter = ?query.stage, "Tasks retrieved");
             Json(tasks).into_response()
         }
         Err(e) => {
-            error!(error = %e, "API: Failed to list tasks");
+            error!(stage_filter = ?query.stage, error = %e, "Failed to list tasks");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": e.to_string() })),
@@ -56,14 +56,14 @@ async fn get_task(
     State(state): State<TaskApiState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    debug!(task_id = %id, "API: Getting task");
+    debug!(task_id = %id, "Getting task");
     match state.repo.find(&id).await {
         Ok(task) => {
-            debug!(task_id = %id, "API: Task retrieved");
+            debug!(task_id = %id, title = %task.title, stage = %task.stage, "Task retrieved");
             Json(task).into_response()
         }
         Err(e) => {
-            error!(task_id = %id, error = %e, "API: Task not found");
+            error!(task_id = %id, error = %e, "Task not found");
             (
                 StatusCode::NOT_FOUND,
                 Json(serde_json::json!({ "error": e.to_string() })),
@@ -78,14 +78,14 @@ async fn create_task(
     State(state): State<TaskApiState>,
     Json(create): Json<CreateTask>,
 ) -> impl IntoResponse {
-    info!(title = %create.title, project_path = %create.project_path, "API: Creating task");
+    info!(title = %create.title, project_path = %create.project_path, "Creating task");
     match state.repo.create(create).await {
         Ok(task) => {
-            info!(task_id = %task.id, "API: Task created");
+            info!(task_id = %task.id, title = %task.title, stage = %task.stage, project_path = %task.project_path, "Task created");
             (StatusCode::CREATED, Json(task)).into_response()
         }
         Err(e) => {
-            error!(error = %e, "API: Failed to create task");
+            error!(error = %e, "Failed to create task");
             (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({ "error": e.to_string() })),
@@ -101,14 +101,21 @@ async fn update_task(
     Path(id): Path<String>,
     Json(update): Json<UpdateTask>,
 ) -> impl IntoResponse {
-    info!(task_id = %id, "API: Updating task");
+    info!(
+        task_id = %id,
+        update_title = ?update.title,
+        update_stage = ?update.stage,
+        update_context = update.context.is_some(),
+        update_description = update.description.is_some(),
+        "Updating task"
+    );
     match state.repo.update(&id, update).await {
         Ok(task) => {
-            info!(task_id = %id, new_stage = %task.stage, "API: Task updated");
+            info!(task_id = %id, title = %task.title, stage = %task.stage, "Task updated");
             Json(task).into_response()
         }
         Err(e) => {
-            error!(task_id = %id, error = %e, "API: Failed to update task");
+            error!(task_id = %id, error = %e, "Failed to update task");
             (
                 StatusCode::NOT_FOUND,
                 Json(serde_json::json!({ "error": e.to_string() })),
@@ -123,23 +130,25 @@ async fn delete_task(
     State(state): State<TaskApiState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    info!(task_id = %id, "API: Deleting task");
+    info!(task_id = %id, "Deleting task");
     // Remove from pending queue and stop any running Claude process for this task
     if let Some(queue) = &state.queue {
-        // Remove from pending queue first
-        let _ = queue.dequeue(&id).await;
-        // Then stop any running session
+        let dequeued = queue.dequeue(&id).await;
+        if dequeued {
+            info!(task_id = %id, "Removed task from pending queue before delete");
+        }
         if let Some(session_id) = queue.get_active_session_for_task(&id).await {
+            info!(task_id = %id, session_id = %session_id, "Stopping active session before task delete");
             let _ = queue.stop_session(&session_id).await;
         }
     }
     match state.repo.delete(&id).await {
         Ok(()) => {
-            info!(task_id = %id, "API: Task deleted");
+            info!(task_id = %id, "Task deleted");
             StatusCode::NO_CONTENT.into_response()
         }
         Err(e) => {
-            error!(task_id = %id, error = %e, "API: Failed to delete task");
+            error!(task_id = %id, error = %e, "Failed to delete task");
             (
                 StatusCode::NOT_FOUND,
                 Json(serde_json::json!({ "error": e.to_string() })),
@@ -154,12 +163,12 @@ async fn start_session(
     State(state): State<TaskApiState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    info!(task_id = %id, "API: Starting Claude session for task");
+    info!(task_id = %id, "Starting Claude session for task");
 
     let task = match state.repo.find(&id).await {
         Ok(t) => t,
         Err(e) => {
-            error!(task_id = %id, error = %e, "API: Task not found for session start");
+            error!(task_id = %id, error = %e, "Task not found for session start");
             return (
                 StatusCode::NOT_FOUND,
                 Json(serde_json::json!({ "error": e.to_string() })),
@@ -170,7 +179,7 @@ async fn start_session(
     let queue = match &state.queue {
         Some(q) => q.clone(),
         None => {
-            error!("API: Session queue not initialized");
+            error!(task_id = %id, "Session queue not initialized");
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": "Session queue not available" })),
@@ -179,13 +188,14 @@ async fn start_session(
     };
 
     let stage = task.stage.clone();
+    info!(task_id = %id, title = %task.title, stage = %stage, "Enqueuing task for Claude session");
     match queue.enqueue(task, stage, None).await {
         Ok(()) => {
-            info!(task_id = %id, "API: Task enqueued for Claude session");
+            info!(task_id = %id, "Task enqueued for Claude session");
             Json(serde_json::json!({ "status": "queued" })).into_response()
         }
         Err(e) => {
-            error!(task_id = %id, error = %e, "API: Failed to enqueue task");
+            error!(task_id = %id, error = %e, "Failed to enqueue task for Claude session");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": e.to_string() })),
@@ -199,20 +209,28 @@ async fn continue_session(
     State(state): State<TaskApiState>,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    info!(task_id = %id, "API: Continuing Claude session with comment history");
+    info!(task_id = %id, "Continuing Claude session with comment history");
 
     let task = match state.repo.find(&id).await {
         Ok(t) => t,
-        Err(e) => return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": e.to_string() }))).into_response(),
+        Err(e) => {
+            error!(task_id = %id, error = %e, "Task not found for continue session");
+            return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
+        }
     };
 
     let queue = match &state.queue {
         Some(q) => q.clone(),
-        None => return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Queue not available" }))).into_response(),
+        None => {
+            error!(task_id = %id, "Session queue not available for continue session");
+            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Queue not available" }))).into_response();
+        }
     };
 
     // Build conversation context from comment thread
     let comments = state.comment_repo.list_for_task(&id).await.unwrap_or_default();
+    let total_comments = comments.len();
+    let total_replies: usize = comments.iter().map(|c| c.replies.len()).sum();
     let conversation_context = if comments.is_empty() {
         None
     } else {
@@ -229,9 +247,24 @@ async fn continue_session(
     };
 
     let stage = task.stage.clone();
+    info!(
+        task_id = %id,
+        title = %task.title,
+        stage = %stage,
+        comment_count = total_comments,
+        reply_count = total_replies,
+        has_context = conversation_context.is_some(),
+        "Enqueuing continue session with conversation history"
+    );
     match queue.enqueue(task, stage, conversation_context).await {
-        Ok(()) => Json(serde_json::json!({ "status": "queued" })).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response(),
+        Ok(()) => {
+            info!(task_id = %id, "Continue session enqueued");
+            Json(serde_json::json!({ "status": "queued" })).into_response()
+        }
+        Err(e) => {
+            error!(task_id = %id, error = %e, "Failed to enqueue continue session");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
     }
 }
 
@@ -241,14 +274,15 @@ async fn move_task(
     Path(id): Path<String>,
     Json(body): Json<MoveRequest>,
 ) -> impl IntoResponse {
-    info!(task_id = %id, to_stage = %body.stage, "API: Moving task");
+    info!(task_id = %id, to_stage = %body.stage, "Moving task to new stage");
     match state.repo.move_to_stage(&id, &body.stage).await {
         Ok(task) => {
-            info!(task_id = %id, new_stage = %task.stage, "API: Task moved");
+            info!(task_id = %id, title = %task.title, stage = %task.stage, "Task moved to stage");
             // Auto-stop session when task moves to Done
             if body.stage == "done" {
                 if let Some(queue) = &state.queue {
                     if let Some(session_id) = queue.get_active_session_for_task(&id).await {
+                        info!(task_id = %id, session_id = %session_id, "Auto-stopping session — task moved to Done");
                         let _ = queue.stop_session(&session_id).await;
                     }
                 }
@@ -256,7 +290,7 @@ async fn move_task(
             Json(task).into_response()
         }
         Err(e) => {
-            error!(task_id = %id, to_stage = %body.stage, error = %e, "API: Failed to move task");
+            error!(task_id = %id, to_stage = %body.stage, error = %e, "Failed to move task to stage");
             (
                 StatusCode::BAD_REQUEST,
                 Json(serde_json::json!({ "error": e.to_string() })),
