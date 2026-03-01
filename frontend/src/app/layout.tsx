@@ -31,9 +31,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ErrorBoundary>
-          <WebSocketProvider>
-            <QueryProvider>{children}</QueryProvider>
-          </WebSocketProvider>
+          <QueryProvider>
+            <WebSocketProvider>{children}</WebSocketProvider>
+          </QueryProvider>
         </ErrorBoundary>
       </body>
     </html>

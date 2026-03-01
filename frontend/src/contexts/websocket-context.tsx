@@ -1,7 +1,9 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { logger } from '@/lib/logger';
+import type { Task } from '@/types/task';
 
 type WebSocketStatus = 'connecting' | 'connected' | 'disconnected';
 
@@ -20,6 +22,10 @@ const WS_URL =
     : 'ws://localhost:3001/ws';
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
+  const queryClientRef = useRef(queryClient);
+  queryClientRef.current = queryClient;
+
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [status, setStatus] = useState<WebSocketStatus>('connecting');
   const [listeners, setListeners] = useState<Map<string, Set<(data: unknown) => void>>>(new Map());
@@ -44,6 +50,14 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     socket.onmessage = (event) => {
       try {
         const message = JSON.parse(event.data);
+
+        // Handle task_updated: sync query cache so boards update in real-time
+        if (message.type === 'task_updated' && message.task) {
+          const task = message.task as Task;
+          queryClientRef.current.setQueryData(['tasks', task.id], task);
+          queryClientRef.current.invalidateQueries({ queryKey: ['tasks'] });
+        }
+
         const callbacks = listeners.get(message.type);
         if (callbacks) {
           callbacks.forEach((cb) => cb(message));
