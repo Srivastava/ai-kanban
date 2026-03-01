@@ -122,6 +122,19 @@ pub fn extract_result_text(line: &str) -> Option<String> {
     value.get("result")?.as_str().map(|s| s.to_string())
 }
 
+/// Truncate a string to at most `max_bytes` bytes, ensuring we don't cut in the middle
+/// of a multi-byte UTF-8 character. Returns a `&str` slice.
+fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    let mut boundary = max_bytes;
+    while boundary > 0 && !s.is_char_boundary(boundary) {
+        boundary -= 1;
+    }
+    &s[..boundary]
+}
+
 /// Parse a JSONL line into a human-readable display string and whether a tool_use was found.
 /// Returns (Option<display_text>, has_tool_use).
 /// Returns (None, false) for lines that should be skipped (system events, non-JSON, etc).
@@ -179,7 +192,7 @@ fn parse_assistant_for_display(value: &serde_json::Value) -> (Option<String>, bo
             if let Some(text) = item.get("text").and_then(|t| t.as_str()) {
                 if !text.trim().is_empty() {
                     let truncated = if text.len() > 120 {
-                        format!("{}...", &text[..120])
+                        format!("{}...", truncate_to_char_boundary(text, 120))
                     } else {
                         text.to_string()
                     };
@@ -207,7 +220,7 @@ fn format_tool_display(name: &str, input: Option<&serde_json::Value>) -> String 
                 .and_then(|i| i.get("command"))
                 .and_then(|c| c.as_str())
                 .unwrap_or("");
-            let preview = if cmd.len() > 80 { &cmd[..80] } else { cmd };
+            let preview = truncate_to_char_boundary(cmd, 80);
             format!("⚡ Bash: {}", preview)
         }
         "Glob" => {
@@ -247,7 +260,7 @@ fn get_first_string_value(input: Option<&serde_json::Value>) -> Option<String> {
     for (_, v) in obj {
         if let Some(s) = v.as_str() {
             if !s.is_empty() {
-                let preview = if s.len() > 80 { &s[..80] } else { s };
+                let preview = truncate_to_char_boundary(s, 80);
                 return Some(preview.to_string());
             }
         }

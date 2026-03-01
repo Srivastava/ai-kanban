@@ -170,3 +170,16 @@ fn test_display_plain_text_skipped() {
     assert_eq!(text, None);
     assert!(!has_tool);
 }
+
+#[test]
+fn test_display_assistant_text_truncated_unicode_safe() {
+    // 119 ASCII bytes + a 4-byte emoji that straddles the 120-byte boundary
+    // Without char-boundary checking, &text[..120] would panic here
+    let text = format!("{}🎉rest", "a".repeat(119));
+    let line = format!(r#"{{"type":"assistant","message":{{"content":[{{"type":"text","text":"{}"}}],"usage":{{"input_tokens":100,"output_tokens":20}}}}}}"#, text);
+    let (result, _) = parse_for_display(&line);
+    let result = result.unwrap();
+    assert!(result.starts_with("🤔 "));
+    assert!(result.ends_with("..."));
+    // Must not panic — that's the whole point
+}
