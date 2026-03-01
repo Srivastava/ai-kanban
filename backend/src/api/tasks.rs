@@ -220,8 +220,8 @@ async fn continue_session(
             let prefix = if c.comment.author == "claude" { "[Claude]" } else { "[You]" };
             let mut lines = vec![format!("{}: {}", prefix, c.comment.content)];
             for reply in &c.replies {
-                let rprefix = if reply.author == "claude" { "[Claude]" } else { "[You]" };
-                lines.push(format!("  {}: {}", rprefix, reply.content));
+                let reply_prefix = if reply.author == "claude" { "[Claude]" } else { "[You]" };
+                lines.push(format!("  {}: {}", reply_prefix, reply.content));
             }
             lines
         }).collect::<Vec<_>>().join("\n");
