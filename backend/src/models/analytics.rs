@@ -101,3 +101,33 @@ pub struct SessionTimelineEvent {
     pub cumulative_total: i64,
     pub timestamp: String,
 }
+
+#[derive(Debug, Serialize)]
+pub struct CostByTask {
+    pub task_id: String,
+    pub task_title: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TokensByStage {
+    pub stage: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionSummary {
+    pub total_sessions: i64,
+    pub avg_tokens_per_session: f64,
+    pub max_tokens_per_session: i64,
+    pub total_cost_usd: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BurnRate {
+    pub tokens_last_hour: f64,
+    pub tokens_per_minute: f64,
+}
