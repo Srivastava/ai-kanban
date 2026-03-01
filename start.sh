@@ -26,14 +26,21 @@ _kill_port 3001
 _kill_port 3002
 sleep 1
 
+# Log rotation: 1 MiB max per file, archived as <name>_<timestamp>.log
+ROTATOR="python3 $SCRIPT_DIR/rotate_log.py"
+LOG_MAX_BYTES=1048576
+
 # ---- Backend ----
 BACKEND_LOG="$LOGS/backend.log"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Starting backend ===" >> "$BACKEND_LOG"
 
 cd "$SCRIPT_DIR/backend"
 cargo build 2>&1 | tee -a "$BACKEND_LOG"
-nohup ./target/debug/ai-kanban-backend >> "$BACKEND_LOG" 2>&1 &
+mkfifo "$LOGS/backend.pipe"
+$ROTATOR "$BACKEND_LOG" $LOG_MAX_BYTES < "$LOGS/backend.pipe" &
+./target/debug/ai-kanban-backend > "$LOGS/backend.pipe" 2>&1 &
 BACKEND_PID=$!
+rm -f "$LOGS/backend.pipe"
 echo "$BACKEND_PID" >> "$PIDS"
 echo "Backend started (PID $BACKEND_PID) → $BACKEND_LOG"
 
@@ -45,8 +52,11 @@ FRONTEND_LOG="$LOGS/frontend.log"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Starting frontend ===" >> "$FRONTEND_LOG"
 
 cd "$SCRIPT_DIR/frontend"
-nohup npm run dev -- --port 3002 >> "$FRONTEND_LOG" 2>&1 &
+mkfifo "$LOGS/frontend.pipe"
+$ROTATOR "$FRONTEND_LOG" $LOG_MAX_BYTES < "$LOGS/frontend.pipe" &
+npm run dev -- --port 3002 > "$LOGS/frontend.pipe" 2>&1 &
 FRONTEND_PID=$!
+rm -f "$LOGS/frontend.pipe"
 echo "$FRONTEND_PID" >> "$PIDS"
 echo "Frontend started (PID $FRONTEND_PID) → $FRONTEND_LOG"
 
