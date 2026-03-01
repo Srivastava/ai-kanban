@@ -63,7 +63,14 @@ impl ClaudeManager {
             task_id: task.id.clone(),
         }).await?;
 
-        info!(session_id = %session.id, task_id = %task.id, "Starting Claude session");
+        info!(
+            session_id = %session.id,
+            task_id = %task.id,
+            task_title = %task.title,
+            stage = %stage,
+            has_context = conversation_context.is_some(),
+            "Starting Claude session"
+        );
 
         let prompt = build_prompt(&task.title, task.description.as_deref(), stage, conversation_context.as_deref());
 
@@ -223,7 +230,12 @@ impl ClaudeManager {
             let exit_ok = if let Some(mut child) = child_opt {
                 match tokio::task::spawn_blocking(move || child.wait()).await {
                     Ok(Ok(status)) => {
-                        info!(session_id = %session_id_for_completion, exit_code = ?status.code(), "Claude process exited");
+                        info!(
+                            session_id = %session_id_for_completion,
+                            exit_code = ?status.code(),
+                            success = status.success(),
+                            "Claude process exited"
+                        );
                         status.success()
                     }
                     _ => false,
@@ -234,7 +246,11 @@ impl ClaudeManager {
             };
 
             let final_status = if exit_ok { "completed" } else { "failed" };
-            info!(session_id = %session_id_for_completion, status = %final_status, "Marking session complete");
+            info!(
+                session_id = %session_id_for_completion,
+                status = %final_status,
+                "Session finished"
+            );
             let _ = session_repo_for_completion.update(&session_id_for_completion, UpdateSession {
                 status: Some(final_status.to_string()),
                 ended_at: Some(chrono::Utc::now()),
@@ -248,14 +264,33 @@ impl ClaudeManager {
                         // We need the task_id — fetch it from the session record
                         if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
                             use crate::models::CreateComment;
-                            let _ = comment_repo_for_completion.create(
+                            let content_len = text.len();
+                            let preview = text.chars().take(120).collect::<String>();
+                            let preview = if content_len > 120 { format!("{}…", preview) } else { preview };
+                            match comment_repo_for_completion.create(
                                 &session.task_id,
                                 "claude",
                                 CreateComment { content: text, parent_id: None },
-                            ).await;
-                            info!(session_id = %session_id_for_completion, "Posted Claude result as comment");
+                            ).await {
+                                Ok(comment) => info!(
+                                    session_id = %session_id_for_completion,
+                                    task_id = %session.task_id,
+                                    comment_id = %comment.id,
+                                    content_len = content_len,
+                                    preview = %preview,
+                                    "Posted Claude result as comment"
+                                ),
+                                Err(e) => warn!(
+                                    session_id = %session_id_for_completion,
+                                    task_id = %session.task_id,
+                                    error = %e,
+                                    "Failed to post Claude result as comment"
+                                ),
+                            }
                         }
                     }
+                } else {
+                    info!(session_id = %session_id_for_completion, "Claude session completed with no result text");
                 }
             }
         });
@@ -267,7 +302,12 @@ impl ClaudeManager {
     pub async fn stop_session(&self, session_id: &str) -> Result<()> {
         let mut sessions = self.active_sessions.write().await;
         if let Some(mut rs) = sessions.remove(session_id) {
-            info!(session_id = %session_id, "Stopping session");
+            info!(
+                session_id = %session_id,
+                task_id = %rs.task.id,
+                task_title = %rs.task.title,
+                "Stopping session"
+            );
             let _ = rs.child.kill();
             self.session_repo.update(session_id, crate::models::UpdateSession {
                 status: Some("stopped".to_string()),

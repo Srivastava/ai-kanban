@@ -37,10 +37,24 @@ impl SessionQueue {
         let active_count = self.manager.active_count().await;
 
         if active_count < self.max_concurrent {
-            info!(task_id = %task.id, "Starting task immediately");
+            info!(
+                task_id = %task.id,
+                task_title = %task.title,
+                stage = %stage,
+                active_sessions = active_count,
+                "Starting task immediately"
+            );
             self.manager.start_session(task, &stage, conversation_context).await?;
         } else {
-            info!(task_id = %task.id, "Queuing task ({} active)", active_count);
+            let queue_len = self.pending.lock().await.len();
+            info!(
+                task_id = %task.id,
+                task_title = %task.title,
+                stage = %stage,
+                active_sessions = active_count,
+                queue_position = queue_len + 1,
+                "Task queued — at capacity"
+            );
             let mut pending = self.pending.lock().await;
             pending.push_back(QueuedTask {
                 task,
@@ -60,7 +74,14 @@ impl SessionQueue {
         let mut pending = self.pending.lock().await;
 
         if let Some(queued) = pending.pop_front() {
-            info!(task_id = %queued.task.id, "Starting queued task");
+            let remaining = pending.len();
+            info!(
+                task_id = %queued.task.id,
+                task_title = %queued.task.title,
+                stage = %queued.stage,
+                remaining_in_queue = remaining,
+                "Starting next queued task"
+            );
             drop(pending);
             self.manager.start_session(queued.task, &queued.stage, queued.conversation_context).await?;
         }
