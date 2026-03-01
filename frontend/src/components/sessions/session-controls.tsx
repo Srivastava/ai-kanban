@@ -1,52 +1,47 @@
 'use client';
 
-import { Play, Pause, Square } from 'lucide-react';
+import { Play, Square, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
-
-type SessionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'paused';
+import type { SessionStatus } from '@/types/session';
 
 interface SessionControlsProps {
   taskId: string;
-  sessionId?: string;
-  status?: SessionStatus;
+  sessionId?: string | null;
+  status?: SessionStatus | null;
+  hasClaudeComments?: boolean;
 }
 
-export function SessionControls({ taskId, sessionId, status }: SessionControlsProps) {
+export function SessionControls({
+  taskId,
+  sessionId,
+  status,
+  hasClaudeComments = false,
+}: SessionControlsProps) {
   const queryClient = useQueryClient();
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
+    queryClient.invalidateQueries({ queryKey: ['sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['comments', taskId] });
+  };
 
   const startSession = async () => {
     await apiClient(`/api/tasks/${taskId}/sessions`, { method: 'POST' });
-    queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
+    invalidate();
   };
 
-  const pauseSession = async () => {
-    if (!sessionId) return;
-    await apiClient(`/api/sessions/${sessionId}/pause`, { method: 'POST' });
-    queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
-  };
-
-  const resumeSession = async () => {
-    if (!sessionId) return;
-    await apiClient(`/api/sessions/${sessionId}/resume`, { method: 'POST' });
-    queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
+  const continueSession = async () => {
+    await apiClient(`/api/tasks/${taskId}/sessions/continue`, { method: 'POST' });
+    invalidate();
   };
 
   const stopSession = async () => {
     if (!sessionId) return;
     await apiClient(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
-    queryClient.invalidateQueries({ queryKey: ['tasks', taskId] });
+    invalidate();
   };
-
-  if (!status || status === 'completed' || status === 'failed') {
-    return (
-      <Button onClick={startSession} size="sm">
-        <Play className="mr-2 h-4 w-4" />
-        Start Claude Session
-      </Button>
-    );
-  }
 
   if (status === 'pending') {
     return (
@@ -59,30 +54,26 @@ export function SessionControls({ taskId, sessionId, status }: SessionControlsPr
 
   if (status === 'running') {
     return (
-      <div className="flex gap-2">
-        <Button onClick={pauseSession} variant="outline" size="sm">
-          <Pause className="mr-2 h-4 w-4" />
-          Pause
-        </Button>
-        <Button onClick={stopSession} variant="destructive" size="sm">
-          <Square className="mr-2 h-4 w-4" />
-          Stop
-        </Button>
-      </div>
+      <Button onClick={stopSession} variant="destructive" size="sm">
+        <Square className="mr-2 h-4 w-4" />
+        Stop Session
+      </Button>
     );
   }
 
-  // paused
+  // completed, failed, stopped, or no session
   return (
     <div className="flex gap-2">
-      <Button onClick={resumeSession} size="sm">
+      <Button onClick={startSession} size="sm">
         <Play className="mr-2 h-4 w-4" />
-        Resume
+        Start Session
       </Button>
-      <Button onClick={stopSession} variant="destructive" size="sm">
-        <Square className="mr-2 h-4 w-4" />
-        Stop
-      </Button>
+      {hasClaudeComments && (
+        <Button onClick={continueSession} variant="outline" size="sm">
+          <RotateCcw className="mr-2 h-4 w-4" />
+          Continue Session
+        </Button>
+      )}
     </div>
   );
 }
