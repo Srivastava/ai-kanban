@@ -14,25 +14,32 @@ interface OutputLine {
   isError: boolean;
 }
 
+interface HeartbeatState {
+  elapsedSecs: number;
+  receivedAt: number; // Date.now() when we got it
+}
+
 export function LiveOutputPanel({ sessionId, status }: Props) {
   const [lines, setLines] = useState<OutputLine[]>([]);
+  const [heartbeat, setHeartbeat] = useState<HeartbeatState | null>(null);
+  const [displayElapsed, setDisplayElapsed] = useState<number>(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { subscribe, send, status: wsStatus } = useWebSocket();
   const isConnected = wsStatus === 'connected';
 
-  // Reset lines when session changes
+  // Reset lines and heartbeat when session changes
   useEffect(() => {
     setLines([]);
+    setHeartbeat(null);
   }, [sessionId]);
 
-  // Subscribe to this session's output
+  // Subscribe to this session's output and heartbeat
   useEffect(() => {
     if (!sessionId || !isConnected) return;
 
-    // Tell the server we want this session's output
     send({ type: 'subscribe_session', session_id: sessionId });
 
-    const unsub = subscribe('session_output', (data: unknown) => {
+    const unsubOutput = subscribe('session_output', (data: unknown) => {
       const msg = data as { session_id: string; output: string; is_error: boolean };
       if (msg.session_id !== sessionId) return;
       setLines((prev) => [
@@ -41,8 +48,32 @@ export function LiveOutputPanel({ sessionId, status }: Props) {
       ]);
     });
 
-    return unsub;
+    const unsubHeartbeat = subscribe('session_heartbeat', (data: unknown) => {
+      const msg = data as { session_id: string; elapsed_secs: number };
+      if (msg.session_id !== sessionId) return;
+      setHeartbeat({ elapsedSecs: msg.elapsed_secs, receivedAt: Date.now() });
+    });
+
+    return () => {
+      unsubOutput();
+      unsubHeartbeat();
+    };
   }, [sessionId, isConnected, subscribe, send]);
+
+  // Tick display elapsed every second while running
+  useEffect(() => {
+    const isRunning = status === 'running' || status === 'pending';
+    if (!isRunning || !heartbeat) return;
+
+    const update = () => {
+      const secsSinceHeartbeat = Math.floor((Date.now() - heartbeat.receivedAt) / 1000);
+      setDisplayElapsed(heartbeat.elapsedSecs + secsSinceHeartbeat);
+    };
+
+    update(); // set immediately
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [heartbeat, status]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -52,6 +83,11 @@ export function LiveOutputPanel({ sessionId, status }: Props) {
   if (!sessionId) return null;
 
   const isRunning = status === 'running' || status === 'pending';
+  const secsSinceHeartbeat = heartbeat
+    ? Math.floor((Date.now() - heartbeat.receivedAt) / 1000)
+    : 999;
+  const isWaiting = isRunning && heartbeat !== null && secsSinceHeartbeat > 8;
+  const hasActiveHeartbeat = isRunning && heartbeat !== null && !isWaiting;
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
@@ -59,7 +95,19 @@ export function LiveOutputPanel({ sessionId, status }: Props) {
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
           Session Output
         </span>
-        {isRunning && (
+        {hasActiveHeartbeat && (
+          <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Running {displayElapsed}s
+          </span>
+        )}
+        {isWaiting && (
+          <span className="flex items-center gap-1.5 text-xs text-yellow-500">
+            <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+            Waiting...
+          </span>
+        )}
+        {isRunning && heartbeat === null && (
           <span className="flex items-center gap-1.5 text-xs text-emerald-500">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             Live
