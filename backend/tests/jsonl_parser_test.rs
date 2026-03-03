@@ -183,3 +183,54 @@ fn test_display_assistant_text_truncated_unicode_safe() {
     assert!(result.ends_with("..."));
     // Must not panic — that's the whole point
 }
+
+// ==================== extract_claude_session_id ====================
+
+use ai_kanban_backend::claude::jsonl_parser::extract_claude_session_id;
+
+#[test]
+fn test_extract_session_id_valid_init() {
+    let line = r#"{"type":"system","subtype":"init","session_id":"abc-123-def"}"#;
+    let id = extract_claude_session_id(line);
+    assert_eq!(id, Some("abc-123-def".to_string()));
+}
+
+#[test]
+fn test_extract_session_id_real_uuid() {
+    let line = r#"{"type":"system","subtype":"init","session_id":"550e8400-e29b-41d4-a716-446655440000","model":"claude-sonnet-4-6"}"#;
+    let id = extract_claude_session_id(line);
+    assert_eq!(id, Some("550e8400-e29b-41d4-a716-446655440000".to_string()));
+}
+
+#[test]
+fn test_extract_session_id_wrong_type_returns_none() {
+    let line = r#"{"type":"assistant","subtype":"init","session_id":"abc-123"}"#;
+    let id = extract_claude_session_id(line);
+    assert!(id.is_none());
+}
+
+#[test]
+fn test_extract_session_id_wrong_subtype_returns_none() {
+    let line = r#"{"type":"system","subtype":"something_else","session_id":"abc-123"}"#;
+    let id = extract_claude_session_id(line);
+    assert!(id.is_none());
+}
+
+#[test]
+fn test_extract_session_id_missing_session_id_returns_none() {
+    let line = r#"{"type":"system","subtype":"init","model":"claude-sonnet-4-6"}"#;
+    let id = extract_claude_session_id(line);
+    assert!(id.is_none());
+}
+
+#[test]
+fn test_extract_session_id_not_json_returns_none() {
+    let id = extract_claude_session_id("not json at all");
+    assert!(id.is_none());
+}
+
+#[test]
+fn test_extract_session_id_empty_string_returns_none() {
+    let id = extract_claude_session_id("");
+    assert!(id.is_none());
+}
