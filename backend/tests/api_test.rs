@@ -758,3 +758,135 @@ async fn test_analytics_burn_rate_structure() {
     assert!(body["tokens_last_hour"].is_number());
     assert!(body["tokens_per_minute"].is_number());
 }
+
+// ==================== Sessions API Tests ====================
+
+#[tokio::test]
+async fn test_api_list_sessions_empty() {
+    let server = setup_test_server().await;
+    let response = server.get("/api/sessions").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["active_count"], 0);
+    assert!(body["queued"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn test_api_get_session_not_found() {
+    let server = setup_test_server().await;
+    let response = server.get("/api/sessions/nonexistent-id").await;
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_api_stop_session_not_found() {
+    let server = setup_test_server().await;
+    let response = server.post("/api/sessions/nonexistent-id/stop").await;
+    // stop_session returns 200 OK even for nonexistent IDs: the implementation
+    // silently no-ops (removes nothing from active_sessions) and returns Ok(()),
+    // so the handler emits a 200 with { "status": "stopped" }.
+    assert_eq!(response.status_code(), StatusCode::OK);
+}
+
+// ==================== Task API Error Path Tests ====================
+
+#[tokio::test]
+async fn test_api_start_session_task_not_found() {
+    let server = setup_test_server().await;
+    let response = server.post("/api/tasks/nonexistent-id/sessions").await;
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_api_continue_session_task_not_found() {
+    let server = setup_test_server().await;
+    let response = server.post("/api/tasks/nonexistent-id/sessions/continue").await;
+    assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn test_api_update_task_stage() {
+    let server = setup_test_server().await;
+
+    let create_resp = server
+        .post("/api/tasks")
+        .json(&serde_json::json!({
+            "title": "Stage Test",
+            "project_path": "/tmp"
+        }))
+        .await;
+    let task: serde_json::Value = create_resp.json();
+    let task_id = task["id"].as_str().unwrap();
+
+    let update_resp = server
+        .patch(&format!("/api/tasks/{}", task_id))
+        .json(&serde_json::json!({ "stage": "ready" }))
+        .await;
+    assert_eq!(update_resp.status_code(), StatusCode::OK);
+    let updated: serde_json::Value = update_resp.json();
+    assert_eq!(updated["stage"], "ready");
+}
+
+// ==================== Analytics API Endpoint Tests ====================
+
+#[tokio::test]
+async fn test_api_analytics_overview() {
+    let server = setup_test_server().await;
+    let response = server.get("/api/analytics/overview").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_api_analytics_daily_tokens() {
+    let server = setup_test_server().await;
+    // Route is /api/analytics/tokens/daily
+    let response = server.get("/api/analytics/tokens/daily").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_api_analytics_tokens_by_task() {
+    let server = setup_test_server().await;
+    // Route is /api/analytics/tokens/by-task
+    let response = server.get("/api/analytics/tokens/by-task").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_api_analytics_tokens_by_session() {
+    let server = setup_test_server().await;
+    // Route is /api/analytics/tokens/by-session
+    let response = server.get("/api/analytics/tokens/by-session").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_api_analytics_tokens_by_tool() {
+    let server = setup_test_server().await;
+    // Route is /api/analytics/tokens/by-tool
+    let response = server.get("/api/analytics/tokens/by-tool").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_api_analytics_tokens_by_language() {
+    let server = setup_test_server().await;
+    // Route is /api/analytics/tokens/by-language
+    let response = server.get("/api/analytics/tokens/by-language").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_api_analytics_token_efficiency() {
+    let server = setup_test_server().await;
+    // Route is /api/analytics/tokens/efficiency
+    let response = server.get("/api/analytics/tokens/efficiency").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_api_analytics_usage_windows() {
+    let server = setup_test_server().await;
+    let response = server.get("/api/analytics/usage-windows").await;
+    assert_eq!(response.status_code(), StatusCode::OK);
+}

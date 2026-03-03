@@ -136,3 +136,89 @@ async fn test_upsert_session_metrics() {
     let m3 = repo.find(&session_id).await.unwrap().unwrap();
     assert_eq!(m3.lines_written, 15);
 }
+
+#[tokio::test]
+async fn test_list_by_task() {
+    let pool = setup_db().await;
+    let repo = TokenEventRepository::new(pool.clone());
+    let (task_id_a, session_id_a) = create_parent_rows(&pool).await;
+    let (task_id_b, session_id_b) = create_parent_rows(&pool).await;
+
+    repo.create(CreateTokenEvent {
+        session_id: session_id_a.clone(),
+        task_id: task_id_a.clone(),
+        event_type: "assistant".to_string(),
+        tool_name: None,
+        file_ext: None,
+        input_tokens: 10,
+        output_tokens: 5,
+        model: None,
+        sequence_no: Some(0),
+    }).await.unwrap();
+
+    repo.create(CreateTokenEvent {
+        session_id: session_id_b.clone(),
+        task_id: task_id_b.clone(),
+        event_type: "assistant".to_string(),
+        tool_name: None,
+        file_ext: None,
+        input_tokens: 20,
+        output_tokens: 10,
+        model: None,
+        sequence_no: Some(0),
+    }).await.unwrap();
+
+    let events = repo.list_by_task(&task_id_a).await.unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].task_id, task_id_a);
+}
+
+#[tokio::test]
+async fn test_create_batch() {
+    let pool = setup_db().await;
+    let repo = TokenEventRepository::new(pool.clone());
+    let (task_id, session_id) = create_parent_rows(&pool).await;
+
+    let events = vec![
+        CreateTokenEvent {
+            session_id: session_id.clone(),
+            task_id: task_id.clone(),
+            event_type: "assistant".to_string(),
+            tool_name: Some("Read".to_string()),
+            file_ext: Some(".rs".to_string()),
+            input_tokens: 100,
+            output_tokens: 50,
+            model: Some("claude-sonnet".to_string()),
+            sequence_no: Some(0),
+        },
+        CreateTokenEvent {
+            session_id: session_id.clone(),
+            task_id: task_id.clone(),
+            event_type: "result".to_string(),
+            tool_name: None,
+            file_ext: None,
+            input_tokens: 200,
+            output_tokens: 100,
+            model: None,
+            sequence_no: Some(1),
+        },
+    ];
+
+    repo.create_batch(events).await.unwrap();
+
+    let stored = repo.list_by_session(&session_id).await.unwrap();
+    assert_eq!(stored.len(), 2);
+}
+
+#[tokio::test]
+async fn test_add_lines_deleted() {
+    let pool = setup_db().await;
+    let metrics_repo = SessionMetricsRepository::new(pool.clone());
+    let (_, session_id) = create_parent_rows(&pool).await;
+
+    metrics_repo.upsert(&session_id, 10, 1000).await.unwrap();
+    metrics_repo.add_lines_deleted(&session_id, 5).await.unwrap();
+
+    let metrics = metrics_repo.find(&session_id).await.unwrap().unwrap();
+    assert_eq!(metrics.lines_deleted, 5);
+}
