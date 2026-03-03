@@ -1,0 +1,4 @@
+[config]
+exclude-files = ["src/main.rs"]
+timeout = "120s"
+out = ["Stdout"]
