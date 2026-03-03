@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, Fragment, useEffect } from 'react';
+import React, { useState, useCallback, Fragment, useEffect } from 'react';
 import { LogLevelBadge } from './log-level-badge';
 import { cn } from '@/lib/utils';
 import type { LogEntry, LogFilter, LogLevel } from '@/types/log';
@@ -54,11 +54,36 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   return <span className="ml-1 text-[10px]">{dir === 'asc' ? '↑' : '↓'}</span>;
 }
 
+async function copyToClipboard(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.position = 'fixed';
+    el.style.opacity = '0';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+  }
+}
+
 export function LogTable({ logs, filter }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>('timestamp');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(0);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = useCallback((text: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    copyToClipboard(text).then(() => {
+      setCopiedId(text);
+      setTimeout(() => setCopiedId((prev) => (prev === text ? null : prev)), 1500);
+    });
+  }, []);
 
   const handleSort = useCallback((key: SortKey) => {
     setSortKey((prev) => {
@@ -196,9 +221,9 @@ export function LogTable({ logs, filter }: Props) {
                       <button
                         className="hover:text-foreground transition-colors cursor-pointer"
                         title={`Click to copy: ${log.task_id}`}
-                        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(log.task_id!); }}
+                        onClick={(e) => handleCopy(log.task_id!, e)}
                       >
-                        {log.task_id.slice(0, 8)}…
+                        {copiedId === log.task_id ? '✓' : `${log.task_id.slice(0, 8)}…`}
                       </button>
                     ) : '—'}
                   </td>
@@ -207,9 +232,9 @@ export function LogTable({ logs, filter }: Props) {
                       <button
                         className="hover:text-foreground transition-colors cursor-pointer"
                         title={`Click to copy: ${log.session_id}`}
-                        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(log.session_id!); }}
+                        onClick={(e) => handleCopy(log.session_id!, e)}
                       >
-                        {log.session_id.slice(0, 8)}…
+                        {copiedId === log.session_id ? '✓' : `${log.session_id.slice(0, 8)}…`}
                       </button>
                     ) : '—'}
                   </td>

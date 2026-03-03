@@ -7,6 +7,7 @@ import type { SessionStatus } from '@/types/session';
 interface Props {
   sessionId: string;
   status: SessionStatus | null | undefined;
+  initialClaudeSessionId?: string | null;
 }
 
 interface OutputLine {
@@ -19,19 +20,21 @@ interface HeartbeatState {
   receivedAt: number; // Date.now() when we got it
 }
 
-export function LiveOutputPanel({ sessionId, status }: Props) {
+export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: Props) {
   const [lines, setLines] = useState<OutputLine[]>([]);
   const [heartbeat, setHeartbeat] = useState<HeartbeatState | null>(null);
   const [displayElapsed, setDisplayElapsed] = useState<number>(0);
+  const [claudeSessionId, setClaudeSessionId] = useState<string | null>(initialClaudeSessionId ?? null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { subscribe, send, status: wsStatus } = useWebSocket();
   const isConnected = wsStatus === 'connected';
 
-  // Reset lines and heartbeat when session changes
+  // Reset lines, heartbeat, and claudeSessionId when session changes
   useEffect(() => {
     setLines([]);
     setHeartbeat(null);
-  }, [sessionId]);
+    setClaudeSessionId(initialClaudeSessionId ?? null);
+  }, [sessionId, initialClaudeSessionId]);
 
   // Subscribe to this session's output and heartbeat
   useEffect(() => {
@@ -54,9 +57,16 @@ export function LiveOutputPanel({ sessionId, status }: Props) {
       setHeartbeat({ elapsedSecs: msg.elapsed_secs, receivedAt: Date.now() });
     });
 
+    const unsubSessionId = subscribe('session_id_assigned', (data: unknown) => {
+      const msg = data as { session_id: string; claude_session_id: string };
+      if (msg.session_id !== sessionId) return;
+      setClaudeSessionId(msg.claude_session_id);
+    });
+
     return () => {
       unsubOutput();
       unsubHeartbeat();
+      unsubSessionId();
     };
   }, [sessionId, isConnected, subscribe, send]);
 
@@ -92,9 +102,16 @@ export function LiveOutputPanel({ sessionId, status }: Props) {
   return (
     <div className="rounded-lg border border-border overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b border-border">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Session Output
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+            Session Output
+          </span>
+          {claudeSessionId && (
+            <span className="text-[10px] font-mono text-muted-foreground/60" title={claudeSessionId}>
+              Claude session: {claudeSessionId.slice(0, 8)}…
+            </span>
+          )}
+        </div>
         {hasActiveHeartbeat && (
           <span className="flex items-center gap-1.5 text-xs text-emerald-500">
             <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />

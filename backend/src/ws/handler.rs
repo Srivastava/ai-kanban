@@ -75,6 +75,17 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                         // Broadcast to all — no session filter
                         Some(ServerMessage::TaskUpdated { task: task_json.clone() })
                     }
+                    ClaudeEvent::SessionIdAssigned { session_id, claude_session_id } => {
+                        let should_send = subscribed_id.map_or(true, |id| id == session_id);
+                        if should_send {
+                            Some(ServerMessage::SessionIdAssigned {
+                                session_id: session_id.clone(),
+                                claude_session_id: claude_session_id.clone(),
+                            })
+                        } else {
+                            None
+                        }
+                    }
                 }
             };
 

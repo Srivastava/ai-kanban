@@ -28,7 +28,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [status, setStatus] = useState<WebSocketStatus>('connecting');
-  const [listeners, setListeners] = useState<Map<string, Set<(data: unknown) => void>>>(new Map());
+  const listenersRef = useRef<Map<string, Set<(data: unknown) => void>>>(new Map());
 
   const connect = useCallback(() => {
     const socket = new WebSocket(WS_URL);
@@ -58,12 +58,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           queryClientRef.current.invalidateQueries({ queryKey: ['tasks'] });
         }
 
-        const callbacks = listeners.get(message.type);
+        const callbacks = listenersRef.current.get(message.type);
         if (callbacks) {
           callbacks.forEach((cb) => cb(message));
         }
         // Also call 'any' listeners
-        const anyCallbacks = listeners.get('*');
+        const anyCallbacks = listenersRef.current.get('*');
         if (anyCallbacks) {
           anyCallbacks.forEach((cb) => cb(message));
         }
@@ -75,7 +75,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     socket.onerror = (error) => {
       logger.error('WebSocket error', { error: String(error) });
     };
-  }, [listeners]);
+  }, []);
 
   useEffect(() => {
     connect();
@@ -86,26 +86,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const subscribe = useCallback((eventType: string, callback: (data: unknown) => void) => {
-    setListeners((prev) => {
-      const next = new Map(prev);
-      const callbacks = next.get(eventType) || new Set();
-      callbacks.add(callback);
-      next.set(eventType, callbacks);
-      return next;
-    });
+    const callbacks = listenersRef.current.get(eventType) || new Set();
+    callbacks.add(callback);
+    listenersRef.current.set(eventType, callbacks);
 
     return () => {
-      setListeners((prev) => {
-        const next = new Map(prev);
-        const callbacks = next.get(eventType);
-        if (callbacks) {
-          callbacks.delete(callback);
-          if (callbacks.size === 0) {
-            next.delete(eventType);
-          }
+      const cbs = listenersRef.current.get(eventType);
+      if (cbs) {
+        cbs.delete(callback);
+        if (cbs.size === 0) {
+          listenersRef.current.delete(eventType);
         }
-        return next;
-      });
+      }
     };
   }, []);
 

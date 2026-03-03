@@ -40,6 +40,7 @@ impl SessionRepository {
             ended_at: None,
             last_snapshot_id: None,
             error_message: None,
+            claude_session_id: None,
         })
     }
 
@@ -92,11 +93,14 @@ impl SessionRepository {
         if let Some(error) = update.error_message {
             session.error_message = Some(error);
         }
+        if let Some(claude_session_id) = update.claude_session_id {
+            session.claude_session_id = Some(claude_session_id);
+        }
 
         sqlx::query(
             r#"
             UPDATE sessions
-            SET status = ?, ended_at = ?, last_snapshot_id = ?, error_message = ?
+            SET status = ?, ended_at = ?, last_snapshot_id = ?, error_message = ?, claude_session_id = ?
             WHERE id = ?
             "#,
         )
@@ -104,6 +108,7 @@ impl SessionRepository {
         .bind(session.ended_at.map(|t| t.to_rfc3339()))
         .bind(&session.last_snapshot_id)
         .bind(&session.error_message)
+        .bind(&session.claude_session_id)
         .bind(id)
         .execute(&self.pool)
         .await?;

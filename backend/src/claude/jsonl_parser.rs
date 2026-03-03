@@ -112,6 +112,19 @@ fn extract_file_ext_from_input(input: Option<&serde_json::Value>) -> Option<Stri
         .map(|e| format!(".{}", e))
 }
 
+/// Extract Claude's internal session_id from the init system event.
+/// Returns Some(uuid) for {"type":"system","subtype":"init","session_id":"<uuid>"}
+pub fn extract_claude_session_id(line: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(line).ok()?;
+    if value.get("type")?.as_str()? != "system" {
+        return None;
+    }
+    if value.get("subtype")?.as_str()? != "init" {
+        return None;
+    }
+    value.get("session_id")?.as_str().map(|s| s.to_string())
+}
+
 /// Extract the final result text from a Claude result line.
 /// Returns Some(text) for {"type":"result","subtype":"success","result":"..."}
 pub fn extract_result_text(line: &str) -> Option<String> {

@@ -19,6 +19,7 @@ pub struct TaskApiState {
     pub repo: TaskRepository,
     pub queue: Option<Arc<SessionQueue>>,
     pub comment_repo: CommentRepository,
+    pub session_repo: SessionRepository,
 }
 
 #[derive(Clone)]
@@ -70,6 +71,7 @@ impl From<AppState> for TaskApiState {
             repo: state.tasks,
             queue: state.queue,
             comment_repo: state.comments,
+            session_repo: state.sessions,
         }
     }
 }

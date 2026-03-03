@@ -13,6 +13,7 @@ pub struct QueuedTask {
     pub stage: String,
     pub queued_at: chrono::DateTime<chrono::Utc>,
     pub conversation_context: Option<String>,
+    pub resume_claude_session_id: Option<String>,
 }
 
 pub struct SessionQueue {
@@ -33,7 +34,7 @@ impl SessionQueue {
     }
 
     #[instrument(skip(self, task))]
-    pub async fn enqueue(&self, task: Task, stage: String, conversation_context: Option<String>) -> Result<()> {
+    pub async fn enqueue(&self, task: Task, stage: String, conversation_context: Option<String>, resume_claude_session_id: Option<String>) -> Result<()> {
         let active_count = self.manager.active_count().await;
 
         if active_count < self.max_concurrent {
@@ -44,7 +45,7 @@ impl SessionQueue {
                 active_sessions = active_count,
                 "Starting task immediately"
             );
-            self.manager.start_session(task, &stage, conversation_context).await?;
+            self.manager.start_session(task, &stage, conversation_context, resume_claude_session_id).await?;
         } else {
             let queue_len = self.pending.lock().await.len();
             info!(
@@ -61,6 +62,7 @@ impl SessionQueue {
                 stage,
                 queued_at: chrono::Utc::now(),
                 conversation_context,
+                resume_claude_session_id,
             });
         }
 
@@ -83,7 +85,7 @@ impl SessionQueue {
                 "Starting next queued task"
             );
             drop(pending);
-            self.manager.start_session(queued.task, &queued.stage, queued.conversation_context).await?;
+            self.manager.start_session(queued.task, &queued.stage, queued.conversation_context, queued.resume_claude_session_id).await?;
         }
 
         Ok(())

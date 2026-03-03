@@ -179,7 +179,11 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
               <p className="text-xs text-muted-foreground font-mono">
                 Session: {task.session_id}
               </p>
-              <LiveOutputPanel sessionId={task.session_id} status={sessionStatus} />
+              <LiveOutputPanel
+                sessionId={task.session_id}
+                status={sessionStatus}
+                initialClaudeSessionId={session?.claude_session_id}
+              />
             </>
           )}
         </div>

@@ -189,7 +189,7 @@ async fn start_session(
 
     let stage = task.stage.clone();
     info!(task_id = %id, title = %task.title, stage = %stage, "Enqueuing task for Claude session");
-    match queue.enqueue(task, stage, None).await {
+    match queue.enqueue(task, stage, None, None).await {
         Ok(()) => {
             info!(task_id = %id, "Task enqueued for Claude session");
             Json(serde_json::json!({ "status": "queued" })).into_response()
@@ -246,6 +246,26 @@ async fn continue_session(
         Some(history)
     };
 
+    // Look up claude_session_id from the prior session for true resume
+    let resume_claude_session_id = if let Some(ref prior_session_id) = task.session_id {
+        match state.session_repo.find(prior_session_id).await {
+            Ok(prior_session) => {
+                if let Some(ref csid) = prior_session.claude_session_id {
+                    info!(task_id = %id, claude_session_id = %csid, "Found prior claude_session_id for resume");
+                } else {
+                    info!(task_id = %id, "No claude_session_id on prior session — will inject context");
+                }
+                prior_session.claude_session_id
+            }
+            Err(e) => {
+                tracing::warn!(task_id = %id, error = %e, "Could not fetch prior session; falling back to context injection");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
     let stage = task.stage.clone();
     info!(
         task_id = %id,
@@ -254,9 +274,10 @@ async fn continue_session(
         comment_count = total_comments,
         reply_count = total_replies,
         has_context = conversation_context.is_some(),
-        "Enqueuing continue session with conversation history"
+        has_resume = resume_claude_session_id.is_some(),
+        "Enqueuing continue session"
     );
-    match queue.enqueue(task, stage, conversation_context).await {
+    match queue.enqueue(task, stage, conversation_context, resume_claude_session_id).await {
         Ok(()) => {
             info!(task_id = %id, "Continue session enqueued");
             Json(serde_json::json!({ "status": "queued" })).into_response()

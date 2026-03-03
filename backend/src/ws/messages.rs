@@ -40,6 +40,12 @@ pub enum ServerMessage {
         elapsed_secs: u64,
     },
 
+    #[serde(rename = "session_id_assigned")]
+    SessionIdAssigned {
+        session_id: String,
+        claude_session_id: String,
+    },
+
     #[serde(rename = "pong")]
     Pong,
 

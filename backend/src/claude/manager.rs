@@ -1,4 +1,4 @@
-use crate::claude::jsonl_parser::{extract_result_text, parse_for_display, parse_jsonl_line};
+use crate::claude::jsonl_parser::{extract_claude_session_id, extract_result_text, parse_for_display, parse_jsonl_line};
 use crate::claude::prompts::build_prompt;
 use crate::db::{CommentRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
@@ -30,6 +30,10 @@ pub enum ClaudeEvent {
     TaskStageChanged {
         task_id: String,
         task_json: serde_json::Value,
+    },
+    SessionIdAssigned {
+        session_id: String,
+        claude_session_id: String,
     },
 }
 
@@ -74,7 +78,7 @@ impl ClaudeManager {
     }
 
     #[instrument(skip(self, task))]
-    pub async fn start_session(&self, task: Task, stage: &str, conversation_context: Option<String>) -> Result<String> {
+    pub async fn start_session(&self, task: Task, stage: &str, conversation_context: Option<String>, resume_claude_session_id: Option<String>) -> Result<String> {
         let session = self.session_repo.create(crate::models::CreateSession {
             task_id: task.id.clone(),
         }).await?;
@@ -87,8 +91,6 @@ impl ClaudeManager {
             has_context = conversation_context.is_some(),
             "Starting Claude session"
         );
-
-        let prompt = build_prompt(&task.title, task.description.as_deref(), stage, conversation_context.as_deref());
 
         let claude_bin = std::env::var("CLAUDE_BIN")
             .unwrap_or_else(|_| "/home/utility/.local/bin/claude".to_string());
@@ -105,17 +107,32 @@ impl ClaudeManager {
             return Err(anyhow!("Project path does not exist: {}", project_path));
         }
 
-        let mut child = Command::new(&claude_bin)
-            .arg("--print")
-            .arg("--verbose")
-            .arg("--dangerously-skip-permissions")
-            .arg("--output-format").arg("stream-json")
-            .arg(&prompt)
-            .current_dir(&project_path)
-            // Unset CLAUDECODE so the CLI doesn't refuse to run inside another Claude session
-            .env_remove("CLAUDECODE")
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+        let mut cmd = Command::new(&claude_bin);
+        cmd.arg("--print")
+           .arg("--verbose")
+           .arg("--dangerously-skip-permissions")
+           .arg("--output-format").arg("stream-json")
+           .current_dir(&project_path)
+           // Unset CLAUDECODE so the CLI doesn't refuse to run inside another Claude session
+           .env_remove("CLAUDECODE")
+           .stdout(Stdio::piped())
+           .stderr(Stdio::piped());
+
+        if let Some(ref claude_sid) = resume_claude_session_id {
+            // True resume: Claude already has full conversation history internally
+            cmd.arg("--resume").arg(claude_sid);
+            info!(
+                session_id = %session.id,
+                claude_session_id = %claude_sid,
+                "Resuming prior Claude session"
+            );
+        } else {
+            // New session: inject prompt (with optional conversation history)
+            let prompt = build_prompt(&task.title, task.description.as_deref(), stage, conversation_context.as_deref());
+            cmd.arg(&prompt);
+        }
+
+        let mut child = cmd
             .spawn()
             .map_err(|e| anyhow!("Failed to spawn Claude (bin={}): {}", claude_bin, e))?;
 
@@ -137,42 +154,38 @@ impl ClaudeManager {
             ..Default::default()
         }).await?;
 
-        // Link session to task
-        let task_repo_link = self.task_repo.clone();
-        let task_id_link = task_id.clone();
-        let session_id_link = session.id.clone();
+        // Link session to task and advance to planning — single sequential spawn to avoid race
+        let task_repo_init = self.task_repo.clone();
+        let task_id_init = task_id.clone();
+        let session_id_init = session.id.clone();
+        let output_tx_init = self.output_tx.clone();
         tokio::spawn(async move {
-            if let Err(e) = task_repo_link.update(&task_id_link, UpdateTask {
-                session_id: Some(session_id_link),
+            // Step 1: link session_id to task
+            if let Err(e) = task_repo_init.update(&task_id_init, UpdateTask {
+                session_id: Some(session_id_init),
                 ..Default::default()
             }).await {
-                warn!(task_id = %task_id_link, error = %e, "Failed to link session_id to task");
+                warn!(task_id = %task_id_init, error = %e, "Failed to link session_id to task");
             }
-        });
-
-        // Advance task to planning stage when session starts
-        let task_repo_planning = self.task_repo.clone();
-        let task_id_planning = task_id.clone();
-        let output_tx_planning = self.output_tx.clone();
-        tokio::spawn(async move {
-            if let Err(e) = task_repo_planning.update(&task_id_planning, UpdateTask {
+            // Step 2: advance to planning
+            if let Err(e) = task_repo_init.update(&task_id_init, UpdateTask {
                 stage: Some("planning".to_string()),
                 ..Default::default()
             }).await {
-                warn!(task_id = %task_id_planning, error = %e, "Failed to set task stage to planning");
+                warn!(task_id = %task_id_init, error = %e, "Failed to set task stage to planning");
                 return;
             }
-            // Fetch updated task and broadcast TaskStageChanged
-            match task_repo_planning.find(&task_id_planning).await {
+            // Step 3: fetch task (now has session_id) and broadcast
+            match task_repo_init.find(&task_id_init).await {
                 Ok(task) => {
                     if let Ok(task_json) = serde_json::to_value(&task) {
-                        let _ = output_tx_planning.send(ClaudeEvent::TaskStageChanged {
-                            task_id: task_id_planning.clone(),
+                        let _ = output_tx_init.send(ClaudeEvent::TaskStageChanged {
+                            task_id: task_id_init.clone(),
                             task_json,
                         });
                     }
                 }
-                Err(e) => warn!(task_id = %task_id_planning, error = %e, "Failed to fetch task after planning update"),
+                Err(e) => warn!(task_id = %task_id_init, error = %e, "Failed to fetch task after planning update"),
             }
         });
 
@@ -212,14 +225,38 @@ impl ClaudeManager {
         let task_id_for_events = task_id.clone();
         let task_repo_for_stage = self.task_repo.clone();
         let output_tx_for_stage = self.output_tx.clone();
+        let session_repo_for_stdout = self.session_repo.clone();
         let stdout_handle = tokio::task::spawn_blocking(move || {
             let reader = BufReader::new(stdout);
             let mut sequence_no: i64 = 0;
             let mut result_text: Option<String> = None;
             let mut first_tool_seen = false;
+            let mut claude_session_id_captured = false;
             for line in reader.lines() {
                 if let Ok(text) = line {
                     debug!(session_id = %session_id, "stdout: {}", text);
+
+                    // Capture Claude's internal session_id from the init event (first line)
+                    if !claude_session_id_captured {
+                        if let Some(claude_sid) = extract_claude_session_id(&text) {
+                            claude_session_id_captured = true;
+                            let rt = tokio::runtime::Handle::current();
+                            let session_repo_c = session_repo_for_stdout.clone();
+                            let session_id_c = session_id.clone();
+                            let claude_sid_c = claude_sid.clone();
+                            let output_tx_c = output_tx.clone();
+                            rt.spawn(async move {
+                                let _ = session_repo_c.update(&session_id_c, crate::models::UpdateSession {
+                                    claude_session_id: Some(claude_sid_c.clone()),
+                                    ..Default::default()
+                                }).await;
+                                let _ = output_tx_c.send(ClaudeEvent::SessionIdAssigned {
+                                    session_id: session_id_c,
+                                    claude_session_id: claude_sid_c,
+                                });
+                            });
+                        }
+                    }
 
                     // Try to parse as JSONL and extract token events
                     if let Some(parsed) = parse_jsonl_line(&text) {

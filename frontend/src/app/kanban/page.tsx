@@ -6,6 +6,7 @@ import { useTasks } from '@/hooks/use-tasks';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
+import { Sidebar } from '@/components/layout/sidebar';
 
 function KanbanContent() {
   const { data: tasks = [], isLoading, error } = useTasks();
@@ -25,17 +26,22 @@ export default function KanbanPage() {
   const [createOpen, setCreateOpen] = useState(false);
 
   return (
-    <div className="h-screen bg-background p-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Kanban Board</h1>
-        <Button onClick={() => setCreateOpen(true)} size="sm">
-          <Plus className="mr-2 h-4 w-4" />
-          New Task
-        </Button>
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <div className="border-b border-border px-6 py-4 flex items-center justify-between">
+          <h1 className="text-xl font-semibold">Kanban Board</h1>
+          <Button onClick={() => setCreateOpen(true)} size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            New Task
+          </Button>
+        </div>
+        <main className="flex-1 p-6">
+          <Suspense fallback={<div>Loading...</div>}>
+            <KanbanContent />
+          </Suspense>
+        </main>
       </div>
-      <Suspense fallback={<div>Loading...</div>}>
-        <KanbanContent />
-      </Suspense>
       <CreateTaskDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );

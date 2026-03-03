@@ -11,6 +11,7 @@ pub struct Session {
     pub ended_at: Option<DateTime<Utc>>,
     pub last_snapshot_id: Option<String>,
     pub error_message: Option<String>,
+    pub claude_session_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -60,4 +61,5 @@ pub struct UpdateSession {
     pub ended_at: Option<DateTime<Utc>>,
     pub last_snapshot_id: Option<String>,
     pub error_message: Option<String>,
+    pub claude_session_id: Option<String>,
 }
