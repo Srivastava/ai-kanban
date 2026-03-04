@@ -102,6 +102,7 @@ impl From<AppState> for CommentApiState {
 mod analytics;
 mod comments;
 mod logs;
+mod otlp_parser;
 mod routes;
 mod sessions;
 mod tasks;
