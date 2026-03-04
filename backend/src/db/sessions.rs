@@ -141,4 +141,14 @@ impl SessionRepository {
         .await?;
         Ok(sessions)
     }
+
+    pub async fn find_by_claude_session_id(&self, claude_session_id: &str) -> Result<Option<Session>> {
+        let row = sqlx::query_as::<_, Session>(
+            "SELECT * FROM sessions WHERE claude_session_id = ? LIMIT 1"
+        )
+        .bind(claude_session_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row)
+    }
 }

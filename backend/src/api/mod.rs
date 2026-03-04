@@ -103,8 +103,10 @@ mod analytics;
 mod comments;
 mod logs;
 mod otlp_parser;
+pub mod otlp;
 mod routes;
 mod sessions;
 mod tasks;
 
+pub use otlp::{otlp_router, OtlpState};
 pub use routes::create_router;

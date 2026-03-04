@@ -122,6 +122,10 @@ impl ClaudeManager {
            .current_dir(&project_path)
            // Unset CLAUDECODE so the CLI doesn't refuse to run inside another Claude session
            .env_remove("CLAUDECODE")
+           .env("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
+           .env("OTEL_EXPORTER_OTLP_PROTOCOL", "http/json")
+           .env("OTEL_METRICS_EXPORTER", "otlp")
+           .env("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")
            .stdout(Stdio::piped())
            .stderr(Stdio::piped());
 

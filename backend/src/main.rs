@@ -1,6 +1,6 @@
-use ai_kanban_backend::api::{create_router, AppState};
+use ai_kanban_backend::api::{create_router, otlp_router, AppState, OtlpState};
 use ai_kanban_backend::claude::ClaudeManager;
-use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
+use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use ai_kanban_backend::logging::DbLayer;
 use axum::Extension;
 use std::net::SocketAddr;
@@ -21,6 +21,22 @@ async fn main() -> anyhow::Result<()> {
     let comment_repo = CommentRepository::new(pool.clone());
     let token_event_repo = TokenEventRepository::new(pool.clone());
     let session_metrics_repo = SessionMetricsRepository::new(pool.clone());
+    let otel_repo = OtelMetricsRepository::new(pool.clone());
+
+    // OTLP receiver on port 4318
+    let otlp_state = OtlpState {
+        otel_repo: otel_repo.clone(),
+        session_repo: session_repo.clone(),
+    };
+    let otlp_app = otlp_router(otlp_state).layer(
+        CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any),
+    );
+    let otlp_addr = std::net::SocketAddr::from(([0, 0, 0, 0], 4318));
+    let otlp_listener = tokio::net::TcpListener::bind(otlp_addr).await?;
+    tracing::info!("OTLP receiver listening on {}", otlp_addr);
+    tokio::spawn(async move {
+        axum::serve(otlp_listener, otlp_app).await.expect("OTLP server failed");
+    });
 
     // Initialize Claude manager and session queue
     let claude_manager = Arc::new(ClaudeManager::new(
