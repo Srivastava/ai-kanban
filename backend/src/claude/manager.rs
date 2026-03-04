@@ -35,6 +35,13 @@ pub enum ClaudeEvent {
         session_id: String,
         claude_session_id: String,
     },
+    RateLimited {
+        session_id: String,
+        task_id: String,
+        stage: String,                        // current task stage at time of limit
+        claude_session_id: Option<String>,    // for --resume on retry
+        reset_at: chrono::DateTime<chrono::Utc>,
+    },
 }
 
 struct RunningSession {

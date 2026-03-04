@@ -86,6 +86,18 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             None
                         }
                     }
+                    ClaudeEvent::RateLimited { session_id, task_id, reset_at, .. } => {
+                        let should_send = subscribed_id.map_or(true, |id| id == session_id);
+                        if should_send {
+                            Some(ServerMessage::RateLimited {
+                                session_id: session_id.clone(),
+                                task_id: task_id.clone(),
+                                reset_at: reset_at.to_rfc3339(),
+                            })
+                        } else {
+                            None
+                        }
+                    }
                 }
             };
 

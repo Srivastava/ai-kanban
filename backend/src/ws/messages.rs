@@ -46,6 +46,13 @@ pub enum ServerMessage {
         claude_session_id: String,
     },
 
+    #[serde(rename = "rate_limited")]
+    RateLimited {
+        session_id: String,
+        task_id: String,
+        reset_at: String,   // ISO 8601 string
+    },
+
     #[serde(rename = "pong")]
     Pong,
 
