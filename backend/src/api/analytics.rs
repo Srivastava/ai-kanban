@@ -1,4 +1,5 @@
-use crate::db::AnalyticsRepository;
+use crate::db::{AnalyticsRepository, OtelMetricsRepository};
+use crate::models::DevActivityRow;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -14,12 +15,15 @@ use super::AppState;
 #[derive(Clone)]
 pub struct AnalyticsApiState {
     pub analytics: AnalyticsRepository,
+    pub otel_repo: OtelMetricsRepository,
 }
 
 impl From<AppState> for AnalyticsApiState {
     fn from(state: AppState) -> Self {
+        let pool = state.token_events.pool().clone();
         AnalyticsApiState {
-            analytics: AnalyticsRepository::new(state.token_events.pool().clone()),
+            analytics: AnalyticsRepository::new(pool.clone()),
+            otel_repo: OtelMetricsRepository::new(pool),
         }
     }
 }
@@ -72,6 +76,7 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         .route("/sessions/:id/timeline", get(session_timeline))
         .route("/cost/by-task", get(cost_by_task))
         .route("/burn-rate", get(burn_rate))
+        .route("/dev-activity", get(dev_activity))
 }
 
 #[instrument(skip(state))]
@@ -350,5 +355,26 @@ async fn burn_rate(State(state): State<AnalyticsApiState>) -> impl IntoResponse 
     match state.analytics.burn_rate().await {
         Ok(data) => { debug!("retrieved"); Json(data).into_response() }
         Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+    }
+}
+
+#[instrument(skip(state))]
+pub async fn dev_activity(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    info!("API: Getting dev activity");
+    match state.otel_repo.dev_activity().await {
+        Ok(rows) => {
+            debug!(count = rows.len(), "API: Dev activity retrieved");
+            Json(rows).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "API: Failed to get dev activity");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
     }
 }
