@@ -48,6 +48,27 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database initialized at {}", db_path);
     tracing::info!("Logging system initialized");
 
+    // Rate-limit listener: forwards RateLimited events from the manager to the queue
+    {
+        let mut event_rx = claude_manager.subscribe();
+        let queue_for_rl = queue.clone();
+        tokio::spawn(async move {
+            loop {
+                match event_rx.recv().await {
+                    Ok(ai_kanban_backend::claude::ClaudeEvent::RateLimited {
+                        task_id, stage, claude_session_id, reset_at, ..
+                    }) => {
+                        queue_for_rl.clone().schedule_rate_limit_retry(
+                            task_id, stage, claude_session_id, reset_at,
+                        ).await;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    _ => {} // other events or lagged — ignore
+                }
+            }
+        });
+    }
+
     // Create state with queue
     let state = AppState::new(
         task_repo,
