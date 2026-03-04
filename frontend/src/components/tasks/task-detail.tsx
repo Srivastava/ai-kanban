@@ -177,7 +177,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
           {task.session_id && (
             <>
               <p className="text-xs text-muted-foreground font-mono">
-                Session: {task.session_id}
+                Internal ID: {task.session_id}
               </p>
               <LiveOutputPanel
                 sessionId={task.session_id}

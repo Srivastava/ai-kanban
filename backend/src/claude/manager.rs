@@ -129,19 +129,18 @@ impl ClaudeManager {
            .stdout(Stdio::piped())
            .stderr(Stdio::piped());
 
+        // Always build the prompt — it carries the new human-turn message for Claude to act on.
+        // When resuming, --resume restores internal conversation state; the prompt is the next request.
+        let prompt = build_prompt(&task.title, task.description.as_deref(), stage, conversation_context.as_deref());
         if let Some(ref claude_sid) = resume_claude_session_id {
-            // True resume: Claude already has full conversation history internally
             cmd.arg("--resume").arg(claude_sid);
             info!(
                 session_id = %session.id,
                 claude_session_id = %claude_sid,
                 "Resuming prior Claude session"
             );
-        } else {
-            // New session: inject prompt (with optional conversation history)
-            let prompt = build_prompt(&task.title, task.description.as_deref(), stage, conversation_context.as_deref());
-            cmd.arg(&prompt);
         }
+        cmd.arg(&prompt);
 
         let mut child = cmd
             .spawn()

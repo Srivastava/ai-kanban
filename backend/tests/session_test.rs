@@ -321,3 +321,67 @@ async fn test_session_list_by_status_filters_correctly() {
     assert_eq!(running.len(), 1);
     assert_eq!(running[0].id, s1.id);
 }
+
+// ==================== find_by_claude_session_id Tests ====================
+
+#[tokio::test]
+async fn test_find_by_claude_session_id_found() {
+    let (task_repo, session_repo) = setup_test_db().await;
+    let task = task_repo.create(CreateTask {
+        title: "Find by Claude ID".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    let session = session_repo.create(CreateSession {
+        task_id: task.id.clone(),
+    }).await.unwrap();
+
+    let claude_id = "claude-uuid-find-me-123";
+    session_repo.update(&session.id, UpdateSession {
+        claude_session_id: Some(claude_id.to_string()),
+        ..Default::default()
+    }).await.unwrap();
+
+    let found = session_repo.find_by_claude_session_id(claude_id).await.unwrap();
+    assert!(found.is_some());
+    let found = found.unwrap();
+    assert_eq!(found.id, session.id);
+    assert_eq!(found.claude_session_id, Some(claude_id.to_string()));
+}
+
+#[tokio::test]
+async fn test_find_by_claude_session_id_not_found() {
+    let (_, session_repo) = setup_test_db().await;
+    let found = session_repo.find_by_claude_session_id("nonexistent-claude-id").await.unwrap();
+    assert!(found.is_none());
+}
+
+#[tokio::test]
+async fn test_find_by_claude_session_id_returns_correct_session() {
+    // Two sessions with different claude_session_ids — lookup returns the right one
+    let (task_repo, session_repo) = setup_test_db().await;
+    let task = task_repo.create(CreateTask {
+        title: "Multi Claude ID".to_string(),
+        description: None,
+        project_path: "/tmp/test".to_string(),
+    }).await.unwrap();
+
+    let s1 = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
+    let s2 = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
+
+    session_repo.update(&s1.id, UpdateSession {
+        claude_session_id: Some("claude-aaa".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+    session_repo.update(&s2.id, UpdateSession {
+        claude_session_id: Some("claude-bbb".to_string()),
+        ..Default::default()
+    }).await.unwrap();
+
+    let found_a = session_repo.find_by_claude_session_id("claude-aaa").await.unwrap().unwrap();
+    assert_eq!(found_a.id, s1.id);
+
+    let found_b = session_repo.find_by_claude_session_id("claude-bbb").await.unwrap().unwrap();
+    assert_eq!(found_b.id, s2.id);
+}

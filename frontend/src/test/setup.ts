@@ -31,6 +31,9 @@ vi.mock('next/font/google', () => ({
   Geist_Mono: () => ({ variable: '--font-geist-mono', className: 'geist-mono' }),
 }));
 
+// Mock DOM APIs not available in jsdom
+Element.prototype.scrollIntoView = vi.fn();
+
 // Suppress console.error for expected React warnings in tests
 const originalConsoleError = console.error;
 beforeAll(() => {

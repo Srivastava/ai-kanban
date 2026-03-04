@@ -155,8 +155,8 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
             Session Output
           </span>
           {claudeSessionId && (
-            <span className="text-[10px] font-mono text-muted-foreground/60" title={claudeSessionId}>
-              Claude session: {claudeSessionId.slice(0, 8)}…
+            <span className="text-[10px] font-mono text-muted-foreground/60">
+              Claude session: {claudeSessionId}
             </span>
           )}
         </div>
