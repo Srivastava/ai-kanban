@@ -16,3 +16,10 @@ export interface QueueStatus {
   completed: number;
   failed: number;
 }
+
+export interface RateLimitedEvent {
+  type: 'rate_limited';
+  session_id: string;
+  task_id: string;
+  reset_at: string; // ISO 8601
+}

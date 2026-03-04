@@ -25,6 +25,7 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
   const [heartbeat, setHeartbeat] = useState<HeartbeatState | null>(null);
   const [displayElapsed, setDisplayElapsed] = useState<number>(0);
   const [claudeSessionId, setClaudeSessionId] = useState<string | null>(initialClaudeSessionId ?? null);
+  const [rateLimitResetAt, setRateLimitResetAt] = useState<Date | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { subscribe, send, status: wsStatus } = useWebSocket();
   const isConnected = wsStatus === 'connected';
@@ -70,6 +71,31 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
     };
   }, [sessionId, isConnected, subscribe, send]);
 
+  // Subscribe to rate_limited events for this session
+  useEffect(() => {
+    if (!sessionId) return;
+    return subscribe('rate_limited', (data: unknown) => {
+      const event = data as import('@/types/session').RateLimitedEvent;
+      if (event.session_id === sessionId) {
+        setRateLimitResetAt(new Date(event.reset_at));
+      }
+    });
+  }, [sessionId, subscribe]);
+
+  // Live countdown ticker — ticks every second and auto-clears 10s after reset time
+  useEffect(() => {
+    if (!rateLimitResetAt) return;
+    const interval = setInterval(() => {
+      // Force re-render by creating a new Date object (same time)
+      setRateLimitResetAt(prev => prev ? new Date(prev.getTime()) : null);
+      // Auto-clear 10s after the reset time passes
+      if (Date.now() > rateLimitResetAt.getTime() + 10_000) {
+        setRateLimitResetAt(null);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [rateLimitResetAt]);
+
   // Tick display elapsed every second while running
   useEffect(() => {
     const isRunning = status === 'running' || status === 'pending';
@@ -93,6 +119,19 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
   if (!sessionId) return null;
 
   const isRunning = status === 'running' || status === 'pending';
+
+  const rateLimitCountdown = rateLimitResetAt
+    ? (() => {
+        const secsLeft = Math.max(0, Math.round((rateLimitResetAt.getTime() - Date.now()) / 1000));
+        if (secsLeft === 0) return 'Resuming now…';
+        const h = Math.floor(secsLeft / 3600);
+        const m = Math.floor((secsLeft % 3600) / 60);
+        const s = secsLeft % 60;
+        return h > 0
+          ? `Rate limited — resuming in ${h}h ${m}m`
+          : `Rate limited — resuming in ${m}m ${s}s`;
+      })()
+    : null;
   const secsSinceHeartbeat = heartbeat
     ? Math.floor((Date.now() - heartbeat.receivedAt) / 1000)
     : 999;
@@ -101,6 +140,15 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
+      {rateLimitResetAt && (
+        <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm flex items-center gap-2">
+          <span>⏳</span>
+          <span>{rateLimitCountdown}</span>
+          <span className="text-amber-600 text-xs ml-auto">
+            Auto-resumes at {rateLimitResetAt.toLocaleTimeString()}
+          </span>
+        </div>
+      )}
       <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b border-border">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
