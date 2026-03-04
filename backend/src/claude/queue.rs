@@ -126,4 +126,37 @@ impl SessionQueue {
     pub async fn get_active_session_for_task(&self, task_id: &str) -> Option<String> {
         self.manager.get_active_session_for_task(task_id).await
     }
+
+    /// Called when a session hits a Claude usage limit.
+    /// Sleeps until `reset_at` (+ 5s buffer) then re-enqueues the task using --resume.
+    pub async fn schedule_rate_limit_retry(
+        self: std::sync::Arc<Self>,
+        task_id: String,
+        stage: String,
+        claude_session_id: Option<String>,
+        reset_at: chrono::DateTime<chrono::Utc>,
+    ) {
+        let task_repo = self.task_repo.clone();
+        tokio::spawn(async move {
+            let now = chrono::Utc::now();
+            let wait_secs = ((reset_at - now).num_seconds()).max(0) as u64 + 5;
+            tracing::info!(
+                task_id = %task_id,
+                reset_at = %reset_at,
+                wait_secs = wait_secs,
+                "Rate limit detected — scheduling retry"
+            );
+            tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs)).await;
+
+            match task_repo.find(&task_id).await {
+                Ok(task) => {
+                    tracing::info!(task_id = %task_id, "Rate limit reset — re-queuing task");
+                    if let Err(e) = self.enqueue(task, stage, None, claude_session_id).await {
+                        tracing::error!(task_id = %task_id, error = %e, "Failed to re-queue rate-limited task");
+                    }
+                }
+                Err(e) => tracing::error!(task_id = %task_id, error = %e, "Failed to find task for rate-limit retry"),
+            }
+        });
+    }
 }
