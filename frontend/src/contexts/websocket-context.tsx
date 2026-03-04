@@ -16,9 +16,11 @@ interface WebSocketContextType {
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
 
+// Derive WebSocket URL from the page's own origin so it works behind any reverse proxy.
+// wss: when the page is HTTPS, ws: otherwise.
 const WS_URL =
   typeof window !== 'undefined'
-    ? `ws://${window.location.hostname}:3001/ws`
+    ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
     : 'ws://localhost:3001/ws';
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {

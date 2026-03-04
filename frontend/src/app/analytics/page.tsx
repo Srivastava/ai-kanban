@@ -9,6 +9,9 @@ import { SessionIntelligenceCard } from '@/components/analytics/session-intellig
 import { CostBreakdownTable } from '@/components/analytics/cost-breakdown-table';
 import { SessionTimelineChart } from '@/components/analytics/session-timeline-chart';
 import { DevActivityTable } from '@/components/analytics/dev-activity-table';
+import { DevActivityCharts } from '@/components/analytics/dev-activity-charts';
+import { TokensByTaskChart } from '@/components/analytics/tokens-by-task-chart';
+import { TokenEfficiencyChart } from '@/components/analytics/token-efficiency-chart';
 
 export default function AnalyticsPage() {
   return (
@@ -31,6 +34,7 @@ export default function AnalyticsPage() {
           <section className="space-y-4">
             <h2 className="text-base font-semibold text-foreground">Trends</h2>
             <TokenTimeChart />
+            <TokensByTaskChart />
           </section>
           <section className="space-y-4">
             <h2 className="text-base font-semibold text-foreground">Breakdowns</h2>
@@ -39,6 +43,7 @@ export default function AnalyticsPage() {
               <LanguageChart />
             </div>
             <StageBreakdownChart />
+            <TokenEfficiencyChart />
           </section>
           <section className="space-y-4">
             <h2 className="text-base font-semibold text-foreground">Agent Intelligence</h2>
@@ -53,6 +58,7 @@ export default function AnalyticsPage() {
                 Commits, lines changed, and active time per session — sourced from Claude Code telemetry
               </p>
             </div>
+            <DevActivityCharts />
             <DevActivityTable />
           </section>
         </main>

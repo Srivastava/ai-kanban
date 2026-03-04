@@ -1,5 +1,7 @@
 function getApiBase() {
-  if (typeof window !== 'undefined') return `http://${window.location.hostname}:3001`;
+  // Use relative URLs so the request always goes through whatever host served the page
+  // (works both locally and behind a reverse proxy).
+  if (typeof window !== 'undefined') return '';
   return 'http://localhost:3001';
 }
 const FLUSH_INTERVAL_MS = 5_000; // Reduced from 10s to 5s

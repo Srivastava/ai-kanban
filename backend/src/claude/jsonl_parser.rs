@@ -281,7 +281,7 @@ fn get_first_string_value(input: Option<&serde_json::Value>) -> Option<String> {
     None
 }
 
-/// Detect a Claude usage-limit message in a stderr line and parse the reset timestamp.
+/// Detect a Claude usage-limit message in a line and parse the reset timestamp.
 /// Matches patterns like "resets at 2026-03-04T03:00:00.000Z" (case-insensitive).
 /// Returns None if the line is not a usage-limit message or timestamp cannot be parsed.
 pub fn extract_rate_limit_reset_at(line: &str) -> Option<chrono::DateTime<chrono::Utc>> {
@@ -298,4 +298,35 @@ pub fn extract_rate_limit_reset_at(line: &str) -> Option<chrono::DateTime<chrono
     chrono::DateTime::parse_from_rfc3339(mat.as_str())
         .ok()
         .map(|dt| dt.with_timezone(&chrono::Utc))
+}
+
+/// Check a stdout JSONL line for rate-limit signals (handles both text and JSON forms).
+///
+/// Claude outputs usage-limit errors to **stdout** as a JSON result event when using
+/// `--output-format stream-json`, not to stderr.  This function:
+/// 1. Tries `extract_rate_limit_reset_at` on the raw line (catches timestamp in JSON text).
+/// 2. If the line is a JSON result with `is_error=true` and rate-limit keywords, falls back
+///    to retrying in 1 hour (for when Claude omits the exact reset timestamp).
+pub fn detect_rate_limit_in_stdout(line: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    // Primary: text-based detection (works when the timestamp is embedded in the JSON string)
+    if let Some(dt) = extract_rate_limit_reset_at(line) {
+        return Some(dt);
+    }
+    // Secondary: JSON structure detection for is_error=true result events
+    let value: serde_json::Value = serde_json::from_str(line).ok()?;
+    if value.get("type").and_then(|t| t.as_str()) != Some("result") {
+        return None;
+    }
+    if value.get("is_error").and_then(|e| e.as_bool()) != Some(true) {
+        return None;
+    }
+    // Check result text and any error field for rate-limit keywords
+    let result_text = value.get("result").and_then(|r| r.as_str()).unwrap_or("");
+    let error_text = value.get("error").and_then(|e| e.as_str()).unwrap_or("");
+    let combined = format!("{} {}", result_text, error_text).to_lowercase();
+    if combined.contains("usage limit") || combined.contains("rate limit") {
+        // No timestamp — default to retrying in 1 hour
+        return Some(chrono::Utc::now() + chrono::Duration::hours(1));
+    }
+    None
 }

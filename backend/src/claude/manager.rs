@@ -1,4 +1,4 @@
-use crate::claude::jsonl_parser::{extract_claude_session_id, extract_rate_limit_reset_at, extract_result_text, parse_for_display, parse_jsonl_line};
+use crate::claude::jsonl_parser::{detect_rate_limit_in_stdout, extract_claude_session_id, extract_rate_limit_reset_at, extract_result_text, parse_for_display, parse_jsonl_line};
 use crate::claude::prompts::build_prompt;
 use crate::db::{CommentRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
@@ -150,9 +150,10 @@ impl ClaudeManager {
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
         let stderr = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
 
-        // Shared flag: stderr reader sets this if it detects a rate-limit message
+        // Shared flag: stdout or stderr reader sets this if it detects a rate-limit message
         let rate_limit_reset: std::sync::Arc<std::sync::Mutex<Option<chrono::DateTime<chrono::Utc>>>> =
             std::sync::Arc::new(std::sync::Mutex::new(None));
+        let rate_limit_reset_for_stdout = rate_limit_reset.clone();
         let rate_limit_reset_for_stderr = rate_limit_reset.clone();
         let rate_limit_reset_for_completion = rate_limit_reset.clone();
 
@@ -252,6 +253,16 @@ impl ClaudeManager {
             for line in reader.lines() {
                 if let Ok(text) = line {
                     debug!(session_id = %session_id, "stdout: {}", text);
+
+                    // Detect rate-limit signals in stdout (Claude emits usage-limit errors
+                    // to stdout as JSON result events, not to stderr)
+                    if let Some(reset_at) = detect_rate_limit_in_stdout(&text) {
+                        let mut guard = rate_limit_reset_for_stdout.lock().unwrap();
+                        if guard.is_none() {
+                            warn!(session_id = %session_id, reset_at = %reset_at, "Rate limit detected in stdout");
+                            *guard = Some(reset_at);
+                        }
+                    }
 
                     // Capture Claude's internal session_id from the init event (first line)
                     if !claude_session_id_captured {

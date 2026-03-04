@@ -1,7 +1,10 @@
 import { logger } from '@/lib/logger';
 
 function getApiBase() {
-  if (typeof window !== 'undefined') return `http://${window.location.hostname}:3001`;
+  // Use relative URLs so the request always goes through whatever host served the page
+  // (works both locally and behind a reverse proxy).
+  // Server-side (SSR / rewrites): Next.js rewrites /api/* → http://localhost:3001/api/*
+  if (typeof window !== 'undefined') return '';
   return 'http://localhost:3001';
 }
 
