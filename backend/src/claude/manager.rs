@@ -1,4 +1,4 @@
-use crate::claude::jsonl_parser::{extract_claude_session_id, extract_result_text, parse_for_display, parse_jsonl_line};
+use crate::claude::jsonl_parser::{extract_claude_session_id, extract_rate_limit_reset_at, extract_result_text, parse_for_display, parse_jsonl_line};
 use crate::claude::prompts::build_prompt;
 use crate::db::{CommentRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
@@ -145,6 +145,12 @@ impl ClaudeManager {
 
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
         let stderr = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
+
+        // Shared flag: stderr reader sets this if it detects a rate-limit message
+        let rate_limit_reset: std::sync::Arc<std::sync::Mutex<Option<chrono::DateTime<chrono::Utc>>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let rate_limit_reset_for_stderr = rate_limit_reset.clone();
+        let rate_limit_reset_for_completion = rate_limit_reset.clone();
 
         let task_id = task.id.clone();
         {
@@ -343,6 +349,10 @@ impl ClaudeManager {
             for line in reader.lines() {
                 if let Ok(text) = line {
                     warn!(session_id = %session_id, "stderr: {}", text);
+                    if let Some(reset_at) = extract_rate_limit_reset_at(&text) {
+                        let mut guard = rate_limit_reset_for_stderr.lock().unwrap();
+                        *guard = Some(reset_at);
+                    }
                     let _ = output_tx.send(ClaudeEvent::Output {
                         session_id: session_id.clone(),
                         text,
@@ -392,7 +402,17 @@ impl ClaudeManager {
                 return;
             };
 
-            let final_status = if exit_ok { "completed" } else { "failed" };
+            // Check if this was a rate-limit exit
+            let rate_limit_reset_at = rate_limit_reset_for_completion.lock().unwrap().take();
+
+            let final_status = if exit_ok {
+                "completed"
+            } else if rate_limit_reset_at.is_some() {
+                "stopped"   // not "failed" — will be auto-retried
+            } else {
+                "failed"
+            };
+
             info!(
                 session_id = %session_id_for_completion,
                 status = %final_status,
@@ -401,6 +421,9 @@ impl ClaudeManager {
             let _ = session_repo_for_completion.update(&session_id_for_completion, UpdateSession {
                 status: Some(final_status.to_string()),
                 ended_at: Some(chrono::Utc::now()),
+                error_message: rate_limit_reset_at.as_ref().map(|dt| {
+                    format!("rate_limited:{}", dt.to_rfc3339())
+                }),
                 ..Default::default()
             }).await;
 
@@ -409,6 +432,22 @@ impl ClaudeManager {
                 session_id: session_id_for_completion.clone(),
                 status: final_status.to_string(),
             });
+
+            // If rate-limited: emit RateLimited event and skip normal completion handling
+            if let Some(reset_at) = rate_limit_reset_at {
+                if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
+                    if let Ok(task) = task_repo_for_completion.find(&session.task_id).await {
+                        let _ = output_tx_for_completion.send(ClaudeEvent::RateLimited {
+                            session_id: session_id_for_completion.clone(),
+                            task_id: session.task_id.clone(),
+                            stage: task.stage.clone(),
+                            claude_session_id: session.claude_session_id,
+                            reset_at,
+                        });
+                    }
+                }
+                return; // skip normal success/failure handling (review stage, comment posting)
+            }
 
             // On success: advance task to review stage
             if exit_ok {
