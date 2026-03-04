@@ -20,6 +20,7 @@ crossbeam-channel = "0.5"
 parking_lot = "0.12"
 anyhow = "1"
 thiserror = "1"
+regex = "1"
 
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }

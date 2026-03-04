@@ -280,3 +280,22 @@ fn get_first_string_value(input: Option<&serde_json::Value>) -> Option<String> {
     }
     None
 }
+
+/// Detect a Claude usage-limit message in a stderr line and parse the reset timestamp.
+/// Matches patterns like "resets at 2026-03-04T03:00:00.000Z" (case-insensitive).
+/// Returns None if the line is not a usage-limit message or timestamp cannot be parsed.
+pub fn extract_rate_limit_reset_at(line: &str) -> Option<chrono::DateTime<chrono::Utc>> {
+    let lower = line.to_lowercase();
+    // Must contain a rate/usage limit keyword
+    if !lower.contains("usage limit") && !lower.contains("rate limit") {
+        return None;
+    }
+    // Find an ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS with optional ms and Z/offset)
+    let re = regex::Regex::new(
+        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})"
+    ).ok()?;
+    let mat = re.find(line)?;
+    chrono::DateTime::parse_from_rfc3339(mat.as_str())
+        .ok()
+        .map(|dt| dt.with_timezone(&chrono::Utc))
+}

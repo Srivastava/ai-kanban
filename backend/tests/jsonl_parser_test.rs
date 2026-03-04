@@ -184,6 +184,35 @@ fn test_display_assistant_text_truncated_unicode_safe() {
     // Must not panic — that's the whole point
 }
 
+// ==================== extract_rate_limit_reset_at ====================
+
+use ai_kanban_backend::claude::jsonl_parser::extract_rate_limit_reset_at;
+use chrono::Datelike;
+
+#[test]
+fn test_extract_reset_at_z_suffix() {
+    let line = "Claude AI usage limit reached. Resets at: 2026-03-04T03:00:00.000Z";
+    let ts = extract_rate_limit_reset_at(line);
+    assert!(ts.is_some());
+    let ts = ts.unwrap();
+    assert_eq!(ts.year(), 2026);
+    assert_eq!(ts.month(), 3);
+    assert_eq!(ts.day(), 4);
+}
+
+#[test]
+fn test_extract_reset_at_no_timestamp_returns_none() {
+    let ts = extract_rate_limit_reset_at("Some other error message");
+    assert!(ts.is_none());
+}
+
+#[test]
+fn test_extract_reset_at_no_rate_limit_keyword_returns_none() {
+    // ISO timestamp present but no rate-limit context
+    let ts = extract_rate_limit_reset_at("Log: 2026-03-04T03:00:00Z processed");
+    assert!(ts.is_none());
+}
+
 // ==================== extract_claude_session_id ====================
 
 use ai_kanban_backend::claude::jsonl_parser::extract_claude_session_id;
