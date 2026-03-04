@@ -110,3 +110,15 @@ export interface BurnRate {
   tokens_last_hour: number;
   tokens_per_minute: number;
 }
+
+export interface DevActivityRow {
+  task_id: string;
+  task_title: string;
+  session_id: string;
+  lines_added: number;
+  lines_deleted: number;
+  commits: number;
+  pull_requests: number;
+  active_time_secs: number;
+  cost_usd: number;
+}

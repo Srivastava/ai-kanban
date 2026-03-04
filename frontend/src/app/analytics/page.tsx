@@ -8,6 +8,7 @@ import { StageBreakdownChart } from '@/components/analytics/stage-breakdown-char
 import { SessionIntelligenceCard } from '@/components/analytics/session-intelligence-card';
 import { CostBreakdownTable } from '@/components/analytics/cost-breakdown-table';
 import { SessionTimelineChart } from '@/components/analytics/session-timeline-chart';
+import { DevActivityTable } from '@/components/analytics/dev-activity-table';
 
 export default function AnalyticsPage() {
   return (
@@ -44,6 +45,15 @@ export default function AnalyticsPage() {
             <SessionIntelligenceCard />
             <CostBreakdownTable />
             <SessionTimelineChart />
+          </section>
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-base font-semibold text-foreground">Dev Activity</h2>
+              <p className="text-sm text-muted-foreground">
+                Commits, lines changed, and active time per session — sourced from Claude Code telemetry
+              </p>
+            </div>
+            <DevActivityTable />
           </section>
         </main>
       </div>

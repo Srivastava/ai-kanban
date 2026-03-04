@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
 import type {
-  AnalyticsOverview, BurnRate, CostByTask, DailyTokens, EfficiencyRow, LanguageTokens,
+  AnalyticsOverview, BurnRate, CostByTask, DailyTokens, DevActivityRow, EfficiencyRow, LanguageTokens,
   MonthlyTokens, SessionSummary, SessionTimelineEvent, SessionTokens, TaskTokens,
   TokensByStage, ToolTokens, WeeklyTokens, UsageWindows,
 } from '@/types/analytics';
@@ -211,5 +211,13 @@ export function useBurnRate() {
       return result;
     },
     refetchInterval: 60_000,
+  });
+}
+
+export function useDevActivity() {
+  return useQuery({
+    queryKey: ['analytics', 'dev-activity'],
+    queryFn: () => apiClient<DevActivityRow[]>('/api/analytics/dev-activity'),
+    refetchInterval: 30_000,
   });
 }
