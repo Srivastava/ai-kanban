@@ -1,5 +1,4 @@
 use crate::db::{AnalyticsRepository, OtelMetricsRepository};
-use crate::models::DevActivityRow;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
