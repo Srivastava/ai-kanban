@@ -119,7 +119,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
   const { data: comments = [], isLoading: commentsLoading } = useComments(task.id);
   const { data: session } = useSession(task.session_id);
   const sessionStatus = session?.status ?? null;
-  const hasClaudeComments = comments.some((c) => c.author === 'claude');
+  const hasClaudeComments = comments.some((c) => c.author === 'claude' || c.author === 'litellm');
 
   return (
     <div>
@@ -198,7 +198,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
         ) : (() => {
           const updates = comments
             .flatMap((c) => [c, ...c.replies])
-            .filter((c) => c.author === 'claude')
+            .filter((c) => c.author === 'litellm')
             .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
           if (updates.length === 0) {
             return <p className="text-muted-foreground italic">No updates yet — Claude will post updates here as it works</p>;
@@ -227,7 +227,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
         {commentsLoading ? (
           <p className="text-muted-foreground">Loading comments...</p>
         ) : (
-          <CommentThread taskId={task.id} comments={comments} />
+          <CommentThread taskId={task.id} comments={comments.filter((c) => c.author !== 'litellm')} />
         )}
       </TaskSection>
     </div>

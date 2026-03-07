@@ -113,7 +113,7 @@ impl ContextManager {
 
                 match self.comment_repo.create(
                     task_id,
-                    "claude",
+                    "litellm",
                     CreateComment { content: comment_content, parent_id: None },
                 ).await {
                     Ok(comment) => info!(
