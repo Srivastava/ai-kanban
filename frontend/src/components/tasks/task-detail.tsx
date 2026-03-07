@@ -129,7 +129,8 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
   const { data: comments = [], isLoading: commentsLoading } = useComments(task.id);
   const { data: session } = useSession(task.session_id);
   const sessionStatus = session?.status ?? null;
-  const hasClaudeComments = comments.some((c) => c.author === 'claude' || c.author === 'litellm');
+  // Show "Continue Session" if Claude actually ran (has a claude_session_id), regardless of comments
+  const canResume = !!session?.claude_session_id;
   const stage = stageConfig[task.stage];
 
   const updates = comments
@@ -229,7 +230,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
             taskId={task.id}
             sessionId={task.session_id ?? undefined}
             status={sessionStatus}
-            hasClaudeComments={hasClaudeComments}
+            hasClaudeComments={canResume}
           />
           {task.session_id && (
             <>

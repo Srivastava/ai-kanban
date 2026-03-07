@@ -28,6 +28,8 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
   const [claudeSessionId, setClaudeSessionId] = useState<string | null>(initialClaudeSessionId ?? null);
   const [rateLimitResetAt, setRateLimitResetAt] = useState<Date | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const statusRef = useRef(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
   const { subscribe, send, status: wsStatus } = useWebSocket();
   const isConnected = wsStatus === 'connected';
 
@@ -107,11 +109,16 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
     return subscribe('rate_limited', (data: unknown) => {
       const event = data as import('@/types/session').RateLimitedEvent;
       if (event.session_id === sessionId) {
+        const currentStatus = statusRef.current;
+        const isTerminal = currentStatus === 'completed' || currentStatus === 'failed' || currentStatus === 'stopped';
         logRef.current.warn('LiveOutputPanel: rate limited', {
           session_id: sessionId,
           reset_at: event.reset_at,
+          ignored: isTerminal,
         });
-        setRateLimitResetAt(new Date(event.reset_at));
+        if (!isTerminal) {
+          setRateLimitResetAt(new Date(event.reset_at));
+        }
       }
     });
   }, [sessionId, subscribe]);
