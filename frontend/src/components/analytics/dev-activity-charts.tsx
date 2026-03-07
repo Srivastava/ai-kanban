@@ -3,10 +3,10 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useDevActivity } from '@/hooks/use-analytics';
 
-function formatTime(secs: number): string {
-  if (secs < 60) return `${Math.round(secs)}s`;
-  if (secs < 3600) return `${Math.round(secs / 60)}m`;
-  return `${(secs / 3600).toFixed(1)}h`;
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
+  return n.toString();
 }
 
 function truncate(s: string, n = 14): string {
@@ -23,18 +23,18 @@ const TOOLTIP_STYLE = {
 export function DevActivityCharts() {
   const { data = [], isLoading } = useDevActivity();
 
-  const hasOtelData = data.some(r => r.lines_added > 0 || r.commits > 0 || r.active_time_secs > 0);
-
   const chartData = data.map((row) => ({
     label: truncate(row.task_title),
     fullTitle: row.task_title,
     sessions: row.session_count,
-    hasOtel: row.lines_added > 0 || row.commits > 0 || row.cost_usd > 0,
     added: Math.round(row.lines_added),
     deleted: Math.round(row.lines_deleted),
-    active_time: row.active_time_secs,
-    commits: Math.round(row.commits),
-    prs: Math.round(row.pull_requests),
+    hasLines: row.lines_added > 0 || row.lines_deleted > 0,
+    input: row.input_tokens,
+    output: row.output_tokens,
+    cacheRead: row.cache_read_tokens,
+    cacheCreation: row.cache_creation_tokens,
+    totalContext: row.input_tokens + row.cache_read_tokens + row.cache_creation_tokens,
     cost: row.cost_usd,
   }));
 
@@ -44,30 +44,25 @@ export function DevActivityCharts() {
     </div>
   );
 
-  const otelNote = !hasOtelData && chartData.length > 0 ? (
-    <p className="text-xs text-muted-foreground italic">Lines / commits data requires OTel telemetry — only tasks with telemetry coverage show non-zero values.</p>
-  ) : null;
-
   const skeleton = <div className="h-48 animate-pulse bg-muted rounded" />;
 
   return (
-    <div className="space-y-3">
-    {otelNote}
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       {/* Lines of Code */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-3">
         <h3 className="font-semibold text-sm">Lines of Code</h3>
+        <p className="text-xs text-muted-foreground">From OTel telemetry — only sessions with telemetry enabled</p>
         {isLoading ? skeleton : chartData.length === 0 ? empty : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Lines', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip
                 labelFormatter={(_, payload) => {
                   const p = payload?.[0]?.payload;
                   if (!p) return '';
-                  return `${p.fullTitle} · ${p.sessions} session${p.sessions !== 1 ? 's' : ''}${p.hasOtel ? '' : ' (no OTel coverage)'}`;
+                  return `${p.fullTitle}${!p.hasLines ? ' (no OTel data)' : ''}`;
                 }}
                 formatter={(value, name) => [value, name === 'added' ? 'Lines added' : 'Lines deleted']}
                 contentStyle={TOOLTIP_STYLE}
@@ -80,48 +75,54 @@ export function DevActivityCharts() {
         )}
       </div>
 
-      {/* Active Coding Time */}
+      {/* Token Usage */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-        <h3 className="font-semibold text-sm">Active Coding Time</h3>
+        <h3 className="font-semibold text-sm">Token Usage</h3>
+        <p className="text-xs text-muted-foreground">Input + output tokens per task (from session logs)</p>
         {isLoading ? skeleton : chartData.length === 0 ? empty : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis tickFormatter={formatTime} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Time', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
-                formatter={(value) => [formatTime(Number(value)), 'Active Time']}
+                formatter={(value, name) => [formatTokens(Number(value)), name === 'input' ? 'Input tokens' : 'Output tokens']}
                 contentStyle={TOOLTIP_STYLE}
               />
-              <Bar dataKey="active_time" fill="#6366f1" name="active_time" radius={[3, 3, 0, 0]} />
+              <Legend formatter={(v) => (v === 'input' ? 'Input' : 'Output')} iconType="circle" />
+              <Bar dataKey="input" fill="#6366f1" name="input" radius={[3, 3, 0, 0]} stackId="tokens" />
+              <Bar dataKey="output" fill="#a855f7" name="output" radius={[3, 3, 0, 0]} stackId="tokens" />
             </BarChart>
           </ResponsiveContainer>
         )}
       </div>
 
-      {/* Commits & PRs */}
+      {/* Context Size (Cache) */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-        <h3 className="font-semibold text-sm">Commits & Pull Requests</h3>
+        <h3 className="font-semibold text-sm">Context Size (Cache)</h3>
+        <p className="text-xs text-muted-foreground">Total context per task including prompt cache reads</p>
         {isLoading ? skeleton : chartData.length === 0 ? empty : (
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Count', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
-                formatter={(value, name) => [value, name === 'commits' ? 'Commits' : 'Pull Requests']}
+                formatter={(value, name) => [
+                  formatTokens(Number(value)),
+                  name === 'cacheRead' ? 'Cache reads' : 'Cache writes',
+                ]}
                 contentStyle={TOOLTIP_STYLE}
               />
-              <Legend formatter={(v) => (v === 'commits' ? 'Commits' : 'PRs')} iconType="circle" />
-              <Bar dataKey="commits" fill="#6366f1" name="commits" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="prs" fill="#a855f7" name="prs" radius={[3, 3, 0, 0]} />
+              <Legend formatter={(v) => (v === 'cacheRead' ? 'Cache reads' : 'Cache writes')} iconType="circle" />
+              <Bar dataKey="cacheRead" fill="#0ea5e9" name="cacheRead" radius={[3, 3, 0, 0]} stackId="ctx" />
+              <Bar dataKey="cacheCreation" fill="#38bdf8" name="cacheCreation" radius={[3, 3, 0, 0]} stackId="ctx" />
             </BarChart>
           </ResponsiveContainer>
         )}
       </div>
-    </div>
     </div>
   );
 }

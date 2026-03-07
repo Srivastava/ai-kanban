@@ -27,6 +27,8 @@ pub struct CreateTokenEvent {
     pub file_ext: Option<String>,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_tokens: i64,
     pub model: Option<String>,
     pub sequence_no: Option<i64>,
 }

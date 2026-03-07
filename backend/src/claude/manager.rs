@@ -64,7 +64,7 @@ pub struct ClaudeManager {
     settings_repo: Option<SettingsRepository>,
 }
 
-const COMPRESSION_TOKEN_THRESHOLD: i64 = 150_000;
+const COMPRESSION_TOKEN_THRESHOLD: i64 = 100_000;
 
 impl ClaudeManager {
     pub fn new(
@@ -366,9 +366,14 @@ impl ClaudeManager {
 
                     // Try to parse as JSONL and extract token events
                     if let Some(parsed) = parse_jsonl_line(&text) {
-                        // Track peak input tokens for compression decision
-                        if parsed.input_tokens > peak_input_tokens {
-                            peak_input_tokens = parsed.input_tokens;
+                        // Track peak context size for compression decision.
+                        // Total context = input (non-cached) + cache_read + cache_creation.
+                        // We must use the full context size, not just input_tokens, because
+                        // in long sessions almost all context is cache-read (e.g. 695K tokens)
+                        // while non-cached input is tiny (< 100 tokens).
+                        let total_context = parsed.input_tokens + parsed.cache_read_tokens + parsed.cache_creation_tokens;
+                        if total_context > peak_input_tokens {
+                            peak_input_tokens = total_context;
                         }
                         let rt = tokio::runtime::Handle::current();
                         let event = CreateTokenEvent {
@@ -379,6 +384,8 @@ impl ClaudeManager {
                             file_ext: parsed.file_ext,
                             input_tokens: parsed.input_tokens,
                             output_tokens: parsed.output_tokens,
+                            cache_read_tokens: parsed.cache_read_tokens,
+                            cache_creation_tokens: parsed.cache_creation_tokens,
                             model: parsed.model,
                             sequence_no: Some(sequence_no),
                         };

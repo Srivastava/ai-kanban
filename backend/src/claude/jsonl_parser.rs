@@ -8,6 +8,10 @@ pub struct ParsedTokenEvent {
     pub file_ext: Option<String>,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    /// Tokens read from prompt cache (not billed at full rate, but count toward context size)
+    pub cache_read_tokens: i64,
+    /// Tokens written to prompt cache
+    pub cache_creation_tokens: i64,
     pub model: Option<String>,
 }
 
@@ -30,9 +34,11 @@ fn parse_assistant_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> 
 
     let input_tokens = usage.get("input_tokens")?.as_i64().unwrap_or(0);
     let output_tokens = usage.get("output_tokens")?.as_i64().unwrap_or(0);
+    let cache_read_tokens = usage.get("cache_read_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+    let cache_creation_tokens = usage.get("cache_creation_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
 
-    // Only record events that actually have tokens
-    if input_tokens == 0 && output_tokens == 0 {
+    // Only record events that actually have tokens (including cache)
+    if input_tokens == 0 && output_tokens == 0 && cache_read_tokens == 0 && cache_creation_tokens == 0 {
         return None;
     }
 
@@ -49,6 +55,8 @@ fn parse_assistant_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> 
         file_ext,
         input_tokens,
         output_tokens,
+        cache_read_tokens,
+        cache_creation_tokens,
         model,
     })
 }
@@ -57,8 +65,10 @@ fn parse_result_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> {
     let usage = value.get("usage")?;
     let input_tokens = usage.get("input_tokens")?.as_i64().unwrap_or(0);
     let output_tokens = usage.get("output_tokens")?.as_i64().unwrap_or(0);
+    let cache_read_tokens = usage.get("cache_read_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+    let cache_creation_tokens = usage.get("cache_creation_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
 
-    if input_tokens == 0 && output_tokens == 0 {
+    if input_tokens == 0 && output_tokens == 0 && cache_read_tokens == 0 && cache_creation_tokens == 0 {
         return None;
     }
 
@@ -68,6 +78,8 @@ fn parse_result_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> {
         file_ext: None,
         input_tokens,
         output_tokens,
+        cache_read_tokens,
+        cache_creation_tokens,
         model: None,
     })
 }

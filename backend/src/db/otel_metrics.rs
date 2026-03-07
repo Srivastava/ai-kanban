@@ -42,21 +42,26 @@ impl OtelMetricsRepository {
     }
 
     pub async fn dev_activity(&self) -> Result<Vec<DevActivityRow>> {
-        // Pre-aggregate OTel metrics per task in a subquery to avoid fanout when joining
-        // with the sessions table (otherwise each otel row multiplies per session).
+        // Token data (input/output) comes from token_events — better task correlation.
+        // Lines and cost come from otel_metrics (only populated when OTel telemetry is active).
         let rows = sqlx::query(
             r#"SELECT
                  t.id          as task_id,
                  t.title       as task_title,
                  COUNT(DISTINCT s.id) as session_count,
-                 COALESCE(oa.lines_added,    0.0) as lines_added,
-                 COALESCE(oa.lines_deleted,  0.0) as lines_deleted,
-                 COALESCE(oa.commits,        0.0) as commits,
-                 COALESCE(oa.pull_requests,  0.0) as pull_requests,
-                 COALESCE(oa.active_time,    0.0) as active_time_secs,
-                 COALESCE(oa.cost_usd,       0.0) as cost_usd
+                 -- Lines from OTel (claude_code.lines_of_code.count with type attribute)
+                 COALESCE(oa.lines_added,   0.0) as lines_added,
+                 COALESCE(oa.lines_deleted, 0.0) as lines_deleted,
+                 -- Cost from OTel (claude_code.cost.usage)
+                 COALESCE(oa.cost_usd,      0.0) as cost_usd,
+                 -- Token counts from token_events (well-correlated via session/task join)
+                 COALESCE(ta.input_tokens,          0.0) as input_tokens,
+                 COALESCE(ta.output_tokens,         0.0) as output_tokens,
+                 COALESCE(ta.cache_read_tokens,     0.0) as cache_read_tokens,
+                 COALESCE(ta.cache_creation_tokens, 0.0) as cache_creation_tokens
                FROM tasks t
                JOIN sessions s ON s.task_id = t.id
+               -- OTel aggregates per task (lines + cost)
                LEFT JOIN (
                  SELECT
                    task_id,
@@ -66,18 +71,24 @@ impl OtelMetricsRepository {
                    CAST(SUM(CASE WHEN metric_name = 'claude_code.lines_of_code.count'
                              AND json_extract(attributes, '$.type') = 'removed'
                             THEN value ELSE 0.0 END) AS REAL) as lines_deleted,
-                   CAST(SUM(CASE WHEN metric_name = 'claude_code.commit.count'
-                            THEN value ELSE 0.0 END) AS REAL) as commits,
-                   CAST(SUM(CASE WHEN metric_name = 'claude_code.pull_request.count'
-                            THEN value ELSE 0.0 END) AS REAL) as pull_requests,
-                   CAST(SUM(CASE WHEN metric_name = 'claude_code.active_time.total'
-                            THEN value ELSE 0.0 END) AS REAL) as active_time,
                    CAST(SUM(CASE WHEN metric_name = 'claude_code.cost.usage'
                             THEN value ELSE 0.0 END) AS REAL) as cost_usd
                  FROM otel_metrics
                  WHERE task_id IS NOT NULL
                  GROUP BY task_id
                ) oa ON oa.task_id = t.id
+               -- Token aggregates per task from token_events
+               LEFT JOIN (
+                 SELECT
+                   task_id,
+                   CAST(SUM(input_tokens)          AS REAL) as input_tokens,
+                   CAST(SUM(output_tokens)          AS REAL) as output_tokens,
+                   CAST(SUM(cache_read_tokens)      AS REAL) as cache_read_tokens,
+                   CAST(SUM(cache_creation_tokens)  AS REAL) as cache_creation_tokens
+                 FROM token_events
+                 WHERE task_id IS NOT NULL
+                 GROUP BY task_id
+               ) ta ON ta.task_id = t.id
                GROUP BY t.id, t.title
                ORDER BY MAX(s.started_at) DESC"#
         )
@@ -85,15 +96,16 @@ impl OtelMetricsRepository {
         .await?;
 
         Ok(rows.into_iter().map(|row| DevActivityRow {
-            task_id:          row.get("task_id"),
-            task_title:       row.get("task_title"),
-            session_count:    row.get("session_count"),
-            lines_added:      row.get::<f64, _>("lines_added"),
-            lines_deleted:    row.get::<f64, _>("lines_deleted"),
-            commits:          row.get::<f64, _>("commits"),
-            pull_requests:    row.get::<f64, _>("pull_requests"),
-            active_time_secs: row.get::<f64, _>("active_time_secs"),
-            cost_usd:         row.get::<f64, _>("cost_usd"),
+            task_id:              row.get("task_id"),
+            task_title:           row.get("task_title"),
+            session_count:        row.get("session_count"),
+            lines_added:          row.get::<f64, _>("lines_added"),
+            lines_deleted:        row.get::<f64, _>("lines_deleted"),
+            input_tokens:         row.get::<f64, _>("input_tokens"),
+            output_tokens:        row.get::<f64, _>("output_tokens"),
+            cache_read_tokens:    row.get::<f64, _>("cache_read_tokens"),
+            cache_creation_tokens: row.get::<f64, _>("cache_creation_tokens"),
+            cost_usd:             row.get::<f64, _>("cost_usd"),
         }).collect())
     }
 }

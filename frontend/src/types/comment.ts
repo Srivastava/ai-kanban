@@ -1,4 +1,4 @@
-export type Author = 'user' | 'claude';
+export type Author = 'user' | 'claude' | 'litellm';
 
 export interface Comment {
   id: string;

@@ -142,8 +142,9 @@ export interface DevActivityRow {
   session_count: number;
   lines_added: number;
   lines_deleted: number;
-  commits: number;
-  pull_requests: number;
-  active_time_secs: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
   cost_usd: number;
 }

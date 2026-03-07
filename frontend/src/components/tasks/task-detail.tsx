@@ -167,6 +167,12 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
           taskId={task.id}
           field="context"
         />
+        {task.compressed_context && (
+          <div className="mt-3 rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Compressed Context (LiteLLM)</p>
+            <p className="text-xs text-muted-foreground whitespace-pre-wrap">{task.compressed_context}</p>
+          </div>
+        )}
       </TaskSection>
 
       <TaskSection title="Session">

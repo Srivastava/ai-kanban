@@ -29,6 +29,7 @@ pub struct CreateOtelMetric {
 }
 
 /// Aggregated dev-activity row for Analytics — one row per task (all sessions summed)
+/// Sources: token data from token_events (well-correlated); lines/cost from otel_metrics.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DevActivityRow {
     pub task_id: String,
@@ -36,8 +37,9 @@ pub struct DevActivityRow {
     pub session_count: i64,
     pub lines_added: f64,
     pub lines_deleted: f64,
-    pub commits: f64,
-    pub pull_requests: f64,
-    pub active_time_secs: f64,
+    pub input_tokens: f64,
+    pub output_tokens: f64,
+    pub cache_read_tokens: f64,
+    pub cache_creation_tokens: f64,
     pub cost_usd: f64,
 }

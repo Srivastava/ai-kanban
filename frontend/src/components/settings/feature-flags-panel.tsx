@@ -9,7 +9,7 @@ const FLAG_META: Record<string, { label: string; description: string }> = {
   },
   litellm_context_compression: {
     label: 'Context Compression',
-    description: `When a session's input tokens exceed 150K, LiteLLM compresses the session context and stores it on the task. Future sessions start with the compressed context instead of re-reading the full history.`,
+    description: `When a session's context exceeds 100K tokens (including prompt cache), LiteLLM compresses the session context and stores it on the task. Future sessions start with the compressed context instead of re-reading the full history.`,
   },
   litellm_pre_session_briefing: {
     label: 'Pre-session Briefing',

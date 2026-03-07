@@ -24,8 +24,9 @@ impl TokenEventRepository {
             r#"
             INSERT INTO token_events
                 (session_id, task_id, event_type, tool_name, file_ext,
-                 input_tokens, output_tokens, model, sequence_no, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
+                 model, sequence_no, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&create.session_id)
@@ -35,6 +36,8 @@ impl TokenEventRepository {
         .bind(&create.file_ext)
         .bind(create.input_tokens)
         .bind(create.output_tokens)
+        .bind(create.cache_read_tokens)
+        .bind(create.cache_creation_tokens)
         .bind(&create.model)
         .bind(seq)
         .bind(now.to_rfc3339())
