@@ -116,6 +116,13 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
     });
   }, [sessionId, subscribe]);
 
+  // Clear rate limit banner when session reaches a terminal state
+  useEffect(() => {
+    if (status === 'completed' || status === 'failed' || status === 'stopped') {
+      setRateLimitResetAt(null);
+    }
+  }, [status]);
+
   // Live countdown ticker — ticks every second and auto-clears 10s after reset time
   useEffect(() => {
     if (!rateLimitResetAt) return;
