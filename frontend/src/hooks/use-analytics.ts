@@ -5,7 +5,7 @@ import { apiClient } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
 import type {
   AnalyticsOverview, BurnRate, CostByTask, DailyTokens, DevActivityRow, EfficiencyRow, LanguageTokens,
-  MonthlyTokens, SessionSummary, SessionTimelineEvent, SessionTokens, TaskTokens,
+  MonthlyTokens, SessionDetail, SessionSummary, SessionTimelineEvent, TaskTimelineEvent, SessionTokens, TaskTokens,
   TokensByStage, ToolTokens, WeeklyTokens, UsageWindows,
 } from '@/types/analytics';
 
@@ -211,6 +211,23 @@ export function useBurnRate() {
       return result;
     },
     refetchInterval: 60_000,
+  });
+}
+
+export function useTaskTimeline(taskId: string | null) {
+  return useQuery({
+    queryKey: ['analytics', 'task-timeline', taskId],
+    queryFn: () => apiClient<TaskTimelineEvent[]>(`/api/analytics/tasks/${taskId}/task-timeline`),
+    enabled: !!taskId,
+  });
+}
+
+export function useTaskSessions(taskId: string | null) {
+  return useQuery({
+    queryKey: ['sessions', 'by-task', taskId],
+    queryFn: () => apiClient<SessionDetail[]>(`/api/tasks/${taskId}/sessions-detail`),
+    enabled: !!taskId,
+    refetchInterval: 15_000,
   });
 }
 

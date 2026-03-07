@@ -53,11 +53,44 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       try {
         const message = JSON.parse(event.data);
 
+        // Log meaningful session/task events with context
+        if (message.type === 'session_output' || message.type === 'session_heartbeat') {
+          // high-frequency — skip logging
+        } else if (message.session_id || message.task_id) {
+          logger.withContext({
+            session_id: message.session_id,
+            task_id: message.task_id ?? message.task?.id,
+            claude_session_id: message.claude_session_id,
+          }).debug(`WS: ${message.type}`, {
+            session_id: message.session_id,
+            task_id: message.task_id ?? message.task?.id,
+          });
+        }
+
         // Handle task_updated: sync query cache so boards update in real-time
         if (message.type === 'task_updated' && message.task) {
           const task = message.task as Task;
+          logger.withContext({ task_id: task.id }).info('WS: task updated', {
+            task_id: task.id,
+            stage: task.stage,
+            title: task.title,
+          });
           queryClientRef.current.setQueryData(['tasks', task.id], task);
           queryClientRef.current.invalidateQueries({ queryKey: ['tasks'] });
+        }
+
+        if (message.type === 'session_started') {
+          logger.withContext({ task_id: message.task_id, session_id: message.session_id })
+            .info('WS: session started', { task_id: message.task_id, session_id: message.session_id });
+        }
+
+        if (message.type === 'session_completed' || message.type === 'session_failed' || message.type === 'session_stopped') {
+          logger.withContext({ task_id: message.task_id, session_id: message.session_id })
+            .info(`WS: ${message.type}`, {
+              task_id: message.task_id,
+              session_id: message.session_id,
+              error: message.error,
+            });
         }
 
         const callbacks = listenersRef.current.get(message.type);

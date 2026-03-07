@@ -4,6 +4,7 @@ import { Play, Square, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
 import { useQueryClient } from '@tanstack/react-query';
+import { logger } from '@/lib/logger';
 import type { SessionStatus } from '@/types/session';
 
 interface SessionControlsProps {
@@ -27,20 +28,40 @@ export function SessionControls({
     queryClient.invalidateQueries({ queryKey: ['comments', taskId] });
   };
 
+  const log = logger.withContext({ task_id: taskId, session_id: sessionId ?? undefined });
+
   const startSession = async () => {
-    await apiClient(`/api/tasks/${taskId}/sessions`, { method: 'POST' });
-    invalidate();
+    log.info('Starting new Claude session', { task_id: taskId });
+    try {
+      await apiClient(`/api/tasks/${taskId}/sessions`, { method: 'POST' });
+      log.info('Session started successfully', { task_id: taskId });
+      invalidate();
+    } catch (err) {
+      log.error('Failed to start session', { task_id: taskId, error: String(err) });
+    }
   };
 
   const continueSession = async () => {
-    await apiClient(`/api/tasks/${taskId}/sessions/continue`, { method: 'POST' });
-    invalidate();
+    log.info('Continuing Claude session', { task_id: taskId, session_id: sessionId });
+    try {
+      await apiClient(`/api/tasks/${taskId}/sessions/continue`, { method: 'POST' });
+      log.info('Continue session enqueued', { task_id: taskId, session_id: sessionId });
+      invalidate();
+    } catch (err) {
+      log.error('Failed to continue session', { task_id: taskId, session_id: sessionId, error: String(err) });
+    }
   };
 
   const stopSession = async () => {
     if (!sessionId) return;
-    await apiClient(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
-    invalidate();
+    log.info('Stopping session', { task_id: taskId, session_id: sessionId });
+    try {
+      await apiClient(`/api/sessions/${sessionId}/stop`, { method: 'POST' });
+      log.info('Session stopped', { task_id: taskId, session_id: sessionId });
+      invalidate();
+    } catch (err) {
+      log.error('Failed to stop session', { task_id: taskId, session_id: sessionId, error: String(err) });
+    }
   };
 
   if (status === 'pending') {

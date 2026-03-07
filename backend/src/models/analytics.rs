@@ -103,6 +103,18 @@ pub struct SessionTimelineEvent {
 }
 
 #[derive(Debug, Serialize)]
+pub struct TaskTimelineEvent {
+    pub claude_session_id: String,
+    pub sequence_no: i64,
+    pub event_type: String,
+    pub tool_name: Option<String>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cumulative_total: i64,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct CostByTask {
     pub task_id: String,
     pub task_title: String,
@@ -130,4 +142,19 @@ pub struct SessionSummary {
 pub struct BurnRate {
     pub tokens_last_hour: f64,
     pub tokens_per_minute: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SessionDetail {
+    pub id: String,
+    pub task_id: String,
+    pub status: String,
+    pub started_at: String,
+    pub ended_at: Option<String>,
+    pub claude_session_id: Option<String>,
+    pub error_message: Option<String>,
+    pub duration_secs: Option<i64>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
 }

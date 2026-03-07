@@ -1,9 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Trash2, Pencil, Check, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { TaskSection } from './task-section';
 import { CommentThread } from './comment-thread';
 import { SessionControls } from '@/components/sessions/session-controls';
@@ -190,7 +193,34 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
       </TaskSection>
 
       <TaskSection title="Updates" defaultOpen={false}>
-        <p className="text-muted-foreground italic">Updates from Claude sessions will appear here</p>
+        {commentsLoading ? (
+          <div className="h-16 animate-pulse bg-muted rounded" />
+        ) : (() => {
+          const updates = comments
+            .flatMap((c) => [c, ...c.replies])
+            .filter((c) => c.author === 'claude')
+            .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          if (updates.length === 0) {
+            return <p className="text-muted-foreground italic">No updates yet — Claude will post updates here as it works</p>;
+          }
+          return (
+            <div className="space-y-4">
+              {updates.map((update) => (
+                <div key={update.id} className="flex gap-3">
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-2 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted-foreground mb-1">
+                      {formatDistanceToNow(new Date(update.created_at), { addSuffix: true })}
+                    </p>
+                    <div className="text-sm [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:mb-1 [&_h1]:text-base [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mb-1 [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:mb-2 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_a]:text-primary [&_a]:underline [&_hr]:border-border [&_strong]:font-semibold [&_em]:italic">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{update.content}</ReactMarkdown>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </TaskSection>
 
       <TaskSection title="Comments">

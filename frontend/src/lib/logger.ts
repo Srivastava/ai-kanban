@@ -20,6 +20,7 @@ interface LogEntry {
 interface LogContext {
   task_id?: string;
   session_id?: string;
+  claude_session_id?: string;
   target?: string;
 }
 
@@ -79,6 +80,11 @@ class Logger {
     this.lastMessageTime = now;
 
     const merged = { ...this.context, ...ctx };
+    // Embed claude_session_id in metadata so it's searchable and stored
+    const enrichedMetadata: Record<string, unknown> | undefined =
+      merged.claude_session_id
+        ? { claude_session_id: merged.claude_session_id, ...metadata }
+        : metadata;
     const entry: LogEntry = {
       level,
       message,
@@ -86,7 +92,7 @@ class Logger {
       target: merged.target,
       task_id: merged.task_id,
       session_id: merged.session_id,
-      metadata,
+      metadata: enrichedMetadata,
     };
 
     // Always log to console for immediate visibility

@@ -32,10 +32,10 @@ export function StageBreakdownChart() {
       ) : (
         <>
           <ResponsiveContainer width="100%" height={224}>
-            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+            <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-              <XAxis type="number" tickFormatter={formatTokens} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis type="category" dataKey="stage" width={80} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+              <XAxis type="number" tickFormatter={formatTokens} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Tokens', position: 'insideBottom', offset: -15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis type="category" dataKey="stage" width={80} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Stage', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }} />
               <Tooltip
                 formatter={(value, name) => [
                   formatTokens(Number(value)),

@@ -17,10 +17,10 @@ export function LanguageChart() {
         <div className="h-48 flex items-center justify-center"><p className="text-muted-foreground text-sm">No language data yet</p></div>
       ) : (
         <ResponsiveContainer width="100%" height={192}>
-          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="ext" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
+            <XAxis dataKey="ext" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'File Extension', position: 'insideBottom', offset: -15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }} />
+            <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }} />
             <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
             <Bar dataKey="tokens" fill="#6366f1" radius={[4, 4, 0, 0]} name="Tokens" />
           </BarChart>

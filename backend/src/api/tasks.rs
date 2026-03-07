@@ -27,6 +27,7 @@ pub fn task_routes() -> Router<TaskApiState> {
         .route("/:id/move", post(move_task))
         .route("/:id/sessions", post(start_session))
         .route("/:id/sessions/continue", post(continue_session))
+        .route("/:id/sessions-detail", get(task_sessions_detail))
 }
 
 #[instrument(skip(state))]
@@ -284,6 +285,21 @@ async fn continue_session(
         }
         Err(e) => {
             error!(task_id = %id, error = %e, "Failed to enqueue continue session");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn task_sessions_detail(
+    State(state): State<TaskApiState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    info!(task_id = %id, "API: Getting sessions detail for task");
+    match state.session_repo.list_by_task_with_tokens(&id).await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => {
+            error!(task_id = %id, error = %e, "Failed to get sessions detail");
             (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
         }
     }

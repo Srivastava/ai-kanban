@@ -22,13 +22,15 @@ pub fn parse_otlp_metrics(body: &Value) -> Vec<CreateOtelMetric> {
     };
 
     for rm in resource_metrics {
-        let claude_session_id = extract_string_attr(
-            rm.get("resource").and_then(|r| r.get("attributes")),
-            "session.id",
-        )
-        .unwrap_or_default();
-
         let resource_attrs = build_attrs(rm.get("resource").and_then(|r| r.get("attributes")));
+
+        // Extract session.id from the already-parsed attrs object rather than the raw OTLP
+        // array, because extract_string_attr fails for keys that contain dots.
+        let claude_session_id = resource_attrs
+            .get("session.id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
 
         let scope_metrics = match rm.get("scopeMetrics").and_then(|v| v.as_array()) {
             Some(sm) => sm,
@@ -90,16 +92,6 @@ pub fn parse_otlp_metrics(body: &Value) -> Vec<CreateOtelMetric> {
     }
 
     results
-}
-
-fn extract_string_attr(attrs: Option<&Value>, key: &str) -> Option<String> {
-    attrs?.as_array()?.iter().find_map(|a| {
-        if a.get("key")?.as_str()? == key {
-            a.get("value")?.get("stringValue")?.as_str().map(|s| s.to_string())
-        } else {
-            None
-        }
-    })
 }
 
 fn build_attrs(attrs: Option<&Value>) -> Value {

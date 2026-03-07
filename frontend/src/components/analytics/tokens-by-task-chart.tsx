@@ -44,18 +44,20 @@ export function TokensByTaskChart() {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={dynamicHeight}>
-          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+          <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
             <XAxis
               type="number"
               tickFormatter={formatTokens}
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              label={{ value: 'Tokens', position: 'insideBottom', offset: -15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }}
             />
             <YAxis
               type="category"
               dataKey="label"
               width={130}
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              label={{ value: 'Task', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }}
             />
             <Tooltip
               labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}

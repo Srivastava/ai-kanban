@@ -6,9 +6,14 @@ import { LogTable } from '@/components/logs/log-table';
 import { LogStatsBar } from '@/components/logs/log-stats-bar';
 import { RecentErrorsPanel } from '@/components/logs/recent-errors-panel';
 import { LogRateChart } from '@/components/logs/log-rate-chart';
+import { SessionLifecyclePanel } from '@/components/logs/session-lifecycle-panel';
+import { ActiveSessionsPanel } from '@/components/logs/active-sessions-panel';
+import { LogContextBreakdown } from '@/components/logs/log-context-breakdown';
 import { useLogs } from '@/hooks/use-logs';
+import { apiClient } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
 import type { LogLevel, LogSource, LogFilter } from '@/types/log';
+import type { Session } from '@/types/session';
 
 const LEVELS: LogLevel[] = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
 const SOURCES: { value: LogSource | ''; label: string }[] = [
@@ -17,39 +22,44 @@ const SOURCES: { value: LogSource | ''; label: string }[] = [
   { value: 'backend', label: 'Backend' },
 ];
 
+const isUuid = (s: string) => /^[0-9a-f-]{36}$/i.test(s.trim());
+
 export default function LogsPage() {
   const [levelFilter, setLevelFilter] = useState<LogLevel | undefined>();
   const [sourceFilter, setSourceFilter] = useState<LogSource | undefined>();
   const [search, setSearch] = useState('');
   const [taskIdFilter, setTaskIdFilter] = useState('');
   const [sessionIdFilter, setSessionIdFilter] = useState('');
+  const [claudeSessionIdFilter, setClaudeSessionIdFilter] = useState('');
+  const [resolvedSessionId, setResolvedSessionId] = useState<string | null>(null);
   const [isLive, setIsLive] = useState(true);
 
   useEffect(() => {
     logger.info('LogsPage mounted');
-    return () => {
-      logger.debug('LogsPage unmounted');
-    };
   }, []);
 
+  // Resolve claude_session_id → internal session_id for log filtering
   useEffect(() => {
-    logger.debug('LogsPage: filter changed', { levelFilter, sourceFilter, search, isLive });
-  }, [levelFilter, sourceFilter, search, isLive]);
+    if (!claudeSessionIdFilter || !isUuid(claudeSessionIdFilter)) {
+      setResolvedSessionId(null);
+      return;
+    }
+    apiClient<Session>(`/api/sessions/by-claude-id/${claudeSessionIdFilter.trim()}`)
+      .then((s) => setResolvedSessionId(s.id))
+      .catch(() => setResolvedSessionId(null));
+  }, [claudeSessionIdFilter]);
 
-  // UUID pattern — only pass to server when input looks complete
-  const isUuid = (s: string) => /^[0-9a-f-]{36}$/i.test(s.trim());
+  // Effective internal session_id: explicit input takes priority, then resolved from claude id
+  const effectiveSessionId = isUuid(sessionIdFilter)
+    ? sessionIdFilter.trim()
+    : resolvedSessionId ?? undefined;
 
-  // Only task_id goes to the server — level/source/search are client-side only
-  // so they can all be combined without one narrowing the other's result set.
   const serverFilter = {
     task_id: isUuid(taskIdFilter) ? taskIdFilter.trim() : undefined,
-    session_id: isUuid(sessionIdFilter) ? sessionIdFilter.trim() : undefined,
+    session_id: effectiveSessionId,
   };
 
   const { logs, isLoading, newCount, loadNewLogs, isLiveRef } = useLogs(serverFilter);
-
-  // Unfiltered query dedicated to powering the debug widgets so they always
-  // reflect the full log set regardless of the active level/source filter.
   const { logs: allLogs } = useLogs({});
 
   isLiveRef.current = isLive;
@@ -62,30 +72,17 @@ export default function LogsPage() {
     search: search || undefined,
   };
 
-  useEffect(() => {
-    logger.debug('LogsPage: logs updated', { count: logs.length, newCount, isLoading });
-  }, [logs.length, newCount, isLoading]);
-
-  const handleLevelFilterChange = (level: LogLevel | undefined) => {
-    logger.debug('LogsPage: level filter changed', { newLevel: level, previousLevel: levelFilter });
-    setLevelFilter(level);
+  // Shared filter callbacks used by panels
+  const handleTaskClick = (id: string) => {
+    setTaskIdFilter(id);
   };
-
-  const handleSourceFilterChange = (source: LogSource | undefined) => {
-    logger.debug('LogsPage: source filter changed', { newSource: source, previousSource: sourceFilter });
-    setSourceFilter(source);
+  const handleSessionClick = (id: string) => {
+    setSessionIdFilter(id);
+    setClaudeSessionIdFilter('');
   };
-
-  const handleLiveToggle = () => {
-    const newValue = !isLive;
-    logger.debug('LogsPage: live toggle changed', { isLive: newValue });
-    setIsLive(newValue);
-  };
-
-  const handleLoadNewLogs = () => {
-    logger.debug('LogsPage: loading new logs', { newCount });
-    setIsLive(true);
-    loadNewLogs();
+  const handleClaudeSessionClick = (id: string) => {
+    setClaudeSessionIdFilter(id);
+    setSessionIdFilter('');
   };
 
   return (
@@ -103,7 +100,7 @@ export default function LogsPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Live</span>
             <button
-              onClick={handleLiveToggle}
+              onClick={() => setIsLive((v) => !v)}
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
                 isLive ? 'bg-primary' : 'bg-muted'
               }`}
@@ -118,11 +115,11 @@ export default function LogsPage() {
         </div>
 
         {/* Filter bar */}
-        <div className="border-b border-border px-6 py-3 flex flex-wrap items-center gap-4">
+        <div className="border-b border-border px-6 py-3 flex flex-wrap items-center gap-3">
           {/* Level pills */}
           <div className="flex gap-1">
             <button
-              onClick={() => handleLevelFilterChange(undefined)}
+              onClick={() => setLevelFilter(undefined)}
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                 !levelFilter ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
               }`}
@@ -132,7 +129,7 @@ export default function LogsPage() {
             {LEVELS.map((l) => (
               <button
                 key={l}
-                onClick={() => handleLevelFilterChange(levelFilter === l ? undefined : l)}
+                onClick={() => setLevelFilter(levelFilter === l ? undefined : l)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                   levelFilter === l ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
                 }`}
@@ -147,7 +144,7 @@ export default function LogsPage() {
             {SOURCES.map((s) => (
               <button
                 key={s.value}
-                onClick={() => handleSourceFilterChange(s.value === '' ? undefined : s.value as LogSource)}
+                onClick={() => setSourceFilter(s.value === '' ? undefined : s.value as LogSource)}
                 className={`px-3 py-1 text-xs font-medium transition-colors ${
                   (sourceFilter ?? '') === s.value
                     ? 'bg-primary text-primary-foreground'
@@ -169,62 +166,51 @@ export default function LogsPage() {
           />
 
           {/* Task ID filter */}
-          <div className="relative flex items-center">
-            <input
-              type="text"
-              placeholder="Task ID (UUID)..."
-              value={taskIdFilter}
-              onChange={(e) => setTaskIdFilter(e.target.value)}
-              className={`w-60 rounded-md border bg-background px-3 py-1.5 pr-7 text-sm font-mono placeholder:text-muted-foreground placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-ring transition-colors ${
-                taskIdFilter && isUuid(taskIdFilter)
-                  ? 'border-primary ring-1 ring-primary/30'
-                  : taskIdFilter
-                  ? 'border-amber-400'
-                  : 'border-border'
-              }`}
-            />
-            {taskIdFilter && (
-              <button
-                onClick={() => setTaskIdFilter('')}
-                className="absolute right-2 text-muted-foreground hover:text-foreground text-xs"
-                title="Clear task filter"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+          <FilterInput
+            value={taskIdFilter}
+            onChange={setTaskIdFilter}
+            placeholder="Task ID…"
+            activeColor="primary"
+          />
 
-          {/* Session ID filter */}
-          <div className="relative flex items-center">
-            <input
-              type="text"
-              placeholder="Session ID (UUID)..."
-              value={sessionIdFilter}
-              onChange={(e) => setSessionIdFilter(e.target.value)}
-              className={`w-60 rounded-md border bg-background px-3 py-1.5 pr-7 text-sm font-mono placeholder:text-muted-foreground placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-ring transition-colors ${
-                sessionIdFilter && isUuid(sessionIdFilter)
-                  ? 'border-violet-500 ring-1 ring-violet-500/30'
-                  : sessionIdFilter
-                  ? 'border-amber-400'
-                  : 'border-border'
-              }`}
-            />
-            {sessionIdFilter && (
-              <button
-                onClick={() => setSessionIdFilter('')}
-                className="absolute right-2 text-muted-foreground hover:text-foreground text-xs"
-                title="Clear session filter"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+          {/* Internal Session ID filter */}
+          <FilterInput
+            value={sessionIdFilter}
+            onChange={(v) => { setSessionIdFilter(v); setClaudeSessionIdFilter(''); }}
+            placeholder="Session ID (internal)…"
+            activeColor="violet"
+          />
+
+          {/* Claude Session ID filter */}
+          <FilterInput
+            value={claudeSessionIdFilter}
+            onChange={(v) => { setClaudeSessionIdFilter(v); setSessionIdFilter(''); }}
+            placeholder="Claude Session ID…"
+            activeColor="violet"
+            extraRight={
+              claudeSessionIdFilter && isUuid(claudeSessionIdFilter) ? (
+                resolvedSessionId
+                  ? <span className="absolute right-7 text-[10px] text-green-500 pointer-events-none" title="Resolved">✓</span>
+                  : <span className="absolute right-7 text-[10px] text-amber-500 pointer-events-none" title="Not found">?</span>
+              ) : null
+            }
+          />
+
+          {/* Active filters badge */}
+          {(taskIdFilter || sessionIdFilter || claudeSessionIdFilter) && (
+            <button
+              onClick={() => { setTaskIdFilter(''); setSessionIdFilter(''); setClaudeSessionIdFilter(''); }}
+              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded border border-border hover:bg-muted transition-colors"
+            >
+              Clear filters ✕
+            </button>
+          )}
         </div>
 
         {/* New logs banner */}
         {newCount > 0 && (
           <button
-            onClick={handleLoadNewLogs}
+            onClick={() => { setIsLive(true); loadNewLogs(); }}
             className="mx-6 mt-3 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-sm text-primary text-center hover:bg-primary/20 transition-colors"
           >
             {newCount} new log{newCount > 1 ? 's' : ''} — click to load
@@ -232,20 +218,41 @@ export default function LogsPage() {
         )}
 
         <main className="flex-1 p-6 space-y-4">
-          {/* Stats bar */}
-          <LogStatsBar
-            logs={allLogs}
-            activeLevel={levelFilter}
-            onLevelClick={handleLevelFilterChange}
-          />
+          {/* Stats bar — always visible */}
+          <LogStatsBar logs={allLogs} activeLevel={levelFilter} onLevelClick={setLevelFilter} />
 
-          {/* Log rate sparkline */}
+          {/* Log rate sparkline — always visible */}
           <LogRateChart logs={allLogs} />
 
-          {/* Recent errors */}
+          {/* Recent errors — visible when errors exist */}
           <RecentErrorsPanel logs={allLogs} />
 
-          {/* Table */}
+          {/* Recent Sessions — always visible, from analytics */}
+          <ActiveSessionsPanel
+            onSessionClick={handleSessionClick}
+            activeSessionId={sessionIdFilter && isUuid(sessionIdFilter) ? sessionIdFilter.trim() : undefined}
+          />
+
+          {/* Log context breakdown — always visible, derived from loaded logs */}
+          <LogContextBreakdown
+            logs={allLogs}
+            onTaskClick={handleTaskClick}
+            onSessionClick={handleSessionClick}
+            activeTaskId={serverFilter.task_id}
+            activeSessionId={serverFilter.session_id}
+          />
+
+          {/* Session Lifecycle — always visible with task picker */}
+          <SessionLifecyclePanel
+            taskId={serverFilter.task_id ?? null}
+            activeSessionId={sessionIdFilter && isUuid(sessionIdFilter) ? sessionIdFilter.trim() : undefined}
+            activeClaudeSessionId={claudeSessionIdFilter && isUuid(claudeSessionIdFilter) ? claudeSessionIdFilter.trim() : undefined}
+            onSessionClick={handleSessionClick}
+            onClaudeSessionClick={handleClaudeSessionClick}
+            onTaskSelect={(id) => setTaskIdFilter(id)}
+          />
+
+          {/* Log table */}
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -257,6 +264,48 @@ export default function LogsPage() {
           )}
         </main>
       </div>
+    </div>
+  );
+}
+
+function FilterInput({
+  value,
+  onChange,
+  placeholder,
+  activeColor,
+  extraRight,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  activeColor: 'primary' | 'violet';
+  extraRight?: React.ReactNode;
+}) {
+  const activeClass =
+    activeColor === 'primary'
+      ? 'border-primary ring-1 ring-primary/30'
+      : 'border-violet-500 ring-1 ring-violet-500/30';
+
+  return (
+    <div className="relative flex items-center">
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-52 rounded-md border bg-background px-3 py-1.5 pr-7 text-sm font-mono placeholder:text-muted-foreground placeholder:font-sans focus:outline-none focus:ring-1 focus:ring-ring transition-colors ${
+          value && isUuid(value) ? activeClass : value ? 'border-amber-400' : 'border-border'
+        }`}
+      />
+      {extraRight}
+      {value && (
+        <button
+          onClick={() => onChange('')}
+          className="absolute right-2 text-muted-foreground hover:text-foreground text-xs"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }

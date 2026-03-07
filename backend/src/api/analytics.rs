@@ -73,6 +73,7 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         // literal route BEFORE param route to avoid "summary" being treated as session ID
         .route("/sessions/summary", get(session_summary))
         .route("/sessions/:id/timeline", get(session_timeline))
+        .route("/tasks/:id/task-timeline", get(task_timeline))
         .route("/cost/by-task", get(cost_by_task))
         .route("/burn-rate", get(burn_rate))
         .route("/dev-activity", get(dev_activity))
@@ -353,6 +354,18 @@ async fn burn_rate(State(state): State<AnalyticsApiState>) -> impl IntoResponse 
     info!("API: Getting burn rate");
     match state.analytics.burn_rate().await {
         Ok(data) => { debug!("retrieved"); Json(data).into_response() }
+        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+    }
+}
+
+#[instrument(skip(state))]
+async fn task_timeline(
+    State(state): State<AnalyticsApiState>,
+    Path(task_id): Path<String>,
+) -> impl IntoResponse {
+    info!(task_id = %task_id, "API: Getting task timeline");
+    match state.analytics.task_timeline(&task_id).await {
+        Ok(data) => { debug!(count = data.len(), "retrieved"); Json(data).into_response() }
         Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
     }
 }

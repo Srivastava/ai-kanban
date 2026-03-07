@@ -29,6 +29,8 @@ pub fn session_routes() -> Router<SessionApiState> {
     Router::new()
         .route("/", get(list_sessions))
         .route("/queue", get(get_queue))
+        // literal prefix route before param route to avoid "by-claude-id" matching /:id
+        .route("/by-claude-id/:id", get(get_by_claude_id))
         .route("/:id/stop", post(stop_session))
         .route("/:id", get(get_session))
 }
@@ -86,6 +88,18 @@ async fn stop_session(
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e.to_string() })),
         ).into_response(),
+    }
+}
+
+#[instrument(skip(state))]
+async fn get_by_claude_id(
+    State(state): State<SessionApiState>,
+    Path(claude_id): Path<String>,
+) -> impl IntoResponse {
+    match state.session_repo.find_by_claude_session_id(&claude_id).await {
+        Ok(Some(session)) => Json(session).into_response(),
+        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Not found" }))).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response(),
     }
 }
 

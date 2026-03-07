@@ -1,6 +1,6 @@
-use crate::models::{CreateSession, Session, UpdateSession};
+use crate::models::{CreateSession, Session, SessionDetail, UpdateSession};
 use anyhow::{anyhow, Result};
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 use tracing::{debug, info, instrument};
 
 #[derive(Clone)]
@@ -150,5 +150,56 @@ impl SessionRepository {
         .fetch_optional(&self.pool)
         .await?;
         Ok(row)
+    }
+
+    pub async fn list_by_task_with_tokens(&self, task_id: &str) -> Result<Vec<SessionDetail>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                s.id,
+                s.task_id,
+                s.status,
+                s.started_at,
+                s.ended_at,
+                s.claude_session_id,
+                s.error_message,
+                COALESCE(SUM(te.input_tokens), 0) as input_tokens,
+                COALESCE(SUM(te.output_tokens), 0) as output_tokens,
+                COALESCE(SUM(te.input_tokens + te.output_tokens), 0) as total_tokens
+            FROM sessions s
+            LEFT JOIN token_events te ON te.session_id = s.id
+            WHERE s.task_id = ?
+            GROUP BY s.id
+            ORDER BY s.started_at DESC
+            "#,
+        )
+        .bind(task_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut details = Vec::new();
+        for row in &rows {
+            let started_at: String = row.get("started_at");
+            let ended_at: Option<String> = row.get("ended_at");
+            let duration_secs = ended_at.as_deref().and_then(|end| {
+                let s = chrono::DateTime::parse_from_rfc3339(&started_at).ok()?;
+                let e = chrono::DateTime::parse_from_rfc3339(end).ok()?;
+                Some((e - s).num_seconds())
+            });
+            details.push(SessionDetail {
+                id: row.get("id"),
+                task_id: row.get("task_id"),
+                status: row.get("status"),
+                started_at,
+                ended_at,
+                claude_session_id: row.get("claude_session_id"),
+                error_message: row.get("error_message"),
+                duration_secs,
+                input_tokens: row.get("input_tokens"),
+                output_tokens: row.get("output_tokens"),
+                total_tokens: row.get("total_tokens"),
+            });
+        }
+        Ok(details)
     }
 }

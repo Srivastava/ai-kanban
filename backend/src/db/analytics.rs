@@ -1,10 +1,11 @@
 use crate::models::{
     AnalyticsOverview, BurnRate, CostByTask, DailyTokens, WeeklyTokens, MonthlyTokens,
     SessionSummary, TaskTokens, SessionTokens, ToolTokens, LanguageTokens,
-    EfficiencyRow, SessionTimelineEvent, TokensByStage, UsageWindows,
+    EfficiencyRow, SessionTimelineEvent, TaskTimelineEvent, TokensByStage, UsageWindows,
 };
 use anyhow::Result;
 use chrono::{Datelike, Duration, Utc};
+use std::collections::HashMap;
 use sqlx::{SqlitePool, sqlite::SqliteRow, Row};
 use tracing::{debug, instrument};
 
@@ -328,11 +329,18 @@ impl AnalyticsRepository {
                 te.task_id,
                 COALESCE(t.title, 'Unknown Task') as task_title,
                 SUM(te.input_tokens) + SUM(te.output_tokens) as total_tokens,
-                COALESCE(SUM(sm.lines_written), 0) as lines_written,
+                COALESCE((
+                    SELECT SUM(om.value)
+                    FROM otel_metrics om
+                    WHERE om.task_id = te.task_id
+                      AND om.metric_name = 'claude_code.lines_of_code.count'
+                      AND json_extract(om.attributes, '$.type') = 'added'
+                ), 0) as lines_written,
                 COALESCE(MAX(sm.project_loc), 0) as project_loc
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
             LEFT JOIN session_metrics sm ON te.session_id = sm.session_id
+            WHERE te.task_id IS NOT NULL
             GROUP BY te.task_id, t.title
             HAVING total_tokens > 0
             ORDER BY total_tokens DESC
@@ -345,7 +353,8 @@ impl AnalyticsRepository {
             .into_iter()
             .map(|row| {
                 let total: i64 = row.get("total_tokens");
-                let lines: i64 = row.get("lines_written");
+                let lines_f: f64 = row.get("lines_written");
+                let lines = lines_f as i64;
                 let loc: i64 = row.get("project_loc");
 
                 let tokens_per_line = if lines > 0 {
@@ -594,5 +603,56 @@ impl AnalyticsRepository {
             .collect();
 
         Ok(timeline)
+    }
+
+    /// All token events for every session of a task, with claude_session_id for grouping.
+    /// Cumulative totals are computed per claude_session_id.
+    #[instrument(skip(self))]
+    pub async fn task_timeline(&self, task_id: &str) -> Result<Vec<TaskTimelineEvent>> {
+        debug!(task_id = task_id, "Fetching task timeline");
+
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                COALESCE(s.claude_session_id, te.session_id) AS claude_session_id,
+                te.sequence_no,
+                te.event_type,
+                te.tool_name,
+                te.input_tokens,
+                te.output_tokens,
+                te.timestamp
+            FROM token_events te
+            LEFT JOIN sessions s ON te.session_id = s.id
+            WHERE te.task_id = ?
+            ORDER BY claude_session_id, te.sequence_no ASC, te.id ASC
+            "#
+        )
+        .bind(task_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut cumulatives: HashMap<String, i64> = HashMap::new();
+        let events = rows
+            .into_iter()
+            .map(|row| {
+                let csid: String = row.get("claude_session_id");
+                let input: i64 = row.get("input_tokens");
+                let output: i64 = row.get("output_tokens");
+                let cum = cumulatives.entry(csid.clone()).or_insert(0);
+                *cum += input + output;
+                TaskTimelineEvent {
+                    claude_session_id: csid,
+                    sequence_no: row.get("sequence_no"),
+                    event_type: row.get("event_type"),
+                    tool_name: row.get("tool_name"),
+                    input_tokens: input,
+                    output_tokens: output,
+                    cumulative_total: *cum,
+                    timestamp: row.get("timestamp"),
+                }
+            })
+            .collect();
+
+        Ok(events)
     }
 }

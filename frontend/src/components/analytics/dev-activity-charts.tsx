@@ -48,10 +48,10 @@ export function DevActivityCharts() {
         <h3 className="font-semibold text-sm">Lines of Code</h3>
         {isLoading ? skeleton : chartData.length === 0 ? empty : (
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Lines', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
               <Tooltip
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
                 formatter={(value, name) => [value, name === 'added' ? 'Added' : 'Deleted']}
@@ -70,10 +70,10 @@ export function DevActivityCharts() {
         <h3 className="font-semibold text-sm">Active Coding Time</h3>
         {isLoading ? skeleton : chartData.length === 0 ? empty : (
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis tickFormatter={formatTime} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis tickFormatter={formatTime} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Time', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
               <Tooltip
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
                 formatter={(value) => [formatTime(Number(value)), 'Active Time']}
@@ -90,10 +90,10 @@ export function DevActivityCharts() {
         <h3 className="font-semibold text-sm">Commits & Pull Requests</h3>
         {isLoading ? skeleton : chartData.length === 0 ? empty : (
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
+              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Count', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
               <Tooltip
                 labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
                 formatter={(value, name) => [value, name === 'commits' ? 'Commits' : 'Pull Requests']}

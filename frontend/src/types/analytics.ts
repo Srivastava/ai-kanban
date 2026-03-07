@@ -76,6 +76,17 @@ export interface SessionTimelineEvent {
   timestamp: string;
 }
 
+export interface TaskTimelineEvent {
+  claude_session_id: string;
+  sequence_no: number;
+  event_type: string;
+  tool_name: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  cumulative_total: number;
+  timestamp: string;
+}
+
 export interface UsageWindows {
   tokens_5hr: number;
   tokens_week: number;
@@ -109,6 +120,20 @@ export interface SessionSummary {
 export interface BurnRate {
   tokens_last_hour: number;
   tokens_per_minute: number;
+}
+
+export interface SessionDetail {
+  id: string;
+  task_id: string;
+  status: string;
+  started_at: string;
+  ended_at: string | null;
+  claude_session_id: string | null;
+  error_message: string | null;
+  duration_secs: number | null;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
 }
 
 export interface DevActivityRow {

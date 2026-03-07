@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useWebSocket } from '@/contexts/websocket-context';
+import { logger } from '@/lib/logger';
 import type { SessionStatus } from '@/types/session';
 
 interface Props {
@@ -30,22 +31,43 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
   const { subscribe, send, status: wsStatus } = useWebSocket();
   const isConnected = wsStatus === 'connected';
 
+  // Build a context-aware logger, updated when claudeSessionId changes
+  const logRef = useRef(logger.withContext({ session_id: sessionId }));
+  useEffect(() => {
+    logRef.current = logger.withContext({
+      session_id: sessionId,
+      claude_session_id: claudeSessionId ?? undefined,
+    });
+  }, [sessionId, claudeSessionId]);
+
   // Reset lines, heartbeat, and claudeSessionId when session changes
   useEffect(() => {
     setLines([]);
     setHeartbeat(null);
     setClaudeSessionId(initialClaudeSessionId ?? null);
+    logRef.current = logger.withContext({ session_id: sessionId });
+    logRef.current.info('LiveOutputPanel: session changed', { session_id: sessionId });
   }, [sessionId, initialClaudeSessionId]);
 
   // Subscribe to this session's output and heartbeat
   useEffect(() => {
     if (!sessionId || !isConnected) return;
 
+    logRef.current.info('LiveOutputPanel: subscribing to session output', { session_id: sessionId });
     send({ type: 'subscribe_session', session_id: sessionId });
 
+    let outputCount = 0;
     const unsubOutput = subscribe('session_output', (data: unknown) => {
       const msg = data as { session_id: string; output: string; is_error: boolean };
       if (msg.session_id !== sessionId) return;
+      outputCount++;
+      if (outputCount === 1 || outputCount % 50 === 0) {
+        logRef.current.debug('LiveOutputPanel: output received', {
+          session_id: sessionId,
+          is_error: msg.is_error,
+          total_lines: outputCount,
+        });
+      }
       setLines((prev) => [
         ...prev.slice(-500),
         { text: msg.output, isError: msg.is_error },
@@ -61,10 +83,18 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
     const unsubSessionId = subscribe('session_id_assigned', (data: unknown) => {
       const msg = data as { session_id: string; claude_session_id: string };
       if (msg.session_id !== sessionId) return;
+      logRef.current.info('LiveOutputPanel: claude_session_id assigned', {
+        session_id: sessionId,
+        claude_session_id: msg.claude_session_id,
+      });
       setClaudeSessionId(msg.claude_session_id);
     });
 
     return () => {
+      logRef.current.debug('LiveOutputPanel: unsubscribing from session', {
+        session_id: sessionId,
+        total_lines_received: outputCount,
+      });
       unsubOutput();
       unsubHeartbeat();
       unsubSessionId();
@@ -77,6 +107,10 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
     return subscribe('rate_limited', (data: unknown) => {
       const event = data as import('@/types/session').RateLimitedEvent;
       if (event.session_id === sessionId) {
+        logRef.current.warn('LiveOutputPanel: rate limited', {
+          session_id: sessionId,
+          reset_at: event.reset_at,
+        });
         setRateLimitResetAt(new Date(event.reset_at));
       }
     });

@@ -27,6 +27,7 @@ export function TokenTimeChart() {
 
   const data = dataMap[period];
   const isLoading = { daily, weekly, monthly }[period].isLoading;
+  const xLabel = { daily: 'Date', weekly: 'Week', monthly: 'Month' }[period];
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
@@ -53,7 +54,7 @@ export function TokenTimeChart() {
         <div className="h-64 flex items-center justify-center"><p className="text-muted-foreground text-sm">No token data yet. Run a Claude session to see usage.</p></div>
       ) : (
         <ResponsiveContainer width="100%" height={256}>
-          <AreaChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+          <AreaChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
             <defs>
               <linearGradient id="inputGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -65,8 +66,16 @@ export function TokenTimeChart() {
               </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-            <YAxis tickFormatter={formatTokens} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              label={{ value: xLabel, position: 'insideBottom', offset: -15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }}
+            />
+            <YAxis
+              tickFormatter={formatTokens}
+              tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+              label={{ value: 'Tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }}
+            />
             <Tooltip
               formatter={(value, name) => [formatTokens(Number(value)), name === 'input' ? 'Input tokens' : 'Output tokens']}
               contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
