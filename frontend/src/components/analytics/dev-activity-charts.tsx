@@ -66,11 +66,11 @@ export function DevActivityCharts() {
               <p className="font-semibold">{row.session_count}</p>
             </div>
             <div className="rounded-lg bg-muted/50 px-3 py-2">
-              <p className="text-xs text-muted-foreground">Lines +/-</p>
+              <p className="text-xs text-muted-foreground">Lines written (net)</p>
               <p className="font-semibold">
-                {row.lines_added > 0 || row.lines_deleted > 0 ? (
-                  <><span className="text-green-600">+{Math.round(row.lines_added)}</span>{' / '}<span className="text-red-500">-{Math.round(row.lines_deleted)}</span></>
-                ) : '—'}
+                {row.lines_added > 0
+                  ? <span className="text-green-600">+{Math.round(row.lines_added).toLocaleString()}</span>
+                  : '—'}
               </p>
             </div>
             <div className="rounded-lg bg-muted/50 px-3 py-2">
@@ -91,28 +91,26 @@ export function DevActivityCharts() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Lines of Code */}
             <div className="rounded-xl border border-border bg-card p-5 space-y-2">
-              <h3 className="font-semibold text-sm">Lines of Code</h3>
-              <p className="text-xs text-muted-foreground">From OTel telemetry — requires CLAUDE_CODE_ENABLE_TELEMETRY=1</p>
-              {row.lines_added === 0 && row.lines_deleted === 0 ? (
+              <h3 className="font-semibold text-sm">Lines Written (net growth)</h3>
+              <p className="text-xs text-muted-foreground">Project LOC growth across sessions — current minus baseline</p>
+              {row.lines_added === 0 ? (
                 <div className="h-32 flex items-center justify-center">
-                  <p className="text-xs text-muted-foreground italic">No OTel line data for this task</p>
+                  <p className="text-xs text-muted-foreground italic">No session LOC data yet</p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <BarChart
-                    data={[{ name: row.task_title, added: Math.round(row.lines_added), deleted: Math.round(row.lines_deleted) }]}
+                    data={[{ name: row.task_title, loc: Math.round(row.lines_added) }]}
                     margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                    <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : `${v}`} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                     <Tooltip
-                      formatter={(value, name) => [value, name === 'added' ? 'Lines added' : 'Lines deleted']}
+                      formatter={(value) => [value.toLocaleString(), 'Lines written (net)']}
                       contentStyle={TOOLTIP_STYLE}
                     />
-                    <Legend formatter={(v) => (v === 'added' ? 'Added' : 'Deleted')} iconType="circle" />
-                    <Bar dataKey="added" fill="#22c55e" name="added" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="deleted" fill="#ef4444" name="deleted" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="loc" fill="#22c55e" name="loc" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

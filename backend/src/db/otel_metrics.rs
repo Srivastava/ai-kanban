@@ -43,37 +43,50 @@ impl OtelMetricsRepository {
 
     /// `task_id`: when Some, returns exactly one row for that task; when None, returns all tasks.
     pub async fn dev_activity(&self, task_id: Option<&str>) -> Result<Vec<DevActivityRow>> {
-        // Token data from token_events (correlated via session→task FK).
-        // Lines and cost from otel_metrics (only populated when OTel telemetry is active).
-        // cache_* columns added by migration 011 — omitted here since they are 0 for
-        // all data recorded before that migration.
+        // Lines-of-code source: session_metrics.project_loc captured at every session start.
+        // current_loc  = LOC at the last session (project as it stands now)
+        // baseline_loc = earliest non-zero LOC recorded (before AI started working)
+        // loc_written  = current_loc - baseline_loc (net lines grown under AI's hand)
+        //
+        // OTel lines_of_code.count is only available when OTel telemetry was active AND
+        // the session was correlated — typically a tiny fraction of sessions, so unreliable.
         let rows = sqlx::query(
             r#"SELECT
                  t.id          as task_id,
                  t.title       as task_title,
                  COUNT(DISTINCT s.id) as session_count,
-                 COALESCE(oa.lines_added,   0.0) as lines_added,
-                 COALESCE(oa.lines_deleted, 0.0) as lines_deleted,
-                 COALESCE(oa.cost_usd,      0.0) as cost_usd,
+                 -- Project LOC growth: current size minus earliest recorded size
+                 COALESCE(sm_agg.current_loc,  0) as current_loc,
+                 COALESCE(sm_agg.baseline_loc, 0) as baseline_loc,
+                 CAST(COALESCE(sm_agg.current_loc, 0) - COALESCE(sm_agg.baseline_loc, 0) AS REAL) as loc_written,
+                 -- Cost from OTel where available
+                 COALESCE(oa.cost_usd, 0.0) as cost_usd,
+                 -- Token totals from token_events (well-correlated via session FK)
                  COALESCE(ta.input_tokens,  0.0) as input_tokens,
                  COALESCE(ta.output_tokens, 0.0) as output_tokens
                FROM tasks t
                JOIN sessions s ON s.task_id = t.id
+               -- Session metrics: get current LOC and baseline (first non-zero LOC)
+               LEFT JOIN (
+                 SELECT
+                   s2.task_id,
+                   MAX(sm2.project_loc) as current_loc,
+                   MIN(CASE WHEN sm2.project_loc > 0 THEN sm2.project_loc END) as baseline_loc
+                 FROM session_metrics sm2
+                 JOIN sessions s2 ON s2.id = sm2.session_id
+                 GROUP BY s2.task_id
+               ) sm_agg ON sm_agg.task_id = t.id
+               -- OTel: cost only (lines_of_code unreliable — only partial sessions)
                LEFT JOIN (
                  SELECT
                    task_id,
-                   CAST(SUM(CASE WHEN metric_name = 'claude_code.lines_of_code.count'
-                             AND json_extract(attributes, '$.type') = 'added'
-                            THEN value ELSE 0.0 END) AS REAL) as lines_added,
-                   CAST(SUM(CASE WHEN metric_name = 'claude_code.lines_of_code.count'
-                             AND json_extract(attributes, '$.type') = 'removed'
-                            THEN value ELSE 0.0 END) AS REAL) as lines_deleted,
                    CAST(SUM(CASE WHEN metric_name = 'claude_code.cost.usage'
                             THEN value ELSE 0.0 END) AS REAL) as cost_usd
                  FROM otel_metrics
                  WHERE task_id IS NOT NULL
                  GROUP BY task_id
                ) oa ON oa.task_id = t.id
+               -- Token totals
                LEFT JOIN (
                  SELECT
                    task_id,
@@ -96,8 +109,8 @@ impl OtelMetricsRepository {
             task_id:       row.get("task_id"),
             task_title:    row.get("task_title"),
             session_count: row.get("session_count"),
-            lines_added:   row.get::<f64, _>("lines_added"),
-            lines_deleted: row.get::<f64, _>("lines_deleted"),
+            lines_added:   row.get::<f64, _>("loc_written"),
+            lines_deleted: 0.0, // net growth metric — deletions absorbed into loc_written
             input_tokens:  row.get::<f64, _>("input_tokens"),
             output_tokens: row.get::<f64, _>("output_tokens"),
             cost_usd:      row.get::<f64, _>("cost_usd"),
