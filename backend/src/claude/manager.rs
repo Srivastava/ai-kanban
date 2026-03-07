@@ -549,7 +549,10 @@ impl ClaudeManager {
                 status: final_status.to_string(),
             });
 
-            // If rate-limited: emit RateLimited event and skip normal completion handling
+            // If rate-limited: emit RateLimited event.
+            // If Claude was actually interrupted (exit_ok=false), skip normal completion handling.
+            // If Claude finished cleanly despite the rate-limit signal (exit_ok=true), fall through
+            // so comments and stage advancement still happen.
             if let Some(reset_at) = rate_limit_reset_at {
                 if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
                     if let Ok(task) = task_repo_for_completion.find(&session.task_id).await {
@@ -562,7 +565,9 @@ impl ClaudeManager {
                         });
                     }
                 }
-                return; // skip normal success/failure handling (review stage, comment posting)
+                if !exit_ok {
+                    return; // Claude was interrupted — skip comment posting and stage advancement
+                }
             }
 
             // On success: advance task to review stage
