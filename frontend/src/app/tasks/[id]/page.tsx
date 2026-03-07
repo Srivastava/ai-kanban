@@ -3,6 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Sidebar } from '@/components/layout/sidebar';
 import { useTask, useDeleteTask } from '@/hooks/use-tasks';
 import { TaskDetail } from '@/components/tasks/task-detail';
 import { TaskDetailSkeleton } from '@/components/tasks/task-detail-skeleton';
@@ -16,46 +17,34 @@ export default function TaskDetailPage() {
   const { mutate: deleteTask, isPending: isDeleting } = useDeleteTask();
 
   const handleDelete = () => {
-    deleteTask(taskId, {
-      onSuccess: () => router.push('/'),
-    });
+    deleteTask(taskId, { onSuccess: () => router.push('/') });
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <header className="border-b border-border px-6 py-4">
-          <Button variant="ghost" onClick={() => router.back()}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+  return (
+    <div className="flex min-h-screen bg-background">
+      <Sidebar />
+      <div className="flex-1 min-w-0">
+        <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm px-4 sm:px-6 py-3 flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-1">
+            <ArrowLeft className="mr-1.5 h-4 w-4" />
+            <span className="hidden sm:inline">Back</span>
           </Button>
+          {task && (
+            <h2 className="text-sm font-medium text-muted-foreground truncate">{task.title}</h2>
+          )}
         </header>
-        <main className="max-w-4xl mx-auto p-6">
-          <TaskDetailSkeleton />
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+          {isLoading ? (
+            <TaskDetailSkeleton />
+          ) : error || !task ? (
+            <div className="flex items-center justify-center py-24">
+              <p className="text-destructive">Task not found</p>
+            </div>
+          ) : (
+            <TaskDetail task={task} onDelete={handleDelete} isDeleting={isDeleting} />
+          )}
         </main>
       </div>
-    );
-  }
-
-  if (error || !task) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-destructive">Task not found</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b border-border px-6 py-4">
-        <Button variant="ghost" onClick={() => router.back()}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-      </header>
-      <main className="max-w-4xl mx-auto p-6">
-        <TaskDetail task={task} onDelete={handleDelete} isDeleting={isDeleting} />
-      </main>
     </div>
   );
 }
