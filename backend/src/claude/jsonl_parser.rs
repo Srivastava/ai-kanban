@@ -293,23 +293,18 @@ fn get_first_string_value(input: Option<&serde_json::Value>) -> Option<String> {
     None
 }
 
-/// Keywords (lowercase) that indicate any form of rate/usage limiting from the Anthropic API.
-/// Covers Claude CLI JSONL output, HTTP status text, and SDK error messages.
+/// Keywords (lowercase) that indicate an Anthropic API rate/usage limit.
+/// Keep these specific to Anthropic's actual error messages to avoid false positives
+/// from code that Claude writes (e.g. "capacity", "token limit", "overloaded" are
+/// all common in normal code and must NOT be in this list).
 const RATE_LIMIT_KEYWORDS: &[&str] = &[
-    "usage limit",         // "Your usage limit resets at..."
-    "rate limit",          // "Rate limit exceeded"
-    "hit your limit",      // "You've hit your limit · resets 10pm"
-    "too many requests",   // HTTP 429
-    "overloaded",          // HTTP 529 "Overloaded"
-    "service unavailable", // HTTP 503
-    "quota exceeded",
-    "limit exceeded",
-    "capacity",            // "at capacity"
-    "usage has been exceeded",
-    "daily limit",
-    "monthly limit",
-    "token limit",
-    "request limit",
+    "usage limit",           // "Your usage limit resets at..."
+    "hit your limit",        // "You've hit your limit · resets 10pm"
+    "too many requests",     // HTTP 429 standard text
+    "quota exceeded",        // API quota message
+    "usage has been exceeded", // Anthropic-specific phrasing
+    "daily usage limit",     // specific enough
+    "monthly usage limit",   // specific enough
 ];
 
 fn contains_rate_limit_keyword(s: &str) -> bool {
@@ -317,11 +312,23 @@ fn contains_rate_limit_keyword(s: &str) -> bool {
     RATE_LIMIT_KEYWORDS.iter().any(|kw| lower.contains(kw))
 }
 
+/// Broader keywords that are only reliable when accompanied by an ISO 8601 timestamp.
+/// "rate limit" alone could appear in code comments, but combined with a parseable
+/// reset timestamp it's strong evidence of an actual Anthropic API rate limit.
+const RATE_LIMIT_KEYWORDS_WITH_TIMESTAMP: &[&str] = &[
+    "rate limit",
+    "rate-limit",
+    "ratelimit",
+];
+
 /// Detect a Claude usage-limit message in a line and parse the reset timestamp.
 /// Matches patterns like "resets at 2026-03-04T03:00:00.000Z" (case-insensitive).
 /// Returns None if the line is not a usage-limit message or timestamp cannot be parsed.
 pub fn extract_rate_limit_reset_at(line: &str) -> Option<chrono::DateTime<chrono::Utc>> {
-    if !contains_rate_limit_keyword(line) {
+    let lower = line.to_lowercase();
+    let has_keyword = RATE_LIMIT_KEYWORDS.iter().any(|kw| lower.contains(kw))
+        || RATE_LIMIT_KEYWORDS_WITH_TIMESTAMP.iter().any(|kw| lower.contains(kw));
+    if !has_keyword {
         return None;
     }
     // Find an ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS with optional ms and Z/offset)
