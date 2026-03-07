@@ -1,3 +1,5 @@
+use ai_kanban_backend::ai::context_manager::ContextManager;
+use ai_kanban_backend::ai::litellm::LitellmClient;
 use ai_kanban_backend::api::{create_router, otlp_router, AppState, OtlpState};
 use ai_kanban_backend::claude::ClaudeManager;
 use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
@@ -38,6 +40,15 @@ async fn main() -> anyhow::Result<()> {
         axum::serve(otlp_listener, otlp_app).await.expect("OTLP server failed");
     });
 
+    // Initialize context manager (LiteLLM-backed summarization)
+    let litellm = LitellmClient::from_env();
+    tracing::info!(
+        base_url = %litellm.base_url,
+        model = %litellm.model,
+        "LiteLLM context manager configured"
+    );
+    let context_manager = Arc::new(ContextManager::new(litellm, comment_repo.clone()));
+
     // Initialize Claude manager and session queue
     let claude_manager = Arc::new(ClaudeManager::new(
         session_repo.clone(),
@@ -45,6 +56,8 @@ async fn main() -> anyhow::Result<()> {
         session_metrics_repo.clone(),
         comment_repo.clone(),
         task_repo.clone(),
+        otel_repo.clone(),
+        Some(context_manager),
     ));
     let queue = Arc::new(ai_kanban_backend::claude::SessionQueue::new(
         claude_manager.clone(),

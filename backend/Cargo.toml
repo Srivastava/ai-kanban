@@ -21,9 +21,10 @@ parking_lot = "0.12"
 anyhow = "1"
 thiserror = "1"
 regex = "1"
+reqwest = { version = "0.12", features = ["json"] }
 
 [dev-dependencies]
-reqwest = { version = "0.11", features = ["json"] }
+reqwest = { version = "0.12", features = ["json"] }
 tokio-test = "0.4"
 axum-test = "14"
 http = "1"

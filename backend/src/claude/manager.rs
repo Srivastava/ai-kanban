@@ -1,6 +1,7 @@
+use crate::ai::context_manager::ContextManager;
 use crate::claude::jsonl_parser::{detect_rate_limit_in_stdout, extract_claude_session_id, extract_rate_limit_reset_at, extract_result_text, parse_for_display, parse_jsonl_line};
 use crate::claude::prompts::build_prompt;
-use crate::db::{CommentRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
+use crate::db::{CommentRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -58,6 +59,8 @@ pub struct ClaudeManager {
     session_metrics_repo: SessionMetricsRepository,
     comment_repo: CommentRepository,
     task_repo: TaskRepository,
+    otel_repo: OtelMetricsRepository,
+    context_manager: Option<Arc<ContextManager>>,
 }
 
 impl ClaudeManager {
@@ -67,6 +70,8 @@ impl ClaudeManager {
         session_metrics_repo: SessionMetricsRepository,
         comment_repo: CommentRepository,
         task_repo: TaskRepository,
+        otel_repo: OtelMetricsRepository,
+        context_manager: Option<Arc<ContextManager>>,
     ) -> Self {
         let (output_tx, _) = broadcast::channel(1024);
         Self {
@@ -77,6 +82,8 @@ impl ClaudeManager {
             session_metrics_repo,
             comment_repo,
             task_repo,
+            otel_repo,
+            context_manager,
         }
     }
 
@@ -158,6 +165,7 @@ impl ClaudeManager {
         let rate_limit_reset_for_completion = rate_limit_reset.clone();
 
         let task_id = task.id.clone();
+        let task_title = task.title.clone();
         {
             let mut sessions = self.active_sessions.write().await;
             sessions.insert(session.id.clone(), RunningSession {
@@ -244,10 +252,13 @@ impl ClaudeManager {
         let task_repo_for_stage = self.task_repo.clone();
         let output_tx_for_stage = self.output_tx.clone();
         let session_repo_for_stdout = self.session_repo.clone();
+        let otel_repo_for_stdout = self.otel_repo.clone();
+        let task_id_for_otel = task_id.clone();
         let stdout_handle = tokio::task::spawn_blocking(move || {
             let reader = BufReader::new(stdout);
             let mut sequence_no: i64 = 0;
             let mut result_text: Option<String> = None;
+            let mut display_lines: Vec<String> = Vec::new();
             let mut first_tool_seen = false;
             let mut claude_session_id_captured = false;
             for line in reader.lines() {
@@ -270,7 +281,9 @@ impl ClaudeManager {
                             claude_session_id_captured = true;
                             let rt = tokio::runtime::Handle::current();
                             let session_repo_c = session_repo_for_stdout.clone();
+                            let otel_repo_c = otel_repo_for_stdout.clone();
                             let session_id_c = session_id.clone();
+                            let task_id_c = task_id_for_otel.clone();
                             let claude_sid_c = claude_sid.clone();
                             let output_tx_c = output_tx.clone();
                             rt.spawn(async move {
@@ -278,6 +291,21 @@ impl ClaudeManager {
                                     claude_session_id: Some(claude_sid_c.clone()),
                                     ..Default::default()
                                 }).await;
+                                // Backfill any OTel metrics that arrived before the session
+                                // was assigned its claude_session_id (timing race at startup)
+                                match otel_repo_c.correlate(&claude_sid_c, &session_id_c, &task_id_c).await {
+                                    Ok(()) => tracing::debug!(
+                                        session_id = %session_id_c,
+                                        claude_session_id = %claude_sid_c,
+                                        task_id = %task_id_c,
+                                        "OTel metrics correlated"
+                                    ),
+                                    Err(e) => tracing::warn!(
+                                        session_id = %session_id_c,
+                                        error = %e,
+                                        "Failed to correlate OTel metrics"
+                                    ),
+                                }
                                 let _ = output_tx_c.send(ClaudeEvent::SessionIdAssigned {
                                     session_id: session_id_c,
                                     claude_session_id: claude_sid_c,
@@ -346,6 +374,10 @@ impl ClaudeManager {
 
                     // Emit display line (only if there's something to show)
                     if let Some(display) = display_text {
+                        // Collect up to 500 lines for post-session summarization
+                        if display_lines.len() < 500 {
+                            display_lines.push(display.clone());
+                        }
                         let _ = output_tx.send(ClaudeEvent::Output {
                             session_id: session_id.clone(),
                             text: display,
@@ -354,7 +386,7 @@ impl ClaudeManager {
                     }
                 }
             }
-            result_text
+            (result_text, display_lines)
         });
 
         let session_id = session.id.clone();
@@ -384,11 +416,13 @@ impl ClaudeManager {
         let comment_repo_for_completion = self.comment_repo.clone();
         let output_tx_for_completion = self.output_tx.clone();
         let task_repo_for_completion = self.task_repo.clone();
+        let context_manager_for_completion = self.context_manager.clone();
+        let task_title_for_completion = task_title;
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
-            let result_text = match stdout_handle.await {
-                Ok(text) => text,   // stdout_handle now returns Option<String>
-                Err(_) => None,
+            let (result_text, display_lines) = match stdout_handle.await {
+                Ok(pair) => pair,
+                Err(_) => (None, Vec::new()),
             };
             let _ = stderr_handle.await;
 
@@ -493,7 +527,7 @@ impl ClaudeManager {
 
             // Post Claude's response as a comment
             if exit_ok {
-                if let Some(text) = result_text {
+                if let Some(ref text) = result_text {
                     if !text.is_empty() {
                         // We need the task_id — fetch it from the session record
                         if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
@@ -504,7 +538,7 @@ impl ClaudeManager {
                             match comment_repo_for_completion.create(
                                 &session.task_id,
                                 "claude",
-                                CreateComment { content: text, parent_id: None },
+                                CreateComment { content: text.clone(), parent_id: None },
                             ).await {
                                 Ok(comment) => info!(
                                     session_id = %session_id_for_completion,
@@ -525,6 +559,19 @@ impl ClaudeManager {
                     }
                 } else {
                     info!(session_id = %session_id_for_completion, "Claude session completed with no result text");
+                }
+
+                // Post-session: generate LiteLLM summary of what Claude did
+                if let Some(ref ctx_mgr) = context_manager_for_completion {
+                    if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
+                        let _ = ctx_mgr.summarize_session(
+                            &session_id_for_completion,
+                            &session.task_id,
+                            &task_title_for_completion,
+                            &display_lines,
+                            result_text.as_deref(),
+                        ).await;
+                    }
                 }
             }
         });

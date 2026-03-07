@@ -9,6 +9,7 @@ export function useComments(taskId: string) {
     queryKey: ['comments', taskId],
     queryFn: () => apiClient<CommentWithReplies[]>(`/api/tasks/${taskId}/comments`),
     enabled: !!taskId,
+    refetchInterval: 10_000,
   });
 }
 
