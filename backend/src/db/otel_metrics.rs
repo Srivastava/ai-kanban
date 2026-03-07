@@ -1,6 +1,6 @@
 use crate::models::{CreateOtelMetric, DevActivityRow, OtelMetric};
 use anyhow::Result;
-use sqlx::SqlitePool;
+use sqlx::{Row, SqlitePool};
 
 #[derive(Clone)]
 pub struct OtelMetricsRepository {
@@ -42,34 +42,58 @@ impl OtelMetricsRepository {
     }
 
     pub async fn dev_activity(&self) -> Result<Vec<DevActivityRow>> {
-        let rows = sqlx::query_as!(
-            DevActivityRow,
+        // Pre-aggregate OTel metrics per task in a subquery to avoid fanout when joining
+        // with the sessions table (otherwise each otel row multiplies per session).
+        let rows = sqlx::query(
             r#"SELECT
-                 om.task_id    as "task_id!",
-                 t.title       as "task_title!",
-                 om.session_id as "session_id!",
-                 COALESCE(SUM(CASE WHEN om.metric_name = 'claude_code.lines_of_code.count'
-                                    AND json_extract(om.attributes, '$.type') = 'added'
-                                   THEN om.value ELSE 0 END), 0) as "lines_added!: f64",
-                 COALESCE(SUM(CASE WHEN om.metric_name = 'claude_code.lines_of_code.count'
-                                    AND json_extract(om.attributes, '$.type') = 'removed'
-                                   THEN om.value ELSE 0 END), 0) as "lines_deleted!: f64",
-                 COALESCE(SUM(CASE WHEN om.metric_name = 'claude_code.commit.count'
-                                   THEN om.value ELSE 0 END), 0) as "commits!: f64",
-                 COALESCE(SUM(CASE WHEN om.metric_name = 'claude_code.pull_request.count'
-                                   THEN om.value ELSE 0 END), 0) as "pull_requests!: f64",
-                 COALESCE(SUM(CASE WHEN om.metric_name = 'claude_code.active_time.total'
-                                   THEN om.value ELSE 0 END), 0) as "active_time_secs!: f64",
-                 COALESCE(SUM(CASE WHEN om.metric_name = 'claude_code.cost.usage'
-                                   THEN om.value ELSE 0 END), 0) as "cost_usd!: f64"
-               FROM otel_metrics om
-               JOIN tasks t ON t.id = om.task_id
-               WHERE om.task_id IS NOT NULL
-               GROUP BY om.task_id, om.session_id, t.title
-               ORDER BY MAX(om.created_at) DESC"#
+                 t.id          as task_id,
+                 t.title       as task_title,
+                 COUNT(DISTINCT s.id) as session_count,
+                 COALESCE(oa.lines_added,    0.0) as lines_added,
+                 COALESCE(oa.lines_deleted,  0.0) as lines_deleted,
+                 COALESCE(oa.commits,        0.0) as commits,
+                 COALESCE(oa.pull_requests,  0.0) as pull_requests,
+                 COALESCE(oa.active_time,    0.0) as active_time_secs,
+                 COALESCE(oa.cost_usd,       0.0) as cost_usd
+               FROM tasks t
+               JOIN sessions s ON s.task_id = t.id
+               LEFT JOIN (
+                 SELECT
+                   task_id,
+                   CAST(SUM(CASE WHEN metric_name = 'claude_code.lines_of_code.count'
+                             AND json_extract(attributes, '$.type') = 'added'
+                            THEN value ELSE 0.0 END) AS REAL) as lines_added,
+                   CAST(SUM(CASE WHEN metric_name = 'claude_code.lines_of_code.count'
+                             AND json_extract(attributes, '$.type') = 'removed'
+                            THEN value ELSE 0.0 END) AS REAL) as lines_deleted,
+                   CAST(SUM(CASE WHEN metric_name = 'claude_code.commit.count'
+                            THEN value ELSE 0.0 END) AS REAL) as commits,
+                   CAST(SUM(CASE WHEN metric_name = 'claude_code.pull_request.count'
+                            THEN value ELSE 0.0 END) AS REAL) as pull_requests,
+                   CAST(SUM(CASE WHEN metric_name = 'claude_code.active_time.total'
+                            THEN value ELSE 0.0 END) AS REAL) as active_time,
+                   CAST(SUM(CASE WHEN metric_name = 'claude_code.cost.usage'
+                            THEN value ELSE 0.0 END) AS REAL) as cost_usd
+                 FROM otel_metrics
+                 WHERE task_id IS NOT NULL
+                 GROUP BY task_id
+               ) oa ON oa.task_id = t.id
+               GROUP BY t.id, t.title
+               ORDER BY MAX(s.started_at) DESC"#
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows)
+
+        Ok(rows.into_iter().map(|row| DevActivityRow {
+            task_id:          row.get("task_id"),
+            task_title:       row.get("task_title"),
+            session_count:    row.get("session_count"),
+            lines_added:      row.get::<f64, _>("lines_added"),
+            lines_deleted:    row.get::<f64, _>("lines_deleted"),
+            commits:          row.get::<f64, _>("commits"),
+            pull_requests:    row.get::<f64, _>("pull_requests"),
+            active_time_secs: row.get::<f64, _>("active_time_secs"),
+            cost_usd:         row.get::<f64, _>("cost_usd"),
+        }).collect())
     }
 }

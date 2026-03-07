@@ -28,12 +28,12 @@ pub struct CreateOtelMetric {
     pub otel_timestamp: i64,
 }
 
-/// Aggregated dev-activity row for Analytics (ACTO sessions only)
+/// Aggregated dev-activity row for Analytics — one row per task (all sessions summed)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DevActivityRow {
     pub task_id: String,
     pub task_title: String,
-    pub session_id: String,
+    pub session_count: i64,
     pub lines_added: f64,
     pub lines_deleted: f64,
     pub commits: f64,

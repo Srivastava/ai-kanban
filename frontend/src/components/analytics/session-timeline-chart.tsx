@@ -1,25 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { useTokensByTask, useTaskTimeline } from '@/hooks/use-analytics';
-import type { TaskTimelineEvent } from '@/types/analytics';
+import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { useTokensByTask, useTaskSessions } from '@/hooks/use-analytics';
+import { formatDistanceToNow } from 'date-fns';
 
-const SESSION_COLORS = ['#6366f1', '#f97316', '#22c55e', '#ef4444', '#a855f7', '#06b6d4', '#eab308', '#ec4899'];
+const STATUS_COLORS: Record<string, string> = {
+  completed: '#22c55e',
+  failed:    '#ef4444',
+  stopped:   '#f97316',
+  running:   '#6366f1',
+};
 
-function sessionColor(idx: number): string {
-  return SESSION_COLORS[idx % SESSION_COLORS.length];
-}
-
-function formatElapsed(secs: number): string {
-  if (secs < 60) return `${Math.round(secs)}s`;
-  const m = Math.floor(secs / 60);
-  const s = Math.round(secs % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
+function statusColor(status: string): string {
+  return STATUS_COLORS[status] ?? '#94a3b8';
 }
 
 function formatTokens(v: number) {
   return v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v);
+}
+
+function formatDuration(secs: number | null): string {
+  if (!secs) return '—';
+  if (secs < 60) return `${secs}s`;
+  return `${Math.floor(secs / 60)}m ${secs % 60}s`;
 }
 
 const TOOLTIP_STYLE = {
@@ -29,48 +33,35 @@ const TOOLTIP_STYLE = {
   fontSize: '12px',
 };
 
-function groupBySessions(events: TaskTimelineEvent[]) {
-  const sessionMap = new Map<string, TaskTimelineEvent[]>();
-  for (const e of events) {
-    if (!sessionMap.has(e.claude_session_id)) sessionMap.set(e.claude_session_id, []);
-    sessionMap.get(e.claude_session_id)!.push(e);
-  }
-
-  return Array.from(sessionMap.entries()).map(([id, evts], idx) => {
-    const t0 = new Date(evts[0].timestamp).getTime();
-    const points = evts.map((e) => ({
-      elapsed: Math.round((new Date(e.timestamp).getTime() - t0) / 1000),
-      cumulative: e.cumulative_total,
-      tool: e.tool_name ?? e.event_type,
-      input: e.input_tokens,
-      output: e.output_tokens,
-      total: e.input_tokens + e.output_tokens,
-    }));
-    return { id, shortId: id.slice(0, 8), color: sessionColor(idx), points };
-  });
-}
-
 export function SessionTimelineChart() {
   const { data: tasks = [] } = useTokensByTask();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const { data: events = [], isLoading } = useTaskTimeline(selectedTaskId);
+  const { data: sessions = [], isLoading } = useTaskSessions(selectedTaskId);
 
-  const sessions = groupBySessions(events);
-  const maxElapsed = Math.max(0, ...sessions.flatMap((s) => s.points.map((p) => p.elapsed)));
+  // Latest 20 sessions, reversed so the chart reads oldest → newest (left → right)
+  const chartSessions = [...sessions].slice(0, 20).reverse();
 
-  // Flat list of all events with session color for the bar chart
-  const barData = sessions.flatMap((s) =>
-    s.points.map((p) => ({
-      ...p,
-      elapsedLabel: formatElapsed(p.elapsed),
-      color: s.color,
-      shortId: s.shortId,
-    }))
-  );
+  const barData = chartSessions.map((s, i) => ({
+    label: `#${sessions.length - (chartSessions.length - 1 - i)}`,
+    session_id: s.id,
+    short_id: s.id.slice(0, 8),
+    status: s.status,
+    total_tokens: s.total_tokens,
+    input_tokens: s.input_tokens,
+    output_tokens: s.output_tokens,
+    duration_secs: s.duration_secs,
+    started_at: s.started_at,
+    color: statusColor(s.status),
+  }));
+
+  const totalTokens = sessions.reduce((sum, s) => sum + s.total_tokens, 0);
+  const completedCount = sessions.filter(s => s.status === 'completed').length;
+  const failedCount = sessions.filter(s => s.status === 'failed').length;
+  const stoppedCount = sessions.filter(s => s.status === 'stopped').length;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <h3 className="font-semibold">Session Token Timeline</h3>
         <select
           className="flex-1 max-w-xs rounded-md border border-border bg-background px-3 py-1.5 text-sm"
@@ -88,114 +79,90 @@ export function SessionTimelineChart() {
 
       {!selectedTaskId ? (
         <div className="h-48 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm">Select a task to view its session timelines</p>
+          <p className="text-muted-foreground text-sm">Select a task to view its session history</p>
         </div>
       ) : isLoading ? (
-        <div className="h-96 animate-pulse bg-muted rounded" />
+        <div className="h-64 animate-pulse bg-muted rounded" />
       ) : sessions.length === 0 ? (
         <div className="h-48 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm">No timeline data for this task</p>
+          <p className="text-muted-foreground text-sm">No sessions found for this task</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Session legend */}
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {sessions.map((s) => (
-              <span key={s.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className="w-2.5 h-2.5 rounded-full inline-block shrink-0" style={{ background: s.color }} />
-                Session {s.shortId}
+        <div className="space-y-4">
+          {/* Summary stats */}
+          <div className="grid grid-cols-4 gap-3 text-sm">
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Total sessions</p>
+              <p className="font-semibold">{sessions.length}</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Total tokens</p>
+              <p className="font-semibold">{formatTokens(totalTokens)}</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Completed</p>
+              <p className="font-semibold text-green-500">{completedCount}</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Failed / Stopped</p>
+              <p className="font-semibold text-red-400">{failedCount} / {stoppedCount}</p>
+            </div>
+          </div>
+
+          {/* Status legend */}
+          <div className="flex gap-4 text-xs text-muted-foreground items-center">
+            {Object.entries(STATUS_COLORS).map(([status, color]) => (
+              <span key={status} className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: color }} />
+                {status}
               </span>
             ))}
+            {sessions.length > 20 && (
+              <span className="ml-auto italic">Showing latest 20 of {sessions.length}</span>
+            )}
           </div>
 
-          {/* Cumulative tokens over elapsed time — one line per claude session */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-2 font-medium">Cumulative tokens over time (per session)</p>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis
-                  type="number"
-                  dataKey="elapsed"
-                  domain={[0, maxElapsed]}
-                  tickFormatter={formatElapsed}
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                  label={{ value: 'Elapsed time', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }}
-                />
-                <YAxis
-                  tickFormatter={formatTokens}
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                  label={{ value: 'Cumulative tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }}
-                />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0].payload;
-                    return (
-                      <div className="rounded-lg border border-border bg-card p-3 text-xs space-y-1">
-                        <p className="font-medium" style={{ color: payload[0].color }}>Session {(payload[0] as any).name}</p>
-                        <p className="text-muted-foreground">{formatElapsed(d.elapsed)} elapsed</p>
-                        <p>Cumulative: {d.cumulative.toLocaleString()}</p>
-                      </div>
-                    );
-                  }}
-                  contentStyle={TOOLTIP_STYLE}
-                />
-                {sessions.map((s) => (
-                  <Line
-                    key={s.id}
-                    name={s.shortId}
-                    data={s.points}
-                    dataKey="cumulative"
-                    stroke={s.color}
-                    strokeWidth={2}
-                    dot={false}
-                    type="monotone"
-                    isAnimationActive={false}
-                  />
+          {/* Bar chart: total tokens per session, colored by status */}
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={barData} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                label={{ value: 'Session (oldest → newest)', position: 'insideBottom', offset: -10, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }}
+              />
+              <YAxis
+                tickFormatter={formatTokens}
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                label={{ value: 'Tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }}
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) return null;
+                  const d = payload[0].payload;
+                  return (
+                    <div className="rounded-lg border border-border bg-card p-3 text-xs space-y-1 shadow-sm">
+                      <p className="font-medium capitalize" style={{ color: d.color }}>
+                        {d.status} · {d.short_id}
+                      </p>
+                      <p className="text-muted-foreground">
+                        {formatDistanceToNow(new Date(d.started_at), { addSuffix: true })}
+                      </p>
+                      <p>{d.input_tokens.toLocaleString()} in / {d.output_tokens.toLocaleString()} out</p>
+                      <p className="font-medium">Total: {d.total_tokens.toLocaleString()} tokens</p>
+                      <p className="text-muted-foreground">Duration: {formatDuration(d.duration_secs)}</p>
+                    </div>
+                  );
+                }}
+                contentStyle={TOOLTIP_STYLE}
+              />
+              <Bar dataKey="total_tokens" radius={[3, 3, 0, 0]}>
+                {barData.map((d, i) => (
+                  <Cell key={i} fill={d.color} />
                 ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Per-event tokens, colored by session */}
-          <div>
-            <p className="text-xs text-muted-foreground mb-2 font-medium">Tokens per tool call (colored by session)</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={barData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis
-                  dataKey="elapsedLabel"
-                  tick={false}
-                  label={{ value: 'Tool calls in order', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }}
-                />
-                <YAxis
-                  tickFormatter={formatTokens}
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                  label={{ value: 'Tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }}
-                />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null;
-                    const d = payload[0].payload;
-                    return (
-                      <div className="rounded-lg border border-border bg-card p-3 text-xs space-y-1">
-                        <p className="font-medium" style={{ color: d.color }}>Session {d.shortId}</p>
-                        <p className="text-muted-foreground">{d.tool} · {d.elapsedLabel} elapsed</p>
-                        <p>{d.input} in / {d.output} out = {d.total.toLocaleString()} total</p>
-                      </div>
-                    );
-                  }}
-                  contentStyle={TOOLTIP_STYLE}
-                />
-                <Bar dataKey="total" radius={[1, 1, 0, 0]}>
-                  {barData.map((d, i) => (
-                    <Cell key={i} fill={d.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>

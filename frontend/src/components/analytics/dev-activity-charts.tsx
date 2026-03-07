@@ -23,25 +23,36 @@ const TOOLTIP_STYLE = {
 export function DevActivityCharts() {
   const { data = [], isLoading } = useDevActivity();
 
+  const hasOtelData = data.some(r => r.lines_added > 0 || r.commits > 0 || r.active_time_secs > 0);
+
   const chartData = data.map((row) => ({
     label: truncate(row.task_title),
     fullTitle: row.task_title,
+    sessions: row.session_count,
+    hasOtel: row.lines_added > 0 || row.commits > 0 || row.cost_usd > 0,
     added: Math.round(row.lines_added),
     deleted: Math.round(row.lines_deleted),
     active_time: row.active_time_secs,
     commits: Math.round(row.commits),
     prs: Math.round(row.pull_requests),
+    cost: row.cost_usd,
   }));
 
   const empty = (
     <div className="h-48 flex items-center justify-center">
-      <p className="text-muted-foreground text-sm">No OTel data yet — run a task to see activity</p>
+      <p className="text-muted-foreground text-sm">No data yet — run a task to see activity</p>
     </div>
   );
+
+  const otelNote = !hasOtelData && chartData.length > 0 ? (
+    <p className="text-xs text-muted-foreground italic">Lines / commits data requires OTel telemetry — only tasks with telemetry coverage show non-zero values.</p>
+  ) : null;
 
   const skeleton = <div className="h-48 animate-pulse bg-muted rounded" />;
 
   return (
+    <div className="space-y-3">
+    {otelNote}
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       {/* Lines of Code */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-3">
@@ -53,8 +64,12 @@ export function DevActivityCharts() {
               <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
               <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Lines', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
               <Tooltip
-                labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
-                formatter={(value, name) => [value, name === 'added' ? 'Added' : 'Deleted']}
+                labelFormatter={(_, payload) => {
+                  const p = payload?.[0]?.payload;
+                  if (!p) return '';
+                  return `${p.fullTitle} · ${p.sessions} session${p.sessions !== 1 ? 's' : ''}${p.hasOtel ? '' : ' (no OTel coverage)'}`;
+                }}
+                formatter={(value, name) => [value, name === 'added' ? 'Lines added' : 'Lines deleted']}
                 contentStyle={TOOLTIP_STYLE}
               />
               <Legend formatter={(v) => (v === 'added' ? 'Added' : 'Deleted')} iconType="circle" />
@@ -106,6 +121,7 @@ export function DevActivityCharts() {
           </ResponsiveContainer>
         )}
       </div>
+    </div>
     </div>
   );
 }

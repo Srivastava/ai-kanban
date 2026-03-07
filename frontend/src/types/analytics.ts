@@ -139,7 +139,7 @@ export interface SessionDetail {
 export interface DevActivityRow {
   task_id: string;
   task_title: string;
-  session_id: string;
+  session_count: number;
   lines_added: number;
   lines_deleted: number;
   commits: number;

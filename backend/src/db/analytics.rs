@@ -329,14 +329,14 @@ impl AnalyticsRepository {
                 te.task_id,
                 COALESCE(t.title, 'Unknown Task') as task_title,
                 SUM(te.input_tokens) + SUM(te.output_tokens) as total_tokens,
-                COALESCE((
+                CAST(COALESCE((
                     SELECT SUM(om.value)
                     FROM otel_metrics om
                     WHERE om.task_id = te.task_id
                       AND om.metric_name = 'claude_code.lines_of_code.count'
                       AND json_extract(om.attributes, '$.type') = 'added'
-                ), 0) as lines_written,
-                COALESCE(MAX(sm.project_loc), 0) as project_loc
+                ), 0) AS REAL) as lines_written,
+                CAST(COALESCE(MAX(sm.project_loc), 0) AS INTEGER) as project_loc
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
             LEFT JOIN session_metrics sm ON te.session_id = sm.session_id
@@ -353,7 +353,7 @@ impl AnalyticsRepository {
             .into_iter()
             .map(|row| {
                 let total: i64 = row.get("total_tokens");
-                let lines_f: f64 = row.get("lines_written");
+                let lines_f: f64 = row.get::<f64, _>("lines_written");
                 let lines = lines_f as i64;
                 let loc: i64 = row.get("project_loc");
 
