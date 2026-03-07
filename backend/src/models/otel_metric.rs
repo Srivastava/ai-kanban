@@ -39,7 +39,5 @@ pub struct DevActivityRow {
     pub lines_deleted: f64,
     pub input_tokens: f64,
     pub output_tokens: f64,
-    pub cache_read_tokens: f64,
-    pub cache_creation_tokens: f64,
     pub cost_usd: f64,
 }

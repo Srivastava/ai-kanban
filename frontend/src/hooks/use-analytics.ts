@@ -231,10 +231,13 @@ export function useTaskSessions(taskId: string | null) {
   });
 }
 
-export function useDevActivity() {
+export function useDevActivity(taskId: string | null) {
   return useQuery({
-    queryKey: ['analytics', 'dev-activity'],
-    queryFn: () => apiClient<DevActivityRow[]>('/api/analytics/dev-activity'),
+    queryKey: ['analytics', 'dev-activity', taskId],
+    queryFn: () => apiClient<DevActivityRow[]>(
+      taskId ? `/api/analytics/dev-activity?task_id=${taskId}` : '/api/analytics/dev-activity'
+    ),
+    enabled: !!taskId,
     refetchInterval: 30_000,
   });
 }

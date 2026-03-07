@@ -8,7 +8,6 @@ import { StageBreakdownChart } from '@/components/analytics/stage-breakdown-char
 import { SessionIntelligenceCard } from '@/components/analytics/session-intelligence-card';
 import { CostBreakdownTable } from '@/components/analytics/cost-breakdown-table';
 import { SessionTimelineChart } from '@/components/analytics/session-timeline-chart';
-import { DevActivityTable } from '@/components/analytics/dev-activity-table';
 import { DevActivityCharts } from '@/components/analytics/dev-activity-charts';
 import { TokensByTaskChart } from '@/components/analytics/tokens-by-task-chart';
 import { TokenEfficiencyChart } from '@/components/analytics/token-efficiency-chart';
@@ -55,11 +54,10 @@ export default function AnalyticsPage() {
             <div>
               <h2 className="text-base font-semibold text-foreground">Dev Activity</h2>
               <p className="text-sm text-muted-foreground">
-                Commits, lines changed, and active time per session — sourced from Claude Code telemetry
+                Lines changed and token usage per task — select a task to view details
               </p>
             </div>
             <DevActivityCharts />
-            <DevActivityTable />
           </section>
         </main>
       </div>

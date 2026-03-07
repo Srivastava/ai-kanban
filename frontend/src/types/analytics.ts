@@ -144,7 +144,5 @@ export interface DevActivityRow {
   lines_deleted: number;
   input_tokens: number;
   output_tokens: number;
-  cache_read_tokens: number;
-  cache_creation_tokens: number;
   cost_usd: number;
 }

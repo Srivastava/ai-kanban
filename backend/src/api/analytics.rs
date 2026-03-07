@@ -370,12 +370,18 @@ async fn task_timeline(
     }
 }
 
+#[derive(Deserialize, Debug)]
+struct TaskIdQuery {
+    task_id: Option<String>,
+}
+
 #[instrument(skip(state))]
 pub async fn dev_activity(
     State(state): State<AnalyticsApiState>,
+    Query(query): Query<TaskIdQuery>,
 ) -> impl IntoResponse {
-    info!("API: Getting dev activity");
-    match state.otel_repo.dev_activity().await {
+    info!(task_id = ?query.task_id, "API: Getting dev activity");
+    match state.otel_repo.dev_activity(query.task_id.as_deref()).await {
         Ok(rows) => {
             debug!(count = rows.len(), "API: Dev activity retrieved");
             Json(rows).into_response()

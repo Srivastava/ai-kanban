@@ -1,16 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useDevActivity } from '@/hooks/use-analytics';
+import { useTokensByTask } from '@/hooks/use-analytics';
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
   return `${n}`;
-}
-
-function truncate(s: string, n = 14): string {
-  return s.length > n ? s.slice(0, n) + '\u2026' : s;
 }
 
 const TOOLTIP_STYLE = {
@@ -21,108 +19,136 @@ const TOOLTIP_STYLE = {
 };
 
 export function DevActivityCharts() {
-  const { data = [], isLoading } = useDevActivity();
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const { data: tasks = [] } = useTokensByTask();
+  const { data = [], isLoading } = useDevActivity(selectedTaskId);
 
-  const chartData = data.map((row) => ({
-    label: truncate(row.task_title),
-    fullTitle: row.task_title,
-    sessions: row.session_count,
-    added: Math.round(row.lines_added),
-    deleted: Math.round(row.lines_deleted),
-    hasLines: row.lines_added > 0 || row.lines_deleted > 0,
-    input: row.input_tokens,
-    output: row.output_tokens,
-    cacheRead: row.cache_read_tokens,
-    cacheCreation: row.cache_creation_tokens,
-    totalContext: row.input_tokens + row.cache_read_tokens + row.cache_creation_tokens,
-    cost: row.cost_usd,
-  }));
+  const row = data[0] ?? null;
+
+  const skeleton = <div className="h-32 animate-pulse bg-muted rounded" />;
 
   const empty = (
-    <div className="h-48 flex items-center justify-center">
-      <p className="text-muted-foreground text-sm">No data yet — run a task to see activity</p>
+    <div className="h-32 flex items-center justify-center">
+      <p className="text-muted-foreground text-sm">No data for this task</p>
     </div>
   );
 
-  const skeleton = <div className="h-48 animate-pulse bg-muted rounded" />;
-
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      {/* Lines of Code */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-        <h3 className="font-semibold text-sm">Lines of Code</h3>
-        <p className="text-xs text-muted-foreground">From OTel telemetry — only sessions with telemetry enabled</p>
-        {isLoading ? skeleton : chartData.length === 0 ? empty : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <Tooltip
-                labelFormatter={(_, payload) => {
-                  const p = payload?.[0]?.payload;
-                  if (!p) return '';
-                  return `${p.fullTitle}${!p.hasLines ? ' (no OTel data)' : ''}`;
-                }}
-                formatter={(value, name) => [value, name === 'added' ? 'Lines added' : 'Lines deleted']}
-                contentStyle={TOOLTIP_STYLE}
-              />
-              <Legend formatter={(v) => (v === 'added' ? 'Added' : 'Deleted')} iconType="circle" />
-              <Bar dataKey="added" fill="#22c55e" name="added" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="deleted" fill="#ef4444" name="deleted" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+    <div className="space-y-4">
+      {/* Task selector */}
+      <select
+        className="rounded-md border border-border bg-background px-3 py-1.5 text-sm max-w-xs"
+        value={selectedTaskId ?? ''}
+        onChange={(e) => setSelectedTaskId(e.target.value || null)}
+      >
+        <option value="">Select a task…</option>
+        {tasks.map((t) => (
+          <option key={t.task_id} value={t.task_id}>
+            {t.task_title}
+          </option>
+        ))}
+      </select>
 
-      {/* Token Usage */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-        <h3 className="font-semibold text-sm">Token Usage</h3>
-        <p className="text-xs text-muted-foreground">Input + output tokens per task (from session logs)</p>
-        {isLoading ? skeleton : chartData.length === 0 ? empty : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <Tooltip
-                labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
-                formatter={(value, name) => [formatTokens(Number(value)), name === 'input' ? 'Input tokens' : 'Output tokens']}
-                contentStyle={TOOLTIP_STYLE}
-              />
-              <Legend formatter={(v) => (v === 'input' ? 'Input' : 'Output')} iconType="circle" />
-              <Bar dataKey="input" fill="#6366f1" name="input" radius={[3, 3, 0, 0]} stackId="tokens" />
-              <Bar dataKey="output" fill="#a855f7" name="output" radius={[3, 3, 0, 0]} stackId="tokens" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+      {!selectedTaskId ? (
+        <div className="h-32 flex items-center justify-center rounded-lg border border-dashed border-border">
+          <p className="text-muted-foreground text-sm">Select a task to view dev activity</p>
+        </div>
+      ) : isLoading ? (
+        skeleton
+      ) : !row ? (
+        empty
+      ) : (
+        <div className="space-y-4">
+          {/* Summary row */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Sessions</p>
+              <p className="font-semibold">{row.session_count}</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Lines +/-</p>
+              <p className="font-semibold">
+                {row.lines_added > 0 || row.lines_deleted > 0 ? (
+                  <><span className="text-green-600">+{Math.round(row.lines_added)}</span>{' / '}<span className="text-red-500">-{Math.round(row.lines_deleted)}</span></>
+                ) : '—'}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Tokens (in/out)</p>
+              <p className="font-semibold">
+                <span className="text-blue-500">{formatTokens(row.input_tokens)}</span>
+                {' / '}
+                <span className="text-violet-500">{formatTokens(row.output_tokens)}</span>
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/50 px-3 py-2">
+              <p className="text-xs text-muted-foreground">Cost (OTel)</p>
+              <p className="font-semibold">{row.cost_usd > 0 ? `$${row.cost_usd.toFixed(4)}` : '—'}</p>
+            </div>
+          </div>
 
-      {/* Context Size (Cache) */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-3">
-        <h3 className="font-semibold text-sm">Context Size (Cache)</h3>
-        <p className="text-xs text-muted-foreground">Total context per task including prompt cache reads</p>
-        {isLoading ? skeleton : chartData.length === 0 ? empty : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Task', position: 'insideBottom', offset: -15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }} />
-              <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <Tooltip
-                labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
-                formatter={(value, name) => [
-                  formatTokens(Number(value)),
-                  name === 'cacheRead' ? 'Cache reads' : 'Cache writes',
-                ]}
-                contentStyle={TOOLTIP_STYLE}
-              />
-              <Legend formatter={(v) => (v === 'cacheRead' ? 'Cache reads' : 'Cache writes')} iconType="circle" />
-              <Bar dataKey="cacheRead" fill="#0ea5e9" name="cacheRead" radius={[3, 3, 0, 0]} stackId="ctx" />
-              <Bar dataKey="cacheCreation" fill="#38bdf8" name="cacheCreation" radius={[3, 3, 0, 0]} stackId="ctx" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
+          {/* Charts */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* Lines of Code */}
+            <div className="rounded-xl border border-border bg-card p-5 space-y-2">
+              <h3 className="font-semibold text-sm">Lines of Code</h3>
+              <p className="text-xs text-muted-foreground">From OTel telemetry — requires CLAUDE_CODE_ENABLE_TELEMETRY=1</p>
+              {row.lines_added === 0 && row.lines_deleted === 0 ? (
+                <div className="h-32 flex items-center justify-center">
+                  <p className="text-xs text-muted-foreground italic">No OTel line data for this task</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart
+                    data={[{ name: row.task_title, added: Math.round(row.lines_added), deleted: Math.round(row.lines_deleted) }]}
+                    margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <Tooltip
+                      formatter={(value, name) => [value, name === 'added' ? 'Lines added' : 'Lines deleted']}
+                      contentStyle={TOOLTIP_STYLE}
+                    />
+                    <Legend formatter={(v) => (v === 'added' ? 'Added' : 'Deleted')} iconType="circle" />
+                    <Bar dataKey="added" fill="#22c55e" name="added" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="deleted" fill="#ef4444" name="deleted" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* Token Usage */}
+            <div className="rounded-xl border border-border bg-card p-5 space-y-2">
+              <h3 className="font-semibold text-sm">Token Usage</h3>
+              <p className="text-xs text-muted-foreground">Input + output tokens across all sessions</p>
+              {row.input_tokens === 0 && row.output_tokens === 0 ? (
+                <div className="h-32 flex items-center justify-center">
+                  <p className="text-xs text-muted-foreground italic">No token data for this task</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={160}>
+                  <BarChart
+                    data={[{ name: row.task_title, input: row.input_tokens, output: row.output_tokens }]}
+                    margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <Tooltip
+                      formatter={(value, name) => [formatTokens(Number(value)), name === 'input' ? 'Input tokens' : 'Output tokens']}
+                      contentStyle={TOOLTIP_STYLE}
+                    />
+                    <Legend formatter={(v) => (v === 'input' ? 'Input' : 'Output')} iconType="circle" />
+                    <Bar dataKey="input" fill="#6366f1" name="input" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="output" fill="#a855f7" name="output" radius={[3, 3, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
