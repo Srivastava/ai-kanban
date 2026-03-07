@@ -2,7 +2,7 @@ use ai_kanban_backend::ai::context_manager::ContextManager;
 use ai_kanban_backend::ai::litellm::LitellmClient;
 use ai_kanban_backend::api::{create_router, otlp_router, AppState, OtlpState};
 use ai_kanban_backend::claude::ClaudeManager;
-use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
+use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use ai_kanban_backend::logging::DbLayer;
 use axum::Extension;
 use std::net::SocketAddr;
@@ -24,6 +24,7 @@ async fn main() -> anyhow::Result<()> {
     let token_event_repo = TokenEventRepository::new(pool.clone());
     let session_metrics_repo = SessionMetricsRepository::new(pool.clone());
     let otel_repo = OtelMetricsRepository::new(pool.clone());
+    let settings_repo = SettingsRepository::new(pool.clone());
 
     // OTLP receiver on port 4318
     let otlp_state = OtlpState {
@@ -47,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
         model = %litellm.model,
         "LiteLLM context manager configured"
     );
-    let context_manager = Arc::new(ContextManager::new(litellm, comment_repo.clone()));
+    let context_manager = Arc::new(ContextManager::new(litellm, comment_repo.clone(), task_repo.clone()));
 
     // Initialize Claude manager and session queue
     let claude_manager = Arc::new(ClaudeManager::new(
@@ -58,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
         task_repo.clone(),
         otel_repo.clone(),
         Some(context_manager),
+        Some(settings_repo.clone()),
     ));
     let queue = Arc::new(ai_kanban_backend::claude::SessionQueue::new(
         claude_manager.clone(),
@@ -106,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
         comment_repo,
         token_event_repo,
         session_metrics_repo,
+        settings_repo,
     ).with_queue(queue);
     tracing::debug!("Application state created");
 

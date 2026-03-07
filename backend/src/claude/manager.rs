@@ -1,7 +1,7 @@
 use crate::ai::context_manager::ContextManager;
 use crate::claude::jsonl_parser::{detect_rate_limit_in_stdout, extract_claude_session_id, extract_rate_limit_reset_at, extract_result_text, parse_for_display, parse_jsonl_line};
 use crate::claude::prompts::build_prompt;
-use crate::db::{CommentRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
+use crate::db::{CommentRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -61,7 +61,10 @@ pub struct ClaudeManager {
     task_repo: TaskRepository,
     otel_repo: OtelMetricsRepository,
     context_manager: Option<Arc<ContextManager>>,
+    settings_repo: Option<SettingsRepository>,
 }
+
+const COMPRESSION_TOKEN_THRESHOLD: i64 = 150_000;
 
 impl ClaudeManager {
     pub fn new(
@@ -72,6 +75,7 @@ impl ClaudeManager {
         task_repo: TaskRepository,
         otel_repo: OtelMetricsRepository,
         context_manager: Option<Arc<ContextManager>>,
+        settings_repo: Option<SettingsRepository>,
     ) -> Self {
         let (output_tx, _) = broadcast::channel(1024);
         Self {
@@ -84,6 +88,14 @@ impl ClaudeManager {
             task_repo,
             otel_repo,
             context_manager,
+            settings_repo,
+        }
+    }
+
+    async fn flag_enabled(&self, key: &str) -> bool {
+        match &self.settings_repo {
+            Some(repo) => repo.get_flag(key).await.unwrap_or(false),
+            None => false,
         }
     }
 
@@ -92,7 +104,7 @@ impl ClaudeManager {
     }
 
     #[instrument(skip(self, task))]
-    pub async fn start_session(&self, task: Task, stage: &str, conversation_context: Option<String>, resume_claude_session_id: Option<String>) -> Result<String> {
+    pub async fn start_session(&self, mut task: Task, stage: &str, conversation_context: Option<String>, resume_claude_session_id: Option<String>) -> Result<String> {
         let session = self.session_repo.create(crate::models::CreateSession {
             task_id: task.id.clone(),
         }).await?;
@@ -136,6 +148,43 @@ impl ClaudeManager {
            .env("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")
            .stdout(Stdio::piped())
            .stderr(Stdio::piped());
+
+        // Task enrichment: on the very first session (no prior history), expand a terse description
+        if conversation_context.is_none() && resume_claude_session_id.is_none() && task.session_id.is_none() {
+            if self.flag_enabled("litellm_task_enrichment").await {
+                if let Some(ref cm) = self.context_manager {
+                    match cm.enrich_task(&task.id, &task.title, task.description.as_deref()).await {
+                        Ok(Some(enriched)) => {
+                            info!(task_id = %task.id, "Task description enriched by LiteLLM");
+                            task.description = Some(enriched);
+                        }
+                        Ok(None) => {}
+                        Err(e) => warn!(task_id = %task.id, error = %e, "Task enrichment failed, proceeding with original"),
+                    }
+                }
+            }
+        }
+
+        // Pre-session briefing: compress conversation context to reduce token usage
+        let conversation_context = if let Some(ref ctx) = conversation_context {
+            if self.flag_enabled("litellm_pre_session_briefing").await {
+                if let Some(ref cm) = self.context_manager {
+                    match cm.generate_briefing(&task.title, ctx).await {
+                        Ok(briefing) => {
+                            info!(task_id = %task.id, "Pre-session briefing applied");
+                            Some(briefing)
+                        }
+                        Err(_) => Some(ctx.clone()),
+                    }
+                } else {
+                    Some(ctx.clone())
+                }
+            } else {
+                Some(ctx.clone())
+            }
+        } else {
+            None
+        };
 
         // Always build the prompt — it carries the new human-turn message for Claude to act on.
         // When resuming, --resume restores internal conversation state; the prompt is the next request.
@@ -259,6 +308,7 @@ impl ClaudeManager {
             let mut sequence_no: i64 = 0;
             let mut result_text: Option<String> = None;
             let mut display_lines: Vec<String> = Vec::new();
+            let mut peak_input_tokens: i64 = 0;
             let mut first_tool_seen = false;
             let mut claude_session_id_captured = false;
             for line in reader.lines() {
@@ -316,6 +366,10 @@ impl ClaudeManager {
 
                     // Try to parse as JSONL and extract token events
                     if let Some(parsed) = parse_jsonl_line(&text) {
+                        // Track peak input tokens for compression decision
+                        if parsed.input_tokens > peak_input_tokens {
+                            peak_input_tokens = parsed.input_tokens;
+                        }
                         let rt = tokio::runtime::Handle::current();
                         let event = CreateTokenEvent {
                             session_id: session_id.clone(),
@@ -386,7 +440,7 @@ impl ClaudeManager {
                     }
                 }
             }
-            (result_text, display_lines)
+            (result_text, display_lines, peak_input_tokens)
         });
 
         let session_id = session.id.clone();
@@ -417,12 +471,13 @@ impl ClaudeManager {
         let output_tx_for_completion = self.output_tx.clone();
         let task_repo_for_completion = self.task_repo.clone();
         let context_manager_for_completion = self.context_manager.clone();
+        let settings_repo_for_completion = self.settings_repo.clone();
         let task_title_for_completion = task_title;
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
-            let (result_text, display_lines) = match stdout_handle.await {
-                Ok(pair) => pair,
-                Err(_) => (None, Vec::new()),
+            let (result_text, display_lines, peak_input_tokens) = match stdout_handle.await {
+                Ok(triple) => triple,
+                Err(_) => (None, Vec::new(), 0i64),
             };
             let _ = stderr_handle.await;
 
@@ -564,13 +619,50 @@ impl ClaudeManager {
                 // Post-session: generate LiteLLM summary of what Claude did
                 if let Some(ref ctx_mgr) = context_manager_for_completion {
                     if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
-                        let _ = ctx_mgr.summarize_session(
-                            &session_id_for_completion,
-                            &session.task_id,
-                            &task_title_for_completion,
-                            &display_lines,
-                            result_text.as_deref(),
-                        ).await;
+                        // Session summary (always runs if flag enabled)
+                        let summary_enabled = settings_repo_for_completion
+                            .as_ref()
+                            .map(|r| async move { r.get_flag("litellm_session_summary").await.unwrap_or(true) });
+                        let do_summary = match summary_enabled {
+                            Some(f) => f.await,
+                            None => true, // default on
+                        };
+                        if do_summary {
+                            let _ = ctx_mgr.summarize_session(
+                                &session_id_for_completion,
+                                &session.task_id,
+                                &task_title_for_completion,
+                                &display_lines,
+                                result_text.as_deref(),
+                            ).await;
+                        }
+
+                        // Context compression when token usage approaches the threshold
+                        let compress_enabled = settings_repo_for_completion
+                            .as_ref()
+                            .and_then(|r| if peak_input_tokens >= COMPRESSION_TOKEN_THRESHOLD {
+                                Some(r)
+                            } else {
+                                None
+                            });
+                        if let Some(repo) = compress_enabled {
+                            if repo.get_flag("litellm_context_compression").await.unwrap_or(false) {
+                                info!(
+                                    session_id = %session_id_for_completion,
+                                    task_id = %session.task_id,
+                                    peak_input_tokens = peak_input_tokens,
+                                    threshold = COMPRESSION_TOKEN_THRESHOLD,
+                                    "Token threshold reached — compressing context"
+                                );
+                                let _ = ctx_mgr.compress_context(
+                                    &session_id_for_completion,
+                                    &session.task_id,
+                                    &task_title_for_completion,
+                                    &display_lines,
+                                    result_text.as_deref(),
+                                ).await;
+                            }
+                        }
                     }
                 }
             }

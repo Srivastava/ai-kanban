@@ -1,4 +1,4 @@
-use crate::db::{CommentRepository, LogRepository, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository};
+use crate::db::{CommentRepository, LogRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use crate::claude::SessionQueue;
 use std::sync::Arc;
 
@@ -11,6 +11,7 @@ pub struct AppState {
     pub comments: CommentRepository,
     pub token_events: TokenEventRepository,
     pub session_metrics: SessionMetricsRepository,
+    pub settings: SettingsRepository,
     pub queue: Option<Arc<SessionQueue>>,
 }
 
@@ -46,6 +47,7 @@ impl AppState {
         comments: CommentRepository,
         token_events: TokenEventRepository,
         session_metrics: SessionMetricsRepository,
+        settings: SettingsRepository,
     ) -> Self {
         Self {
             tasks,
@@ -54,6 +56,7 @@ impl AppState {
             comments,
             token_events,
             session_metrics,
+            settings,
             queue: None,
         }
     }
@@ -99,6 +102,14 @@ impl From<AppState> for CommentApiState {
     }
 }
 
+impl From<AppState> for SettingsApiState {
+    fn from(state: AppState) -> Self {
+        SettingsApiState {
+            repo: state.settings,
+        }
+    }
+}
+
 mod analytics;
 mod comments;
 mod logs;
@@ -106,7 +117,9 @@ mod otlp_parser;
 pub mod otlp;
 mod routes;
 mod sessions;
+pub mod settings;
 mod tasks;
 
 pub use otlp::{otlp_router, OtlpState};
 pub use routes::create_router;
+pub use settings::SettingsApiState;

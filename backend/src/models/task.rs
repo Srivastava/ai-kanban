@@ -13,6 +13,7 @@ pub struct Task {
     pub session_id: Option<String>,
     pub priority: i32,
     pub context: Option<String>,
+    pub compressed_context: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -46,6 +47,7 @@ impl Task {
             session_id: None,
             priority: 0,
             context: None,
+            compressed_context: None,
             created_at: now,
             updated_at: now,
         }

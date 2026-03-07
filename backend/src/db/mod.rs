@@ -5,6 +5,7 @@ pub mod otel_metrics;
 mod pool;
 mod session_metrics;
 pub mod sessions;
+mod settings;
 pub mod tasks;
 mod token_events;
 
@@ -15,5 +16,6 @@ pub use otel_metrics::OtelMetricsRepository;
 pub use pool::create_pool;
 pub use session_metrics::SessionMetricsRepository;
 pub use sessions::SessionRepository;
+pub use settings::SettingsRepository;
 pub use tasks::TaskRepository;
 pub use token_events::TokenEventRepository;

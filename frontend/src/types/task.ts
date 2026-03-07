@@ -5,6 +5,7 @@ export interface Task {
   title: string;
   description: string | null;
   context: string | null;
+  compressed_context: string | null;
   stage: Stage;
   project_path: string;
   session_id: string | null;

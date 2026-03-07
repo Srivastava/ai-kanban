@@ -1,8 +1,9 @@
-use crate::api::{AppState, CommentApiState, LogApiState, SessionApiState, TaskApiState};
+use crate::api::{AppState, CommentApiState, LogApiState, SessionApiState, SettingsApiState, TaskApiState};
 use crate::api::analytics::{analytics_routes, AnalyticsApiState};
 use crate::api::comments::{comment_routes, comment_standalone_routes};
 use crate::api::logs::log_routes;
 use crate::api::sessions::session_routes;
+use crate::api::settings::settings_routes;
 use crate::api::tasks::task_routes;
 use crate::ws::ws_handler;
 use axum::Router;
@@ -13,6 +14,7 @@ pub fn create_router(state: AppState) -> Router {
     let task_state: TaskApiState = state.clone().into();
     let log_state: LogApiState = state.clone().into();
     let comment_state: CommentApiState = state.clone().into();
+    let settings_state: SettingsApiState = state.clone().into();
     let analytics_state: AnalyticsApiState = state.into();
 
     Router::new()
@@ -25,6 +27,8 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/api/logs", log_routes().with_state(log_state))
         // Analytics routes
         .nest("/api/analytics", analytics_routes().with_state(analytics_state))
+        // Settings (feature flags)
+        .nest("/api/settings", settings_routes().with_state(settings_state))
         // Comment routes nested under tasks (task_id comes from path)
         .nest(
             "/api/tasks/:task_id/comments",

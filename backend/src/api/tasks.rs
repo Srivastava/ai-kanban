@@ -229,22 +229,46 @@ async fn continue_session(
     };
 
     // Build conversation context from comment thread
+    // Filter out litellm-authored summaries — Claude doesn't need to read its own summaries
     let comments = state.comment_repo.list_for_task(&id).await.unwrap_or_default();
     let total_comments = comments.len();
     let total_replies: usize = comments.iter().map(|c| c.replies.len()).sum();
-    let conversation_context = if comments.is_empty() {
+
+    let human_comments: Vec<_> = comments.iter()
+        .filter(|c| c.comment.author != "litellm")
+        .collect();
+
+    let comment_history = if human_comments.is_empty() {
         None
     } else {
-        let history = comments.iter().flat_map(|c| {
-            let prefix = if c.comment.author == "claude" { "[Claude]" } else { "[You]" };
+        let history = human_comments.iter().flat_map(|c| {
+            let prefix = match c.comment.author.as_str() {
+                "claude" => "[Claude]",
+                _ => "[You]",
+            };
             let mut lines = vec![format!("{}: {}", prefix, c.comment.content)];
-            for reply in &c.replies {
-                let reply_prefix = if reply.author == "claude" { "[Claude]" } else { "[You]" };
+            for reply in c.replies.iter().filter(|r| r.author != "litellm") {
+                let reply_prefix = match reply.author.as_str() {
+                    "claude" => "[Claude]",
+                    _ => "[You]",
+                };
                 lines.push(format!("  {}: {}", reply_prefix, reply.content));
             }
             lines
         }).collect::<Vec<_>>().join("\n");
         Some(history)
+    };
+
+    // Prepend compressed context if available (from prior high-token sessions)
+    let conversation_context = match (&task.compressed_context, &comment_history) {
+        (Some(compressed), Some(history)) => Some(format!(
+            "## Prior session context (compressed):\n{compressed}\n\n## Recent conversation:\n{history}"
+        )),
+        (Some(compressed), None) => Some(format!(
+            "## Prior session context (compressed):\n{compressed}"
+        )),
+        (None, Some(history)) => Some(history.clone()),
+        (None, None) => None,
     };
 
     // Look up claude_session_id from the prior session for true resume

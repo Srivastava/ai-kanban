@@ -62,6 +62,17 @@ function SidebarContent() {
         >
           Logs
         </Link>
+        <Link
+          href="/settings"
+          className={cn(
+            'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+            pathname === '/settings'
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+          )}
+        >
+          Settings
+        </Link>
         <div className="h-px bg-border my-2" />
         {stages.map((stage) => (
           <Link

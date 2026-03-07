@@ -63,8 +63,8 @@ impl TaskRepository {
 
         sqlx::query(
             r#"
-            INSERT INTO tasks (id, title, description, stage, project_path, session_id, priority, context, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (id, title, description, stage, project_path, session_id, priority, context, compressed_context, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(&task.id)
@@ -75,6 +75,7 @@ impl TaskRepository {
         .bind(&task.session_id)
         .bind(task.priority)
         .bind(&task.context)
+        .bind(&task.compressed_context)
         .bind(task.created_at.to_rfc3339())
         .bind(task.updated_at.to_rfc3339())
         .execute(&self.pool)
@@ -174,6 +175,18 @@ impl TaskRepository {
         }
 
         info!(task_id = %id, "Task deleted successfully");
+        Ok(())
+    }
+
+    pub async fn update_compressed_context(&self, id: &str, compressed_context: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE tasks SET compressed_context = ?, updated_at = ? WHERE id = ?",
+        )
+        .bind(compressed_context)
+        .bind(chrono::Utc::now().to_rfc3339())
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
