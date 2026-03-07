@@ -146,6 +146,11 @@ impl ClaudeManager {
            .env("OTEL_EXPORTER_OTLP_PROTOCOL", "http/json")
            .env("OTEL_METRICS_EXPORTER", "otlp")
            .env("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")
+           .env("OTEL_LOGS_EXPORTER", "otlp")
+           .env("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "http/json")
+           .env("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "http://localhost:4318/v1/logs")
+           .env("OTEL_LOG_TOOL_DETAILS", "1")
+           .env("OTEL_LOG_USER_PROMPTS", "1")
            .stdout(Stdio::piped())
            .stderr(Stdio::piped());
 

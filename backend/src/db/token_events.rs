@@ -85,4 +85,19 @@ impl TokenEventRepository {
         }
         Ok(())
     }
+
+    /// Returns (input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens) totals.
+    pub async fn aggregate_totals(&self) -> Result<(f64, f64, f64, f64)> {
+        let row = sqlx::query!(
+            r#"SELECT
+               COALESCE(SUM(input_tokens), 0.0) as "input: f64",
+               COALESCE(SUM(output_tokens), 0.0) as "output: f64",
+               COALESCE(SUM(cache_creation_tokens), 0.0) as "cache_create: f64",
+               COALESCE(SUM(cache_read_tokens), 0.0) as "cache_read: f64"
+               FROM token_events"#
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok((row.input, row.output, row.cache_create, row.cache_read))
+    }
 }

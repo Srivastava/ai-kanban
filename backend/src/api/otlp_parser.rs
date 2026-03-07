@@ -1,4 +1,4 @@
-use crate::models::CreateOtelMetric;
+use crate::models::{CreateOtelLog, CreateOtelMetric};
 use serde_json::Value;
 
 const TRACKED_METRICS: &[&str] = &[
@@ -87,6 +87,82 @@ pub fn parse_otlp_metrics(body: &Value) -> Vec<CreateOtelMetric> {
                         });
                     }
                 }
+            }
+        }
+    }
+
+    results
+}
+
+/// Parse an OTLP/HTTP JSON logs payload into CreateOtelLog records.
+pub fn parse_otlp_logs(body: &Value) -> Vec<CreateOtelLog> {
+    let mut results = Vec::new();
+
+    let resource_logs = match body.get("resourceLogs").and_then(|v| v.as_array()) {
+        Some(rl) => rl,
+        None => return results,
+    };
+
+    for rl in resource_logs {
+        let resource_attrs = build_attrs(rl.get("resource").and_then(|r| r.get("attributes")));
+        let claude_session_id = resource_attrs
+            .get("session.id")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+
+        let scope_logs = match rl.get("scopeLogs").and_then(|v| v.as_array()) {
+            Some(sl) => sl,
+            None => continue,
+        };
+
+        for sl in scope_logs {
+            let log_records = match sl.get("logRecords").and_then(|v| v.as_array()) {
+                Some(lr) => lr,
+                None => continue,
+            };
+
+            for record in log_records {
+                let otel_timestamp = record.get("timeUnixNano")
+                    .and_then(|v| v.as_str())
+                    .and_then(|s| s.parse::<i64>().ok())
+                    .or_else(|| record.get("timeUnixNano").and_then(|v| v.as_i64()))
+                    .unwrap_or(0);
+
+                let severity_text = record.get("severityText")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let severity_number = record.get("severityNumber").and_then(|v| v.as_i64());
+
+                let body_str = record.get("body")
+                    .and_then(|b| b.get("stringValue"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+
+                let mut attrs = resource_attrs.clone();
+                let record_attrs = build_attrs(record.get("attributes"));
+                if let (Some(merged), Some(extra)) = (attrs.as_object_mut(), record_attrs.as_object()) {
+                    for (k, v) in extra {
+                        merged.insert(k.clone(), v.clone());
+                    }
+                }
+
+                let event_name = attrs.get("event.name")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+
+                results.push(CreateOtelLog {
+                    event_name,
+                    body: body_str,
+                    severity_text,
+                    severity_number,
+                    session_id: None,
+                    task_id: None,
+                    claude_session_id: claude_session_id.clone(),
+                    attributes: attrs,
+                    otel_timestamp,
+                });
             }
         }
     }
@@ -188,5 +264,34 @@ mod tests {
     fn test_empty_body_returns_empty() {
         let results = parse_otlp_metrics(&serde_json::json!({}));
         assert!(results.is_empty());
+    }
+
+    #[test]
+    fn test_parse_otlp_logs() {
+        let body = serde_json::json!({
+            "resourceLogs": [{
+                "resource": {"attributes": [
+                    {"key": "session.id", "value": {"stringValue": "sess-xyz"}}
+                ]},
+                "scopeLogs": [{
+                    "logRecords": [{
+                        "timeUnixNano": "1709000000000000000",
+                        "severityNumber": 9,
+                        "severityText": "INFO",
+                        "body": {"stringValue": "tool_use event"},
+                        "attributes": [
+                            {"key": "event.name", "value": {"stringValue": "tool_use"}},
+                            {"key": "tool.name", "value": {"stringValue": "Bash"}}
+                        ]
+                    }]
+                }]
+            }]
+        });
+        let results = parse_otlp_logs(&body);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].event_name, "tool_use");
+        assert_eq!(results[0].claude_session_id, "sess-xyz");
+        assert_eq!(results[0].body.as_deref(), Some("tool_use event"));
+        assert_eq!(results[0].attributes["tool.name"], "Bash");
     }
 }

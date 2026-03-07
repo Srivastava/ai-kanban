@@ -1,7 +1,8 @@
-use crate::api::{AppState, CommentApiState, LogApiState, SessionApiState, SettingsApiState, TaskApiState};
+use crate::api::{AppState, CommentApiState, LogApiState, PrometheusState, SessionApiState, SettingsApiState, TaskApiState};
 use crate::api::analytics::{analytics_routes, AnalyticsApiState};
 use crate::api::comments::{comment_routes, comment_standalone_routes};
 use crate::api::logs::log_routes;
+use crate::api::prometheus::metrics_handler;
 use crate::api::sessions::session_routes;
 use crate::api::settings::settings_routes;
 use crate::api::tasks::task_routes;
@@ -15,11 +16,16 @@ pub fn create_router(state: AppState) -> Router {
     let log_state: LogApiState = state.clone().into();
     let comment_state: CommentApiState = state.clone().into();
     let settings_state: SettingsApiState = state.clone().into();
-    let analytics_state: AnalyticsApiState = state.into();
+    let analytics_state: AnalyticsApiState = state.clone().into();
+    let prometheus_state = PrometheusState {
+        otel_repo: state.otel_metrics.clone(),
+        token_events: state.token_events.clone(),
+    };
 
     Router::new()
         .route("/health", axum::routing::get(|| async { "ok" }))
         .route("/ws", axum::routing::get(ws_handler))
+        .route("/metrics", axum::routing::get(metrics_handler).with_state(prometheus_state))
         // Session routes use SessionApiState
         .nest("/api/sessions", session_routes().with_state(session_state))
         // For tasks and logs, we convert to their respective states

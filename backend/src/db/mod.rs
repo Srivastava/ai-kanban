@@ -1,6 +1,7 @@
 mod analytics;
 mod comments;
 mod logs;
+pub mod otel_logs;
 pub mod otel_metrics;
 mod pool;
 mod session_metrics;
@@ -12,6 +13,7 @@ mod token_events;
 pub use analytics::AnalyticsRepository;
 pub use comments::CommentRepository;
 pub use logs::LogRepository;
+pub use otel_logs::OtelLogsRepository;
 pub use otel_metrics::OtelMetricsRepository;
 pub use pool::create_pool;
 pub use session_metrics::SessionMetricsRepository;

@@ -1,5 +1,5 @@
-use crate::api::otlp_parser::parse_otlp_metrics;
-use crate::db::{OtelMetricsRepository, SessionRepository};
+use crate::api::otlp_parser::{parse_otlp_logs, parse_otlp_metrics};
+use crate::db::{OtelLogsRepository, OtelMetricsRepository, SessionRepository};
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::Value;
 use tracing::{debug, warn};
@@ -7,6 +7,7 @@ use tracing::{debug, warn};
 #[derive(Clone)]
 pub struct OtlpState {
     pub otel_repo: OtelMetricsRepository,
+    pub otel_logs_repo: OtelLogsRepository,
     pub session_repo: SessionRepository,
 }
 
@@ -46,8 +47,34 @@ pub async fn receive_metrics(
     StatusCode::OK
 }
 
-/// POST /v1/logs — accept and discard (future: store as structured events)
-pub async fn receive_logs(Json(_body): Json<Value>) -> impl IntoResponse {
+/// POST /v1/logs — OTLP/HTTP JSON logs (tool events, user prompts)
+pub async fn receive_logs(
+    State(state): State<OtlpState>,
+    Json(body): Json<Value>,
+) -> impl IntoResponse {
+    let logs = parse_otlp_logs(&body);
+    let count = logs.len();
+    debug!(count, "Received OTLP logs batch");
+
+    for mut log in logs {
+        if !log.claude_session_id.is_empty() {
+            match state.session_repo.find_by_claude_session_id(&log.claude_session_id).await {
+                Ok(Some(session)) => {
+                    log.session_id = Some(session.id.clone());
+                    log.task_id = Some(session.task_id.clone());
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    warn!(error = %e, "Failed to look up session for OTel log correlation");
+                }
+            }
+        }
+
+        if let Err(e) = state.otel_logs_repo.insert(log).await {
+            warn!(error = %e, "Failed to insert OTel log");
+        }
+    }
+
     StatusCode::OK
 }
 

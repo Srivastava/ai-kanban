@@ -41,6 +41,30 @@ impl OtelMetricsRepository {
         Ok(())
     }
 
+    /// Sum all values for a given metric_name across all stored data points.
+    pub async fn sum_metric(&self, metric_name: &str) -> Result<f64> {
+        let row = sqlx::query!(
+            r#"SELECT COALESCE(SUM(value), 0.0) as "total: f64" FROM otel_metrics WHERE metric_name = ?"#,
+            metric_name
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.total)
+    }
+
+    /// Sum lines_of_code.count by type attribute, returns (added, removed).
+    pub async fn sum_lines_of_code(&self) -> Result<(f64, f64)> {
+        let row = sqlx::query!(
+            r#"SELECT
+               COALESCE(SUM(CASE WHEN json_extract(attributes, '$.type') = 'added'   THEN value ELSE 0 END), 0.0) as "added: f64",
+               COALESCE(SUM(CASE WHEN json_extract(attributes, '$.type') = 'removed' THEN value ELSE 0 END), 0.0) as "removed: f64"
+               FROM otel_metrics WHERE metric_name = 'claude_code.lines_of_code.count'"#
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok((row.added, row.removed))
+    }
+
     /// `task_id`: when Some, returns exactly one row for that task; when None, returns all tasks.
     pub async fn dev_activity(&self, task_id: Option<&str>) -> Result<Vec<DevActivityRow>> {
         // Lines-of-code source: session_metrics.project_loc captured at every session start.
