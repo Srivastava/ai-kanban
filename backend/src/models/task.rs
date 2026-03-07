@@ -14,6 +14,7 @@ pub struct Task {
     pub priority: i32,
     pub context: Option<String>,
     pub compressed_context: Option<String>,
+    pub instructions: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -29,6 +30,7 @@ pub struct CreateTask {
 pub struct UpdateTask {
     pub title: Option<String>,
     pub description: Option<String>,
+    pub instructions: Option<Option<String>>,
     pub stage: Option<String>,
     pub priority: Option<i32>,
     pub context: Option<String>,
@@ -48,6 +50,7 @@ impl Task {
             priority: 0,
             context: None,
             compressed_context: None,
+            instructions: None,
             created_at: now,
             updated_at: now,
         }

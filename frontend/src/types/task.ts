@@ -4,6 +4,7 @@ export interface Task {
   id: string;
   title: string;
   description: string | null;
+  instructions: string | null;
   context: string | null;
   compressed_context: string | null;
   stage: Stage;
@@ -23,6 +24,7 @@ export interface CreateTask {
 export interface UpdateTask {
   title?: string;
   description?: string | null;
+  instructions?: string | null;
   context?: string | null;
   stage?: Stage;
   priority?: number;

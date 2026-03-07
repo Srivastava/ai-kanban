@@ -155,13 +155,23 @@ impl ClaudeManager {
            .stderr(Stdio::piped());
 
         // Task enrichment: on the very first session (no prior history), expand a terse description
+        // into structured instructions. Writes to task.instructions, never overwrites task.description.
         if conversation_context.is_none() && resume_claude_session_id.is_none() && task.session_id.is_none() {
             if self.flag_enabled("litellm_task_enrichment").await {
                 if let Some(ref cm) = self.context_manager {
                     match cm.enrich_task(&task.id, &task.title, task.description.as_deref()).await {
                         Ok(Some(enriched)) => {
-                            info!(task_id = %task.id, "Task description enriched by LiteLLM");
-                            task.description = Some(enriched);
+                            info!(task_id = %task.id, "Task instructions enriched by LiteLLM");
+                            task.instructions = Some(enriched);
+                            // Notify frontend that the task changed
+                            if let Ok(updated) = self.task_repo.find(&task.id).await {
+                                if let Ok(task_json) = serde_json::to_value(&updated) {
+                                    let _ = self.output_tx.send(ClaudeEvent::TaskStageChanged {
+                                        task_id: task.id.clone(),
+                                        task_json,
+                                    });
+                                }
+                            }
                         }
                         Ok(None) => {}
                         Err(e) => warn!(task_id = %task.id, error = %e, "Task enrichment failed, proceeding with original"),
@@ -193,7 +203,9 @@ impl ClaudeManager {
 
         // Always build the prompt — it carries the new human-turn message for Claude to act on.
         // When resuming, --resume restores internal conversation state; the prompt is the next request.
-        let prompt = build_prompt(&task.title, task.description.as_deref(), stage, conversation_context.as_deref());
+        // Use enriched instructions if available, otherwise fall back to user's description
+        let prompt_instructions = task.instructions.as_deref().or(task.description.as_deref());
+        let prompt = build_prompt(&task.title, prompt_instructions, stage, conversation_context.as_deref());
         if let Some(ref claude_sid) = resume_claude_session_id {
             cmd.arg("--resume").arg(claude_sid);
             info!(
@@ -678,6 +690,15 @@ impl ClaudeManager {
                                     &display_lines,
                                     result_text.as_deref(),
                                 ).await;
+                                // Notify frontend so context section refreshes
+                                if let Ok(updated) = task_repo_for_completion.find(&session.task_id).await {
+                                    if let Ok(task_json) = serde_json::to_value(&updated) {
+                                        let _ = output_tx_for_completion.send(ClaudeEvent::TaskStageChanged {
+                                            task_id: session.task_id.clone(),
+                                            task_json,
+                                        });
+                                    }
+                                }
                             }
                         }
                     }

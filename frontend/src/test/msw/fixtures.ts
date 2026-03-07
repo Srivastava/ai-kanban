@@ -6,6 +6,7 @@ export const mockTask: Task = {
   id: 'task-123',
   title: 'Test task',
   description: 'A test task description',
+  instructions: null,
   context: null,
   compressed_context: null,
   stage: 'backlog',

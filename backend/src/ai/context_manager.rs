@@ -312,13 +312,13 @@ impl ContextManager {
                     output_tokens = result.output_tokens,
                     "Task description enriched"
                 );
-                // Persist the enriched description
+                // Persist the enriched text as instructions (never overwrites user's description)
                 use crate::models::UpdateTask;
                 if let Err(e) = self.task_repo.update(task_id, UpdateTask {
-                    description: Some(enriched.clone()),
+                    instructions: Some(Some(enriched.clone())),
                     ..Default::default()
                 }).await {
-                    warn!(task_id = %task_id, error = %e, "Failed to persist enriched task description");
+                    warn!(task_id = %task_id, error = %e, "Failed to persist enriched task instructions");
                 }
                 Ok(Some(enriched))
             }

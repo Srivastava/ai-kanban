@@ -103,6 +103,9 @@ impl TaskRepository {
         if let Some(description) = update.description {
             task.description = Some(description);
         }
+        if let Some(instructions) = update.instructions {
+            task.instructions = instructions;
+        }
         if let Some(stage) = update.stage {
             task.stage = stage;
         }
@@ -120,12 +123,13 @@ impl TaskRepository {
         sqlx::query(
             r#"
             UPDATE tasks
-            SET title = ?, description = ?, stage = ?, priority = ?, context = ?, session_id = ?, updated_at = ?
+            SET title = ?, description = ?, instructions = ?, stage = ?, priority = ?, context = ?, session_id = ?, updated_at = ?
             WHERE id = ?
             "#,
         )
         .bind(&task.title)
         .bind(&task.description)
+        .bind(&task.instructions)
         .bind(&task.stage)
         .bind(task.priority)
         .bind(&task.context)
