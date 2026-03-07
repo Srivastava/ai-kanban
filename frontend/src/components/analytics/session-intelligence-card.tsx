@@ -5,7 +5,7 @@ import { useSessionSummary, useBurnRate } from '@/hooks/use-analytics';
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
+  return `${n}`;
 }
 
 const skeleton = <span className="animate-pulse bg-muted rounded w-16 h-7 inline-block" />;

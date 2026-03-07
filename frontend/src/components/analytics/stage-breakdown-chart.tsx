@@ -8,7 +8,7 @@ const STAGE_ORDER = ['backlog', 'planning', 'in_progress', 'review', 'done'];
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return n.toString();
+  return `${n}`;
 }
 
 export function StageBreakdownChart() {
