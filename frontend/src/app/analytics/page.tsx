@@ -17,11 +17,11 @@ export default function AnalyticsPage() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <div className="border-b border-border px-6 py-4">
+        <div className="border-b border-border px-4 sm:px-6 py-4">
           <h1 className="text-xl font-semibold">Analytics</h1>
           <p className="text-sm text-muted-foreground">Claude token usage and efficiency</p>
         </div>
-        <main className="flex-1 p-6 space-y-8">
+        <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6 space-y-8">
           <section className="space-y-4">
             <h2 className="text-base font-semibold text-foreground">Overview</h2>
             <OverviewCards />

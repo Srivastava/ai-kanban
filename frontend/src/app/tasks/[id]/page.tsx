@@ -23,7 +23,7 @@ export default function TaskDetailPage() {
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 overflow-x-hidden">
         <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm px-4 sm:px-6 py-3 flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-1">
             <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -33,7 +33,7 @@ export default function TaskDetailPage() {
             <h2 className="text-sm font-medium text-muted-foreground truncate">{task.title}</h2>
           )}
         </header>
-        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
+        <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 pb-20 md:pb-10 w-full min-w-0">
           {isLoading ? (
             <TaskDetailSkeleton />
           ) : error || !task ? (

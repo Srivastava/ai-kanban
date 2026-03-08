@@ -37,7 +37,7 @@ function HomeContent() {
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Header onNewTask={() => setDialogOpen(true)} />
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6">
           <Suspense fallback={<div className="flex items-center justify-center h-64">Loading...</div>}>
             <TaskContent />
           </Suspense>

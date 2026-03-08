@@ -3,6 +3,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { LayoutGrid, BarChart2, FileText, Settings, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Stage } from '@/types/task';
 
@@ -16,6 +17,14 @@ const stages: { value: Stage | 'all'; label: string }[] = [
   { value: 'done', label: 'Done' },
 ];
 
+const mobileNavItems = [
+  { href: '/', label: 'Tasks', icon: List },
+  { href: '/kanban', label: 'Kanban', icon: LayoutGrid },
+  { href: '/analytics', label: 'Analytics', icon: BarChart2 },
+  { href: '/logs', label: 'Logs', icon: FileText },
+  { href: '/settings', label: 'Settings', icon: Settings },
+];
+
 function SidebarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -26,70 +35,103 @@ function SidebarContent() {
     return pathname === '/' && currentStage === stage;
   };
 
+  const isNavActive = (href: string) => {
+    if (href === '/') return pathname === '/';
+    return pathname.startsWith(href);
+  };
+
   return (
-    <aside className="w-64 border-r border-border bg-sidebar min-h-screen p-4">
-      <nav className="space-y-1">
-        <Link
-          href="/kanban"
-          className={cn(
-            'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-            pathname === '/kanban'
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-          )}
-        >
-          Kanban Board
-        </Link>
-        <Link
-          href="/analytics"
-          className={cn(
-            'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-            pathname === '/analytics'
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-          )}
-        >
-          Analytics
-        </Link>
-        <Link
-          href="/logs"
-          className={cn(
-            'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-            pathname === '/logs'
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-          )}
-        >
-          Logs
-        </Link>
-        <Link
-          href="/settings"
-          className={cn(
-            'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-            pathname === '/settings'
-              ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-              : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-          )}
-        >
-          Settings
-        </Link>
-        <div className="h-px bg-border my-2" />
-        {stages.map((stage) => (
+    <>
+      {/* Desktop sidebar — hidden on mobile */}
+      <aside className="hidden md:block w-56 shrink-0 border-r border-border bg-sidebar min-h-screen p-4">
+        <nav className="space-y-1">
           <Link
-            key={stage.value}
-            href={stage.value === 'all' ? '/' : `/?stage=${stage.value}`}
+            href="/kanban"
             className={cn(
               'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              isActive(stage.value)
+              pathname === '/kanban'
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                 : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
             )}
           >
-            {stage.label}
+            <LayoutGrid className="h-4 w-4 shrink-0" />
+            Kanban Board
           </Link>
-        ))}
+          <Link
+            href="/analytics"
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              pathname === '/analytics'
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+            )}
+          >
+            <BarChart2 className="h-4 w-4 shrink-0" />
+            Analytics
+          </Link>
+          <Link
+            href="/logs"
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              pathname === '/logs'
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+            )}
+          >
+            <FileText className="h-4 w-4 shrink-0" />
+            Logs
+          </Link>
+          <Link
+            href="/settings"
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              pathname === '/settings'
+                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+            )}
+          >
+            <Settings className="h-4 w-4 shrink-0" />
+            Settings
+          </Link>
+          <div className="h-px bg-border my-2" />
+          {stages.map((stage) => (
+            <Link
+              key={stage.value}
+              href={stage.value === 'all' ? '/' : `/?stage=${stage.value}`}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                isActive(stage.value)
+                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+              )}
+            >
+              {stage.label}
+            </Link>
+          ))}
+        </nav>
+      </aside>
+
+      {/* Mobile bottom nav — hidden on desktop */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm">
+        <div className="flex items-stretch h-14">
+          {mobileNavItems.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={cn(
+                'flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors',
+                isNavActive(href)
+                  ? 'text-primary'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Icon className="h-5 w-5" />
+              {label}
+            </Link>
+          ))}
+        </div>
       </nav>
-    </aside>
+    </>
   );
 }
 
@@ -97,21 +139,11 @@ export function Sidebar() {
   return (
     <Suspense
       fallback={
-        <aside className="w-64 border-r border-border bg-sidebar min-h-screen p-4">
+        <aside className="hidden md:block w-56 shrink-0 border-r border-border bg-sidebar min-h-screen p-4">
           <nav className="space-y-1">
-            <div className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground">
-              Kanban Board
-            </div>
-            <div className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground">
-              Analytics
-            </div>
-            <div className="h-px bg-border my-2" />
-            {stages.map((stage) => (
-              <div
-                key={stage.value}
-                className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground"
-              >
-                {stage.label}
+            {['Kanban Board', 'Analytics', 'Logs', 'Settings'].map((label) => (
+              <div key={label} className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground">
+                {label}
               </div>
             ))}
           </nav>

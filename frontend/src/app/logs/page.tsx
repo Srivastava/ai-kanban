@@ -90,7 +90,7 @@ export default function LogsPage() {
       <Sidebar />
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="border-b border-border px-6 py-4 flex items-center justify-between">
+        <div className="border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-xl font-semibold">Logs</h1>
             <p className="text-sm text-muted-foreground">
@@ -115,7 +115,7 @@ export default function LogsPage() {
         </div>
 
         {/* Filter bar */}
-        <div className="border-b border-border px-6 py-3 flex flex-wrap items-center gap-3">
+        <div className="border-b border-border px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
           {/* Level pills */}
           <div className="flex gap-1">
             <button
@@ -217,7 +217,7 @@ export default function LogsPage() {
           </button>
         )}
 
-        <main className="flex-1 p-6 space-y-4">
+        <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6 space-y-4">
           {/* Stats bar — always visible */}
           <LogStatsBar logs={allLogs} activeLevel={levelFilter} onLevelClick={setLevelFilter} />
 
