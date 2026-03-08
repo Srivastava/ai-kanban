@@ -42,13 +42,18 @@ function SidebarContent() {
 
   return (
     <>
-      {/* Desktop sidebar — hidden on mobile */}
-      <aside className="hidden md:block w-56 shrink-0 border-r border-border bg-sidebar min-h-screen p-4">
-        <nav className="space-y-1">
+      {/*
+        Desktop sidebar: w-56, visible.
+        Mobile: w-0 + overflow-hidden collapses it to zero width without
+        removing it from the flex flow — avoids SSR/hydration mismatches
+        that happen when toggling display:none vs display:block.
+      */}
+      <aside className="w-0 overflow-hidden md:w-56 shrink-0 md:border-r border-border bg-sidebar md:min-h-screen md:p-4">
+        <nav className="space-y-1 w-56">
           <Link
             href="/kanban"
             className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
               pathname === '/kanban'
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                 : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
@@ -60,7 +65,7 @@ function SidebarContent() {
           <Link
             href="/analytics"
             className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
               pathname === '/analytics'
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                 : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
@@ -72,7 +77,7 @@ function SidebarContent() {
           <Link
             href="/logs"
             className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
               pathname === '/logs'
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                 : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
@@ -84,7 +89,7 @@ function SidebarContent() {
           <Link
             href="/settings"
             className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
               pathname === '/settings'
                 ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                 : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
@@ -99,7 +104,7 @@ function SidebarContent() {
               key={stage.value}
               href={stage.value === 'all' ? '/' : `/?stage=${stage.value}`}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
                 isActive(stage.value)
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
@@ -111,7 +116,7 @@ function SidebarContent() {
         </nav>
       </aside>
 
-      {/* Mobile bottom nav — hidden on desktop */}
+      {/* Mobile bottom nav — CSS position:fixed, no effect on flex layout */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm">
         <div className="flex items-stretch h-14">
           {mobileNavItems.map(({ href, label, icon: Icon }) => (
@@ -139,15 +144,7 @@ export function Sidebar() {
   return (
     <Suspense
       fallback={
-        <aside className="hidden md:block w-56 shrink-0 border-r border-border bg-sidebar min-h-screen p-4">
-          <nav className="space-y-1">
-            {['Kanban Board', 'Analytics', 'Logs', 'Settings'].map((label) => (
-              <div key={label} className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground">
-                {label}
-              </div>
-            ))}
-          </nav>
-        </aside>
+        <aside className="w-0 overflow-hidden md:w-56 shrink-0 md:border-r border-border bg-sidebar md:min-h-screen md:p-4" />
       }
     >
       <SidebarContent />

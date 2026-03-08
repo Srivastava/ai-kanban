@@ -33,9 +33,9 @@ function HomeContent() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background md:flex">
+    <div className="flex min-h-screen bg-background">
       <Sidebar />
-      <div className="md:flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col">
         <Header onNewTask={() => setDialogOpen(true)} />
         <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6">
           <Suspense fallback={<div className="flex items-center justify-center h-64">Loading...</div>}>
