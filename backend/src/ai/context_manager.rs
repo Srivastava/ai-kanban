@@ -163,9 +163,12 @@ impl ContextManager {
 
         let user_content = format!(
             "Task: {task_title}\n\nSession activity:\n{activity}{result_section}\n\n\
-            Create a structured context summary (under 600 words) for the next Claude session. Include:\n\
+            Create a structured context summary (under 1500 words) for the next Claude session.\n\
+            CRITICAL: If there are any user messages, decisions, or responses in the activity, preserve them verbatim.\n\
+            Prioritize recent activity over older activity.\n\
+            Include:\n\
             1. What was accomplished\n\
-            2. Key decisions and rationale\n\
+            2. Key decisions and rationale (include exact user responses/choices)\n\
             3. Files modified and why\n\
             4. Current state of the codebase\n\
             5. What remains to be done\n\
@@ -175,7 +178,7 @@ impl ContextManager {
         let messages = vec![
             ChatMessage {
                 role: "system".to_string(),
-                content: "You are compressing a Claude Code session into a context handoff for the next session. Be specific, structured, and concise. Focus on information Claude needs to continue effectively.".to_string(),
+                content: "You are compressing a Claude Code session into a context handoff for the next session. Be specific, structured, and concise. ALWAYS preserve user messages and decisions verbatim — never paraphrase or drop them. Compress Claude's outputs to save space. Recent activity is more important than older activity.".to_string(),
             },
             ChatMessage {
                 role: "user".to_string(),
@@ -232,17 +235,22 @@ impl ContextManager {
     ) -> Result<String> {
         let user_content = format!(
             "Task: {task_title}\n\nConversation history:\n{conversation_context}\n\n\
-            Compress this into a brief context summary (under 400 words) for the next Claude session. Keep:\n\
+            Compress this into a context summary (under 1500 words) for the next Claude session.\n\
+            CRITICAL: Preserve ALL user messages verbatim, especially recent ones. If the user responded to a question or made a decision, that response MUST appear in full.\n\
+            Prioritize recent messages over older ones — the most recent exchanges are the most important.\n\
+            Include:\n\
+            - Every user message or decision, quoted directly\n\
             - Key decisions and outcomes\n\
             - Current state\n\
             - What needs to happen next\n\
-            - Any blockers or constraints",
+            - Any blockers or constraints\n\
+            Compress Claude's outputs but never compress or lose user messages.",
         );
 
         let messages = vec![
             ChatMessage {
                 role: "system".to_string(),
-                content: "You are condensing a task conversation history into a minimal context summary. Be precise and omit redundant information.".to_string(),
+                content: "You are condensing a task conversation history into a context summary for the next Claude session. ALWAYS preserve user messages in full — never paraphrase or drop what the user said. Compress Claude's outputs to save space, but user messages are sacred. Recent messages are more important than older ones.".to_string(),
             },
             ChatMessage {
                 role: "user".to_string(),
@@ -282,7 +290,7 @@ impl ContextManager {
         let current_desc = task_description.unwrap_or("(none)");
         let user_content = format!(
             "Task title: {task_title}\nCurrent description: {current_desc}\n\n\
-            Create a clear, structured task description for a Claude Code session (under 250 words). Include:\n\
+            Create a clear, structured task description for a Claude Code session (under 500 words). Include:\n\
             1. Clear objective\n\
             2. Acceptance criteria\n\
             3. Likely files or areas of the codebase to focus on\n\
