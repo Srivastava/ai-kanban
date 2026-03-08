@@ -26,9 +26,9 @@ export default function KanbanPage() {
   const [createOpen, setCreateOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="min-h-screen bg-background md:flex">
       <Sidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="md:flex-1 flex flex-col">
         <div className="border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between">
           <h1 className="text-xl font-semibold">Kanban Board</h1>
           <Button onClick={() => setCreateOpen(true)} size="sm">
