@@ -68,7 +68,7 @@ impl LitellmClient {
         let api_key = std::env::var("LITELLM_API_KEY")
             .unwrap_or_else(|_| "litellm".to_string());
         let model = std::env::var("LITELLM_MODEL")
-            .unwrap_or_else(|_| "qwen2.5:latest".to_string());
+            .unwrap_or_else(|_| "smart-router".to_string());
         Self::new(base_url, api_key, model)
     }
 
