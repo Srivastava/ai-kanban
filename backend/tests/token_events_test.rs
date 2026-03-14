@@ -43,6 +43,8 @@ async fn test_create_token_event() {
             file_ext: Some(".rs".to_string()),
             input_tokens: 100,
             output_tokens: 50,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
             model: Some("claude-sonnet-4-6".to_string()),
             sequence_no: Some(0),
         })
@@ -68,6 +70,8 @@ async fn test_list_by_session() {
         file_ext: None,
         input_tokens: 100,
         output_tokens: 20,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
         model: None,
         sequence_no: Some(0),
     })
@@ -82,6 +86,8 @@ async fn test_list_by_session() {
         file_ext: None,
         input_tokens: 200,
         output_tokens: 80,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
         model: None,
         sequence_no: Some(1),
     })
@@ -100,6 +106,8 @@ async fn test_list_by_session() {
         file_ext: None,
         input_tokens: 50,
         output_tokens: 10,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
         model: None,
         sequence_no: Some(0),
     })
@@ -152,6 +160,8 @@ async fn test_list_by_task() {
         file_ext: None,
         input_tokens: 10,
         output_tokens: 5,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
         model: None,
         sequence_no: Some(0),
     }).await.unwrap();
@@ -164,6 +174,8 @@ async fn test_list_by_task() {
         file_ext: None,
         input_tokens: 20,
         output_tokens: 10,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
         model: None,
         sequence_no: Some(0),
     }).await.unwrap();
@@ -188,6 +200,8 @@ async fn test_create_batch() {
             file_ext: Some(".rs".to_string()),
             input_tokens: 100,
             output_tokens: 50,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
             model: Some("claude-sonnet".to_string()),
             sequence_no: Some(0),
         },
@@ -199,6 +213,8 @@ async fn test_create_batch() {
             file_ext: None,
             input_tokens: 200,
             output_tokens: 100,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
             model: None,
             sequence_no: Some(1),
         },

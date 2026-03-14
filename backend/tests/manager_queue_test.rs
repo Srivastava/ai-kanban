@@ -1,7 +1,7 @@
 use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
 use ai_kanban_backend::db::{
-    create_pool, CommentRepository, SessionMetricsRepository, SessionRepository,
-    TaskRepository, TokenEventRepository,
+    create_pool, CommentRepository, OtelMetricsRepository, SessionMetricsRepository,
+    SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository,
 };
 use ai_kanban_backend::models::CreateTask;
 use std::sync::Arc;
@@ -14,12 +14,16 @@ async fn setup() -> (Arc<ClaudeManager>, Arc<SessionQueue>, TaskRepository) {
     let metrics_repo = SessionMetricsRepository::new(pool.clone());
     let comment_repo = CommentRepository::new(pool.clone());
     let task_repo = TaskRepository::new(pool.clone());
+    let otel_repo = OtelMetricsRepository::new(pool.clone());
     let manager = Arc::new(ClaudeManager::new(
         session_repo,
         token_repo,
         metrics_repo,
         comment_repo,
         task_repo.clone(),
+        otel_repo,
+        None,
+        None,
     ));
     let queue = Arc::new(SessionQueue::new(manager.clone(), task_repo.clone()));
     (manager, queue, task_repo)

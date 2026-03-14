@@ -62,6 +62,8 @@ fn make_event(
         file_ext: None,
         input_tokens: input,
         output_tokens: output,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
         model: None,
         sequence_no: Some(seq),
     }

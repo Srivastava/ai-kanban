@@ -341,13 +341,7 @@ impl AnalyticsRepository {
                 te.task_id,
                 COALESCE(t.title, 'Unknown Task') as task_title,
                 SUM(te.input_tokens) + SUM(te.output_tokens) as total_tokens,
-                CAST(COALESCE((
-                    SELECT SUM(om.value)
-                    FROM otel_metrics om
-                    WHERE om.task_id = te.task_id
-                      AND om.metric_name = 'claude_code.lines_of_code.count'
-                      AND json_extract(om.attributes, '$.type') = 'added'
-                ), 0) AS REAL) as lines_written,
+                CAST(COALESCE(SUM(sm.lines_written), 0) AS REAL) as lines_written,
                 CAST(COALESCE(MAX(sm.project_loc), 0) AS INTEGER) as project_loc
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
