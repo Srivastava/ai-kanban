@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,12 +9,15 @@ import { Trash2, Pencil, Check, X, FolderOpen, Clock, ChevronDown, ChevronRight,
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './comment-thread';
+import { ActivityTimeline } from './activity-timeline';
 import { SessionControls } from '@/components/sessions/session-controls';
 import { LiveOutputPanel } from '@/components/sessions/live-output-panel';
 import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 import { useComments } from '@/hooks/use-comments';
 import { useSession } from '@/hooks/use-sessions';
 import { useUpdateTask } from '@/hooks/use-tasks';
+import { useWebSocket } from '@/contexts/websocket-context';
+import { apiClient } from '@/lib/api-client';
 import type { Task, Stage } from '@/types/task';
 import { cn } from '@/lib/utils';
 
@@ -130,6 +133,141 @@ function InlineEditField({
   );
 }
 
+// ─── Plan Checklist Viewer ────────────────────────────────────────────────────
+
+interface ChecklistStats {
+  total: number;
+  completed: number;
+}
+
+function parseChecklist(content: string): ChecklistStats {
+  const lines = content.split('\n');
+  let total = 0;
+  let completed = 0;
+  for (const line of lines) {
+    if (/^[\s]*-\s+\[[ xX]\]/.test(line)) {
+      total++;
+      if (/^[\s]*-\s+\[[xX]\]/.test(line)) completed++;
+    }
+  }
+  return { total, completed };
+}
+
+function renderChecklistMarkdown(content: string): string {
+  // Replace checkbox markdown syntax with unicode checkboxes for display
+  return content
+    .replace(/^([\s]*)-\s+\[[xX]\]/gm, '$1- ☑')
+    .replace(/^([\s]*)-\s+\[ \]/gm, '$1- ☐');
+}
+
+function PlanProgress({ instructions }: { instructions: string }) {
+  const stats = parseChecklist(instructions);
+  if (stats.total === 0) return null;
+
+  const pct = Math.round((stats.completed / stats.total) * 100);
+  return (
+    <div className="mb-4 space-y-1.5">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>Implementation Plan ({stats.completed} of {stats.total} tasks complete)</span>
+        <span className="flex items-center gap-1">
+          <span className="text-[10px] bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded">AI-generated</span>
+          <span>{pct}%</span>
+        </span>
+      </div>
+      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-full bg-emerald-500 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Plan Banner ─────────────────────────────────────────────────────────────
+
+function PlanBanner({ taskId, sessionId }: { taskId: string; sessionId: string | null }) {
+  const { subscribe } = useWebSocket();
+  const [show, setShow] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    return subscribe('plan_created', (data: unknown) => {
+      const msg = data as { session_id?: string; task_id?: string };
+      if (msg.task_id !== taskId && msg.session_id !== sessionId) return;
+      setShow(true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setShow(false), 10_000);
+    });
+  }, [sessionId, taskId, subscribe]);
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  if (!show) return null;
+
+  return (
+    <div className="mb-3 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+      <span>✅ Implementation plan written by Claude. Ready to start working.</span>
+      <button
+        onClick={() => setShow(false)}
+        className="ml-2 shrink-0 text-amber-600 hover:text-amber-900 dark:text-amber-400"
+        aria-label="Dismiss"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+}
+
+// ─── Queue Position Badge ─────────────────────────────────────────────────────
+
+interface QueueStatusResponse {
+  active_count: number;
+  queued: Array<{ task_id: string; [key: string]: unknown }>;
+}
+
+function QueueBadge({ taskId, sessionStatus }: { taskId: string; sessionStatus: string | null }) {
+  const [inQueue, setInQueue] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const isActive = sessionStatus === 'pending' || sessionStatus === 'running';
+
+  useEffect(() => {
+    if (!isActive) {
+      setInQueue(false);
+      return;
+    }
+
+    const fetchQueue = async () => {
+      try {
+        const data = await apiClient<QueueStatusResponse>('/api/sessions');
+        const queued = Array.isArray(data.queued) ? data.queued : [];
+        setInQueue(queued.some((q) => q.task_id === taskId));
+      } catch {
+        // Graceful degradation — ignore errors
+      }
+    };
+
+    fetchQueue();
+    intervalRef.current = setInterval(fetchQueue, 5_000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [taskId, isActive]);
+
+  if (!inQueue) return null;
+
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-600">
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+      In Queue
+    </span>
+  );
+}
+
+// ─── Main TaskDetail ──────────────────────────────────────────────────────────
+
 export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetailProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const { data: comments = [], isLoading: commentsLoading } = useComments(task.id);
@@ -139,10 +277,16 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
   const canResume = !!session?.claude_session_id;
   const stage = stageConfig[task.stage];
 
-  const updates = comments
-    .flatMap((c) => [c, ...c.replies])
-    .filter((c) => c.author === 'litellm')
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  // Rendered checklist markdown
+  const instructionsForDisplay = task.instructions
+    ? renderChecklistMarkdown(task.instructions)
+    : null;
+
+  const hasCheckboxes = task.instructions ? parseChecklist(task.instructions).total > 0 : false;
+
+  // Session is active (pending/running) with no plan yet
+  const isSessionActive = sessionStatus === 'running' || sessionStatus === 'pending';
+  const showPlanWriting = !task.instructions && task.stage === 'planning' && isSessionActive;
 
   return (
     <div className="space-y-4">
@@ -166,13 +310,14 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
           <Badge variant="outline" className={cn('font-medium text-xs', stage.className)}>
             {stage.label}
           </Badge>
+          <QueueBadge taskId={task.id} sessionStatus={sessionStatus} />
           <div className="flex items-center gap-1.5 text-muted-foreground text-xs bg-muted/60 rounded-md px-2.5 py-1">
             <FolderOpen className="h-3.5 w-3.5 shrink-0" />
             <span className="font-mono truncate max-w-[180px] sm:max-w-xs">{task.project_path}</span>
           </div>
           <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
             <Clock className="h-3.5 w-3.5 shrink-0" />
-            <span>Updated {formatDistanceToNow(new Date(task.updated_at), { addSuffix: true })}</span>
+            <UpdatedTime updatedAt={task.updated_at} />
           </div>
         </div>
       </div>
@@ -201,7 +346,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
         </CardContent>
       </Card>
 
-      {/* Instructions (LiteLLM-enriched or user-overrideable) */}
+      {/* Instructions / Plan Viewer */}
       {(task.instructions || true) && (
         <Card>
           <CardHeader className="pb-2 px-5 pt-5">
@@ -213,9 +358,25 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
             </CardTitle>
           </CardHeader>
           <CardContent className="px-5 pb-5">
+            {/* Plan Created banner (subscribes to WS event) */}
+            <PlanBanner taskId={task.id} sessionId={task.session_id ?? null} />
+
+            {/* Plan writing indicator */}
+            {showPlanWriting && (
+              <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                <span className="italic">Claude is writing the implementation plan...</span>
+              </div>
+            )}
+
+            {/* Progress bar for checkbox plans */}
+            {task.instructions && hasCheckboxes && (
+              <PlanProgress instructions={task.instructions} />
+            )}
+
             <InlineEditField
               label="Instructions"
-              value={task.instructions}
+              value={instructionsForDisplay}
               placeholder="No enriched instructions yet — will be generated by LiteLLM when session starts"
               taskId={task.id}
               field="instructions"
@@ -278,28 +439,12 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
         </CardContent>
       </Card>
 
-      {/* Updates */}
-      <CollapsibleCard title="Updates" defaultOpen={updates.length > 0}>
+      {/* Activity Timeline (replaces Updates) */}
+      <CollapsibleCard title="Activity" defaultOpen={true}>
         {commentsLoading ? (
           <div className="h-16 animate-pulse bg-muted rounded" />
-        ) : updates.length === 0 ? (
-          <p className="text-muted-foreground italic text-sm">No updates yet — Claude will post updates here as it works</p>
         ) : (
-          <div className="space-y-4">
-            {updates.map((update) => (
-              <div key={update.id} className="flex gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-2 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground mb-1">
-                    {formatDistanceToNow(new Date(update.created_at), { addSuffix: true })}
-                  </p>
-                  <div className="text-sm [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:mb-1 [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:mb-2 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{update.content}</ReactMarkdown>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ActivityTimeline task={task} sessionId={task.session_id ?? null} />
         )}
       </CollapsibleCard>
 
@@ -313,4 +458,14 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
       </CollapsibleCard>
     </div>
   );
+}
+
+// Client-only relative time to avoid SSR mismatch
+function UpdatedTime({ updatedAt }: { updatedAt: string }) {
+  const [display, setDisplay] = useState<string | null>(null);
+  useEffect(() => {
+    setDisplay(formatDistanceToNow(new Date(updatedAt), { addSuffix: true }));
+  }, [updatedAt]);
+  if (!display) return null;
+  return <span>Updated {display}</span>;
 }

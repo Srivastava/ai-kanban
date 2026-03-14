@@ -107,7 +107,7 @@ export function DevActivityCharts() {
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                     <YAxis tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : `${v}`} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                     <Tooltip
-                      formatter={(value) => [value.toLocaleString(), 'Lines written (net)']}
+                      formatter={(value) => [typeof value === 'number' ? value.toLocaleString() : String(value), 'Lines written (net)']}
                       contentStyle={TOOLTIP_STYLE}
                     />
                     <Bar dataKey="loc" fill="#22c55e" name="loc" radius={[3, 3, 0, 0]} />

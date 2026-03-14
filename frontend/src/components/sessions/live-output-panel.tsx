@@ -21,12 +21,29 @@ interface HeartbeatState {
   receivedAt: number; // Date.now() when we got it
 }
 
+const ACTION_PATTERNS: Array<[RegExp, string, string]> = [
+  [/PLANNING mode/i, '📋 Writing plan...', 'Plan'],
+  [/IN_PROGRESS mode/i, '⚙️ Implementing...', 'Code'],
+  [/REVIEW mode/i, '🔍 Reviewing...', 'Review'],
+  [/ai-kanban-plan\.md/i, '📋 Writing implementation plan...', 'Plan'],
+  [/Read\(|Reading /i, '📂 Reading files...', 'Read'],
+  [/Write\(|Writing /i, '✏️ Writing files...', 'Write'],
+  [/Bash\(|Running /i, '🔧 Running commands...', 'Bash'],
+  [/Grep\(|Searching /i, '🔍 Searching codebase...', 'Grep'],
+  [/Edit\(|Editing /i, '✏️ Editing files...', 'Edit'],
+  [/TodoWrite\(|TodoRead\(/i, '📝 Updating task list...', 'Todo'],
+  [/WebSearch\(|Searching web/i, '🌐 Searching web...', 'Search'],
+  [/\d+ files? (changed|modified|written)/i, '💾 Changes written', 'Save'],
+];
+
 export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: Props) {
   const [lines, setLines] = useState<OutputLine[]>([]);
   const [heartbeat, setHeartbeat] = useState<HeartbeatState | null>(null);
   const [displayElapsed, setDisplayElapsed] = useState<number>(0);
   const [claudeSessionId, setClaudeSessionId] = useState<string | null>(initialClaudeSessionId ?? null);
   const [rateLimitResetAt, setRateLimitResetAt] = useState<Date | null>(null);
+  const [currentAction, setCurrentAction] = useState<string | null>(null);
+  const [lastToolBadge, setLastToolBadge] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
@@ -47,9 +64,18 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
     setLines([]);
     setHeartbeat(null);
     setClaudeSessionId(initialClaudeSessionId ?? null);
+    setCurrentAction(null);
+    setLastToolBadge(null);
     logRef.current = logger.withContext({ session_id: sessionId });
     logRef.current.info('LiveOutputPanel: session changed', { session_id: sessionId });
   }, [sessionId, initialClaudeSessionId]);
+
+  // Reset current action when session completes/stops
+  useEffect(() => {
+    if (status === 'completed' || status === 'stopped' || status === 'failed') {
+      setCurrentAction(null);
+    }
+  }, [status]);
 
   // Subscribe to this session's output and heartbeat
   useEffect(() => {
@@ -70,9 +96,20 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
           total_lines: outputCount,
         });
       }
+
+      // Parse line for action patterns
+      const line = msg.output;
+      for (const [pattern, actionLabel, toolBadge] of ACTION_PATTERNS) {
+        if (pattern.test(line)) {
+          setCurrentAction(actionLabel);
+          setLastToolBadge(toolBadge);
+          break;
+        }
+      }
+
       setLines((prev) => [
         ...prev.slice(-500),
-        { text: msg.output, isError: msg.is_error },
+        { text: line, isError: msg.is_error },
       ]);
     });
 
@@ -199,36 +236,50 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
       )}
       <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b border-border">
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Session Output
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Session Output
+            </span>
+            {lastToolBadge && (
+              <span className="text-[10px] font-mono bg-muted border border-border px-1.5 py-0.5 rounded text-muted-foreground">
+                [{lastToolBadge}]
+              </span>
+            )}
+          </div>
           {claudeSessionId && (
             <span className="text-[10px] font-mono text-muted-foreground/60">
               Claude session: {claudeSessionId}
             </span>
           )}
         </div>
-        {hasActiveHeartbeat && (
-          <span className="flex items-center gap-1.5 text-xs text-emerald-500">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Running {displayElapsed}s
-          </span>
-        )}
-        {isWaiting && (
-          <span className="flex items-center gap-1.5 text-xs text-yellow-500">
-            <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
-            Waiting...
-          </span>
-        )}
-        {isRunning && heartbeat === null && (
-          <span className="flex items-center gap-1.5 text-xs text-emerald-500">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Live
-          </span>
-        )}
-        {!isRunning && lines.length > 0 && (
-          <span className="text-xs text-muted-foreground">Completed</span>
-        )}
+        <div className="flex flex-col items-end gap-0.5">
+          {hasActiveHeartbeat && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Running {displayElapsed}s
+            </span>
+          )}
+          {isWaiting && (
+            <span className="flex items-center gap-1.5 text-xs text-yellow-500">
+              <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+              Waiting...
+            </span>
+          )}
+          {isRunning && heartbeat === null && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-500">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live
+            </span>
+          )}
+          {!isRunning && lines.length > 0 && (
+            <span className="text-xs text-muted-foreground">Completed</span>
+          )}
+          {isRunning && currentAction && (
+            <span className="text-xs text-muted-foreground italic">
+              ↳ {currentAction}
+            </span>
+          )}
+        </div>
       </div>
       <div className="max-h-64 overflow-y-auto bg-black/90 p-3 font-mono text-xs">
         {lines.length === 0 ? (
