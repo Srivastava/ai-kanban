@@ -56,3 +56,59 @@ fn test_prompt_description_appears_before_context() {
     let ctx_pos = prompt.find("Some ctx").unwrap();
     assert!(desc_pos < ctx_pos, "description must appear before context for prompt cache efficiency");
 }
+
+#[test]
+fn test_prompt_planning_saves_plan_instruction() {
+    let prompt = build_prompt("My Task", None, "planning", None, false);
+    assert!(
+        prompt.contains("ai-kanban-plan.md"),
+        "planning prompt must instruct Claude to save plan to ai-kanban-plan.md"
+    );
+    assert!(
+        prompt.contains("PLANNING mode"),
+        "must be in PLANNING mode"
+    );
+    assert!(
+        prompt.contains("Do NOT make any code changes"),
+        "planning mode must prohibit code changes"
+    );
+}
+
+#[test]
+fn test_prompt_review_with_plan_references_plan() {
+    let prompt = build_prompt("My Task", None, "review", None, true);
+    assert!(
+        prompt.contains("REVIEW mode"),
+        "must be in REVIEW mode"
+    );
+    assert!(
+        prompt.contains("ai-kanban-plan.md"),
+        "review+has_plan prompt must reference the plan file to verify completeness"
+    );
+}
+
+#[test]
+fn test_prompt_review_without_plan_does_not_mention_plan_file() {
+    let prompt = build_prompt("My Task", None, "review", None, false);
+    assert!(
+        prompt.contains("REVIEW mode"),
+        "must be in REVIEW mode"
+    );
+    assert!(
+        !prompt.contains("ai-kanban-plan.md"),
+        "review without plan should not reference plan file"
+    );
+}
+
+#[test]
+fn test_prompt_in_progress_without_plan_does_not_mention_plan_file() {
+    let prompt = build_prompt("My Task", None, "in_progress", None, false);
+    assert!(
+        prompt.contains("IN_PROGRESS mode"),
+        "must be in IN_PROGRESS mode"
+    );
+    assert!(
+        !prompt.contains("ai-kanban-plan.md"),
+        "in_progress without plan should not reference plan file"
+    );
+}

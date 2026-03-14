@@ -10,7 +10,7 @@ mod settings;
 pub mod tasks;
 mod token_events;
 
-pub use analytics::AnalyticsRepository;
+pub use analytics::{AnalyticsRepository, token_prices};
 pub use comments::CommentRepository;
 pub use logs::LogRepository;
 pub use otel_logs::OtelLogsRepository;

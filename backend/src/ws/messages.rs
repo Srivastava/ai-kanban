@@ -53,6 +53,26 @@ pub enum ServerMessage {
         reset_at: String,   // ISO 8601 string
     },
 
+    #[serde(rename = "stage_context_set")]
+    StageContextSet {
+        session_id: String,
+        task_id: String,
+        mode: String,
+    },
+
+    #[serde(rename = "context_file_updated")]
+    ContextFileUpdated {
+        session_id: String,
+        task_id: String,
+    },
+
+    #[serde(rename = "plan_created")]
+    PlanCreated {
+        session_id: String,
+        task_id: String,
+        preview: String,
+    },
+
     #[serde(rename = "pong")]
     Pong,
 

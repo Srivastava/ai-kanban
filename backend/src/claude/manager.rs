@@ -43,6 +43,23 @@ pub enum ClaudeEvent {
         claude_session_id: Option<String>,    // for --resume on retry
         reset_at: chrono::DateTime<chrono::Utc>,
     },
+    /// Emitted at session start — tells frontend which mode Claude is operating in
+    StageContextSet {
+        session_id: String,
+        task_id: String,
+        mode: String,
+    },
+    /// Emitted after the context file (.claude/ai-kanban.md) is written to the project
+    ContextFileUpdated {
+        session_id: String,
+        task_id: String,
+    },
+    /// Emitted after plan file (.claude/ai-kanban-plan.md) is read back and stored
+    PlanCreated {
+        session_id: String,
+        task_id: String,
+        preview: String,
+    },
 }
 
 struct RunningSession {
@@ -136,7 +153,7 @@ impl ClaudeManager {
         // Write persistent task context to .claude/ai-kanban.md in the project directory.
         // Claude reads the entire .claude/ directory at startup and after compaction, so this
         // survives context resets without needing to re-inject via the prompt.
-        write_task_context_file(&project_path, &task);
+        write_task_context_file(&project_path, &task, &self.output_tx, &session.id);
 
         let mut cmd = Command::new(&claude_bin);
         cmd.arg("--print")
@@ -208,9 +225,20 @@ impl ClaudeManager {
 
         // Always build the prompt — it carries the new human-turn message for Claude to act on.
         // When resuming, --resume restores internal conversation state; the prompt is the next request.
-        // Use enriched instructions if available, otherwise fall back to user's description
+        // Use enriched instructions if available, otherwise fall back to user's description.
+        // has_plan is true when task.instructions was populated from a prior planning session's
+        // .claude/ai-kanban-plan.md file, so the in_progress/review prompt can reference that file.
+        let has_plan = task.instructions.is_some();
         let prompt_instructions = task.instructions.as_deref().or(task.description.as_deref());
-        let prompt = build_prompt(&task.title, prompt_instructions, stage, conversation_context.as_deref());
+        let prompt = build_prompt(&task.title, prompt_instructions, stage, conversation_context.as_deref(), has_plan);
+
+        // Emit StageContextSet before spawning — tells the frontend which mode Claude is in
+        let _ = self.output_tx.send(ClaudeEvent::StageContextSet {
+            session_id: session.id.clone(),
+            task_id: task.id.clone(),
+            mode: stage.to_string(),
+        });
+
         if let Some(ref claude_sid) = resume_claude_session_id {
             cmd.arg("--resume").arg(claude_sid);
             info!(
@@ -598,7 +626,7 @@ impl ClaudeManager {
                     if !plan_content.is_empty() {
                         if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
                             match task_repo_for_completion.update(&session.task_id, UpdateTask {
-                                instructions: Some(Some(plan_content)),
+                                instructions: Some(Some(plan_content.clone())),
                                 ..Default::default()
                             }).await {
                                 Ok(_) => {
@@ -606,6 +634,13 @@ impl ClaudeManager {
                                         task_id = %session.task_id,
                                         "Stored Claude's plan from .claude/ai-kanban-plan.md as task instructions"
                                     );
+                                    // Emit PlanCreated event with first 200 chars as preview
+                                    let preview: String = plan_content.chars().take(200).collect();
+                                    let _ = output_tx_for_completion.send(ClaudeEvent::PlanCreated {
+                                        session_id: session_id_for_completion.clone(),
+                                        task_id: session.task_id.clone(),
+                                        preview,
+                                    });
                                     // Notify frontend so Instructions section refreshes
                                     if let Ok(updated_task) = task_repo_for_completion.find(&session.task_id).await {
                                         if let Ok(task_json) = serde_json::to_value(&updated_task) {
@@ -805,10 +840,23 @@ impl ClaudeManager {
 /// Claude Code reads the entire `.claude/` directory at startup and re-reads it
 /// after context compaction, so this file survives within-session compaction without
 /// any extra prompt injection. Each session start refreshes it with the latest state.
-fn write_task_context_file(project_path: &str, task: &Task) {
+///
+/// Emits `ClaudeEvent::ContextFileUpdated` on successful write.
+pub fn write_task_context_file(
+    project_path: &str,
+    task: &Task,
+    tx: &broadcast::Sender<ClaudeEvent>,
+    session_id: &str,
+) {
     let claude_dir = std::path::Path::new(project_path).join(".claude");
     if let Err(e) = std::fs::create_dir_all(&claude_dir) {
-        warn!(project_path = %project_path, error = %e, "Could not create .claude dir for ai-kanban context file");
+        warn!(
+            project_path = %project_path,
+            task_id = %task.id,
+            session_id = %session_id,
+            error = %e,
+            "Could not create .claude dir for ai-kanban context file"
+        );
         return;
     }
 
@@ -847,9 +895,19 @@ fn write_task_context_file(project_path: &str, task: &Task) {
     let content = lines.join("\n");
     let file_path = claude_dir.join("ai-kanban.md");
     if let Err(e) = std::fs::write(&file_path, content) {
-        warn!(path = ?file_path, error = %e, "Failed to write .claude/ai-kanban.md");
+        warn!(
+            path = ?file_path,
+            task_id = %task.id,
+            session_id = %session_id,
+            error = %e,
+            "Failed to write .claude/ai-kanban.md"
+        );
     } else {
         info!(task_id = %task.id, path = ?file_path, "Wrote task context to .claude/ai-kanban.md");
+        let _ = tx.send(ClaudeEvent::ContextFileUpdated {
+            session_id: session_id.to_string(),
+            task_id: task.id.clone(),
+        });
     }
 }
 
