@@ -6,30 +6,60 @@
 ///   3. Conversation context         (dynamic — changes every session, so placed last)
 ///
 /// Putting stable content first maximises prefix-cache hits when sessions share the same task.
+///
+/// `has_plan` signals whether a previous session already wrote a plan to
+/// `.claude/ai-kanban-plan.md`. When true, in_progress prompts skip re-embedding
+/// the description and just tell Claude to implement what is in that file.
 pub fn build_prompt(
     task_title: &str,
     task_description: Option<&str>,
     stage: &str,
     conversation_context: Option<&str>,
 ) -> String {
+    // Detect whether a plan file was previously written by checking if the description
+    // passed in looks like a plan (starts with "# ") — a heuristic; the real check is
+    // done by the caller who passes task.instructions (populated from the plan file).
+    let has_plan = task_description
+        .map(|d| d.trim_start().starts_with('#') || d.trim_start().starts_with('-'))
+        .unwrap_or(false);
+
     let stage_instructions = match stage {
-        "planning" => "You are in PLANNING mode. Analyse the task and create a detailed implementation plan. Do NOT make any code changes yet.",
-        "in_progress" => "You are in IN_PROGRESS mode. Implement the task according to the plan. Make code changes as needed.",
-        "review" => "You are in REVIEW mode. Review your implementation for bugs and improvements. Fix any issues you find.",
+        "planning" => concat!(
+            "You are in PLANNING mode.\n",
+            "1. Analyse the task thoroughly — read the codebase, understand the context.\n",
+            "2. Write a detailed, actionable implementation plan.\n",
+            "3. Save the plan to `.claude/ai-kanban-plan.md` in the project root ",
+            "(create the `.claude/` directory if needed). Use markdown headings and a checklist.\n",
+            "4. Do NOT make any code changes — planning only.",
+        ),
+        "in_progress" if has_plan => concat!(
+            "You are in IN_PROGRESS mode.\n",
+            "The implementation plan is in `.claude/ai-kanban-plan.md` — read it first, then implement it.\n",
+            "Work through the checklist items in order. Make all necessary code changes.",
+        ),
+        "in_progress" => concat!(
+            "You are in IN_PROGRESS mode.\n",
+            "Implement the task according to the description. Make all necessary code changes.",
+        ),
+        "review" => concat!(
+            "You are in REVIEW mode.\n",
+            "Review your implementation for correctness, bugs, and edge cases. ",
+            "Fix any issues you find. Do not add unrelated changes.",
+        ),
         _ => "Complete the task as appropriate for the current stage.",
     };
 
-    // Static section — always present, never changes between sessions
+    // Static section — always present, same across sessions for this task
     let description_section = task_description
-        .map(|d| format!("\n\n## Task Description\n{}", d))
+        .map(|d| format!("\n\n## Task Description\n{d}"))
         .unwrap_or_default();
 
     // Dynamic section — only appended when there is new context (kept last for cache)
     let conversation_section = conversation_context
-        .map(|c| format!("\n\n## Context\n{}", c))
+        .map(|c| format!("\n\n## Context\n{c}"))
         .unwrap_or_default();
 
     format!(
-        "# Task: {task_title}{description_section}\n\n## Stage\n{stage_instructions}\n\n## Guidelines\n- Work on this task in the project context\n- Use available tools as needed\n- Report progress clearly{conversation_section}",
+        "# Task: {task_title}{description_section}\n\n## Stage\n{stage_instructions}\n\n## Guidelines\n- Work on this task in the project context\n- Use available tools as needed\n- Report progress and findings clearly{conversation_section}",
     )
 }

@@ -133,6 +133,11 @@ impl ClaudeManager {
             return Err(anyhow!("Project path does not exist: {}", project_path));
         }
 
+        // Write persistent task context to .claude/ai-kanban.md in the project directory.
+        // Claude reads the entire .claude/ directory at startup and after compaction, so this
+        // survives context resets without needing to re-inject via the prompt.
+        write_task_context_file(&project_path, &task);
+
         let mut cmd = Command::new(&claude_bin);
         cmd.arg("--print")
            .arg("--verbose")
@@ -497,6 +502,7 @@ impl ClaudeManager {
         let context_manager_for_completion = self.context_manager.clone();
         let settings_repo_for_completion = self.settings_repo.clone();
         let task_title_for_completion = task_title;
+        let project_path_for_completion = project_path.clone();
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
             let (result_text, display_lines, peak_input_tokens) = match stdout_handle.await {
@@ -579,6 +585,41 @@ impl ClaudeManager {
                 }
                 if !exit_ok {
                     return; // Claude was interrupted — skip comment posting and stage advancement
+                }
+            }
+
+            // On success: read back plan file if Claude wrote one during the planning phase.
+            // Claude is instructed to write its plan to .claude/ai-kanban-plan.md.
+            // We store the plan as task.instructions so future sessions can reference it.
+            if exit_ok {
+                let plan_path = format!("{}/.claude/ai-kanban-plan.md", project_path_for_completion);
+                if let Ok(plan_content) = std::fs::read_to_string(&plan_path) {
+                    let plan_content = plan_content.trim().to_string();
+                    if !plan_content.is_empty() {
+                        if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
+                            match task_repo_for_completion.update(&session.task_id, UpdateTask {
+                                instructions: Some(Some(plan_content)),
+                                ..Default::default()
+                            }).await {
+                                Ok(_) => {
+                                    info!(
+                                        task_id = %session.task_id,
+                                        "Stored Claude's plan from .claude/ai-kanban-plan.md as task instructions"
+                                    );
+                                    // Notify frontend so Instructions section refreshes
+                                    if let Ok(updated_task) = task_repo_for_completion.find(&session.task_id).await {
+                                        if let Ok(task_json) = serde_json::to_value(&updated_task) {
+                                            let _ = output_tx_for_completion.send(ClaudeEvent::TaskStageChanged {
+                                                task_id: session.task_id.clone(),
+                                                task_json,
+                                            });
+                                        }
+                                    }
+                                }
+                                Err(e) => warn!(task_id = %session.task_id, error = %e, "Failed to store plan as instructions"),
+                            }
+                        }
+                    }
                 }
             }
 
@@ -756,6 +797,59 @@ impl ClaudeManager {
         sessions.iter()
             .find(|(_, rs)| rs.task.id == task_id)
             .map(|(session_id, _)| session_id.clone())
+    }
+}
+
+/// Write (or overwrite) `.claude/ai-kanban.md` in the project directory.
+///
+/// Claude Code reads the entire `.claude/` directory at startup and re-reads it
+/// after context compaction, so this file survives within-session compaction without
+/// any extra prompt injection. Each session start refreshes it with the latest state.
+fn write_task_context_file(project_path: &str, task: &Task) {
+    let claude_dir = std::path::Path::new(project_path).join(".claude");
+    if let Err(e) = std::fs::create_dir_all(&claude_dir) {
+        warn!(project_path = %project_path, error = %e, "Could not create .claude dir for ai-kanban context file");
+        return;
+    }
+
+    let mut lines = vec![
+        "<!-- This file is managed by AI Kanban. Do not edit manually. -->".to_string(),
+        format!("# Task: {}", task.title),
+    ];
+
+    if let Some(ref desc) = task.description {
+        if !desc.trim().is_empty() {
+            lines.push(String::new());
+            lines.push("## Description".to_string());
+            lines.push(desc.clone());
+        }
+    }
+
+    if let Some(ref instructions) = task.instructions {
+        if !instructions.trim().is_empty() {
+            lines.push(String::new());
+            lines.push("## Implementation Plan".to_string());
+            lines.push(instructions.clone());
+        }
+    }
+
+    if let Some(ref ctx) = task.compressed_context {
+        if !ctx.trim().is_empty() {
+            lines.push(String::new());
+            lines.push("## Prior Session Context (compressed)".to_string());
+            lines.push(ctx.clone());
+        }
+    }
+
+    lines.push(String::new());
+    lines.push(format!("<!-- Task ID: {} | Stage: {} -->", task.id, task.stage));
+
+    let content = lines.join("\n");
+    let file_path = claude_dir.join("ai-kanban.md");
+    if let Err(e) = std::fs::write(&file_path, content) {
+        warn!(path = ?file_path, error = %e, "Failed to write .claude/ai-kanban.md");
+    } else {
+        info!(task_id = %task.id, path = ?file_path, "Wrote task context to .claude/ai-kanban.md");
     }
 }
 
