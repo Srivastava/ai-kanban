@@ -12,7 +12,7 @@ use tracing::{debug, instrument};
 /// Returns (input_price_per_million, output_price_per_million) in USD.
 /// Configurable via CLAUDE_INPUT_PRICE_PER_MILLION and CLAUDE_OUTPUT_PRICE_PER_MILLION env vars.
 /// Defaults: $3.00 / $15.00 (Claude Sonnet rates).
-fn token_prices() -> (f64, f64) {
+pub fn token_prices() -> (f64, f64) {
     let input = std::env::var("CLAUDE_INPUT_PRICE_PER_MILLION")
         .ok()
         .and_then(|v| v.parse::<f64>().ok())

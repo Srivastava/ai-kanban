@@ -7,22 +7,16 @@
 ///
 /// Putting stable content first maximises prefix-cache hits when sessions share the same task.
 ///
-/// `has_plan` signals whether a previous session already wrote a plan to
-/// `.claude/ai-kanban-plan.md`. When true, in_progress prompts skip re-embedding
-/// the description and just tell Claude to implement what is in that file.
+/// `has_plan` must be set by the caller based on `task.instructions.is_some()`.
+/// When true, the in_progress prompt tells Claude to read `.claude/ai-kanban-plan.md`
+/// instead of re-embedding the description in the prompt.
 pub fn build_prompt(
     task_title: &str,
     task_description: Option<&str>,
     stage: &str,
     conversation_context: Option<&str>,
+    has_plan: bool,
 ) -> String {
-    // Detect whether a plan file was previously written by checking if the description
-    // passed in looks like a plan (starts with "# ") — a heuristic; the real check is
-    // done by the caller who passes task.instructions (populated from the plan file).
-    let has_plan = task_description
-        .map(|d| d.trim_start().starts_with('#') || d.trim_start().starts_with('-'))
-        .unwrap_or(false);
-
     let stage_instructions = match stage {
         "planning" => concat!(
             "You are in PLANNING mode.\n",
@@ -40,6 +34,12 @@ pub fn build_prompt(
         "in_progress" => concat!(
             "You are in IN_PROGRESS mode.\n",
             "Implement the task according to the description. Make all necessary code changes.",
+        ),
+        "review" if has_plan => concat!(
+            "You are in REVIEW mode.\n",
+            "Review your implementation for correctness, bugs, and edge cases. ",
+            "Check that all items in `.claude/ai-kanban-plan.md` are complete. ",
+            "Fix any issues you find. Do not add unrelated changes.",
         ),
         "review" => concat!(
             "You are in REVIEW mode.\n",

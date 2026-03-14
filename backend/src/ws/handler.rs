@@ -98,6 +98,29 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             None
                         }
                     }
+                    ClaudeEvent::StageContextSet { session_id, task_id, mode } => {
+                        // Broadcast to all clients — frontend filters by task_id
+                        Some(ServerMessage::StageContextSet {
+                            session_id: session_id.clone(),
+                            task_id: task_id.clone(),
+                            mode: mode.clone(),
+                        })
+                    }
+                    ClaudeEvent::ContextFileUpdated { session_id, task_id } => {
+                        // Broadcast to all clients — frontend filters by task_id
+                        Some(ServerMessage::ContextFileUpdated {
+                            session_id: session_id.clone(),
+                            task_id: task_id.clone(),
+                        })
+                    }
+                    ClaudeEvent::PlanCreated { session_id, task_id, preview } => {
+                        // Broadcast to all clients — frontend filters by task_id
+                        Some(ServerMessage::PlanCreated {
+                            session_id: session_id.clone(),
+                            task_id: task_id.clone(),
+                            preview: preview.clone(),
+                        })
+                    }
                 }
             };
 
