@@ -228,16 +228,50 @@ async fn continue_session(
         }
     };
 
-    // Build conversation context from comment thread
-    // Filter out litellm-authored summaries — Claude doesn't need to read its own summaries
+    // Look up prior session for true resume.
+    // When --resume is used, Claude restores its full internal conversation state,
+    // so we only need to inject comments added AFTER that session ended (not the whole history).
+    let (resume_claude_session_id, prior_session_ended_at) = if let Some(ref prior_session_id) = task.session_id {
+        match state.session_repo.find(prior_session_id).await {
+            Ok(prior_session) => {
+                if let Some(ref csid) = prior_session.claude_session_id {
+                    info!(task_id = %id, claude_session_id = %csid, "Found prior claude_session_id for resume");
+                } else {
+                    info!(task_id = %id, "No claude_session_id on prior session — will inject full context");
+                }
+                let ended_at = prior_session.ended_at;
+                (prior_session.claude_session_id, ended_at)
+            }
+            Err(e) => {
+                tracing::warn!(task_id = %id, error = %e, "Could not fetch prior session; falling back to context injection");
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
+
+    // Build conversation context from comment thread.
+    // Filter out litellm-authored summaries — Claude doesn't need to read its own summaries.
+    // When doing a true --resume, only include comments added AFTER the prior session ended,
+    // because Claude's internal state (via --resume) already has everything up to that point.
     let comments = state.comment_repo.list_for_task(&id).await.unwrap_or_default();
     let total_comments = comments.len();
     let total_replies: usize = comments.iter().map(|c| c.replies.len()).sum();
 
+    let cutoff = if resume_claude_session_id.is_some() { prior_session_ended_at } else { None };
     let human_comments: Vec<_> = comments.iter()
         .filter(|c| c.comment.author != "litellm")
+        .filter(|c| {
+            // If we're resuming with a known cutoff, only include new comments
+            match cutoff {
+                Some(ended_at) => c.comment.created_at > ended_at,
+                None => true,
+            }
+        })
         .collect();
 
+    let new_comment_count = human_comments.len();
     let comment_history = if human_comments.is_empty() {
         None
     } else {
@@ -259,36 +293,23 @@ async fn continue_session(
         Some(history)
     };
 
-    // Prepend compressed context if available (from prior high-token sessions)
-    let conversation_context = match (&task.compressed_context, &comment_history) {
-        (Some(compressed), Some(history)) => Some(format!(
-            "## Prior session context (compressed):\n{compressed}\n\n## Recent conversation:\n{history}"
-        )),
-        (Some(compressed), None) => Some(format!(
-            "## Prior session context (compressed):\n{compressed}"
-        )),
-        (None, Some(history)) => Some(history.clone()),
-        (None, None) => None,
-    };
-
-    // Look up claude_session_id from the prior session for true resume
-    let resume_claude_session_id = if let Some(ref prior_session_id) = task.session_id {
-        match state.session_repo.find(prior_session_id).await {
-            Ok(prior_session) => {
-                if let Some(ref csid) = prior_session.claude_session_id {
-                    info!(task_id = %id, claude_session_id = %csid, "Found prior claude_session_id for resume");
-                } else {
-                    info!(task_id = %id, "No claude_session_id on prior session — will inject context");
-                }
-                prior_session.claude_session_id
-            }
-            Err(e) => {
-                tracing::warn!(task_id = %id, error = %e, "Could not fetch prior session; falling back to context injection");
-                None
-            }
-        }
+    // Prepend compressed context if available (from prior high-token sessions).
+    // Only include compressed context when NOT doing a true --resume (avoid duplication).
+    let conversation_context = if resume_claude_session_id.is_some() {
+        // True resume: only inject new comments, Claude already has full prior context
+        comment_history.clone().map(|h| format!("## New messages since last session:\n{h}"))
     } else {
-        None
+        // Context injection (no --resume): include full compressed context + history
+        match (&task.compressed_context, &comment_history) {
+            (Some(compressed), Some(history)) => Some(format!(
+                "## Prior session context (compressed):\n{compressed}\n\n## Recent conversation:\n{history}"
+            )),
+            (Some(compressed), None) => Some(format!(
+                "## Prior session context (compressed):\n{compressed}"
+            )),
+            (None, Some(history)) => Some(history.clone()),
+            (None, None) => None,
+        }
     };
 
     let stage = task.stage.clone();
@@ -296,8 +317,9 @@ async fn continue_session(
         task_id = %id,
         title = %task.title,
         stage = %stage,
-        comment_count = total_comments,
+        total_comments = total_comments,
         reply_count = total_replies,
+        new_comments_injected = new_comment_count,
         has_context = conversation_context.is_some(),
         has_resume = resume_claude_session_id.is_some(),
         "Enqueuing continue session"
