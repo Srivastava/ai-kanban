@@ -81,7 +81,35 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database initialized at {}", db_path);
     tracing::info!("Logging system initialized");
 
-    // Rate-limit listener: forwards RateLimited events from the manager to the queue
+    // Session-completion listener: advances the queue when a session ends naturally or fails.
+    // Manual stop is handled directly in sessions.rs; rate-limit is handled below.
+    {
+        let mut event_rx = claude_manager.subscribe();
+        let queue_for_completion = queue.clone();
+        tokio::spawn(async move {
+            loop {
+                match event_rx.recv().await {
+                    Ok(ai_kanban_backend::claude::ClaudeEvent::SessionStatus { session_id, status }) => {
+                        if status == "completed" || status == "failed" {
+                            if let Err(e) = queue_for_completion.on_session_complete(&session_id).await {
+                                tracing::error!(
+                                    session_id = %session_id,
+                                    status = %status,
+                                    error = %e,
+                                    "Queue failed to advance after session completed"
+                                );
+                            }
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    _ => {}
+                }
+            }
+        });
+    }
+
+    // Rate-limit listener: schedules retry for the rate-limited task AND advances
+    // the queue so other pending tasks can use the freed slot immediately.
     {
         let mut event_rx = claude_manager.subscribe();
         let queue_for_rl = queue.clone();
@@ -89,14 +117,19 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 match event_rx.recv().await {
                     Ok(ai_kanban_backend::claude::ClaudeEvent::RateLimited {
-                        task_id, stage, claude_session_id, reset_at, ..
+                        session_id, task_id, stage, claude_session_id, reset_at,
                     }) => {
+                        // Advance queue for other waiting tasks (slot is now free)
+                        if let Err(e) = queue_for_rl.on_session_complete(&session_id).await {
+                            tracing::warn!(session_id = %session_id, error = %e, "Queue advance after rate-limit failed");
+                        }
+                        // Schedule retry for the rate-limited task itself
                         queue_for_rl.clone().schedule_rate_limit_retry(
                             task_id, stage, claude_session_id, reset_at,
                         ).await;
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
-                    _ => {} // other events or lagged — ignore
+                    _ => {}
                 }
             }
         });

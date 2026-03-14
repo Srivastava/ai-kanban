@@ -9,9 +9,20 @@ use std::collections::HashMap;
 use sqlx::{SqlitePool, sqlite::SqliteRow, Row};
 use tracing::{debug, instrument};
 
-/// Pricing constants for Claude Sonnet (as of 2024)
-const INPUT_PRICE_PER_MILLION: f64 = 3.0;
-const OUTPUT_PRICE_PER_MILLION: f64 = 15.0;
+/// Returns (input_price_per_million, output_price_per_million) in USD.
+/// Configurable via CLAUDE_INPUT_PRICE_PER_MILLION and CLAUDE_OUTPUT_PRICE_PER_MILLION env vars.
+/// Defaults: $3.00 / $15.00 (Claude Sonnet rates).
+fn token_prices() -> (f64, f64) {
+    let input = std::env::var("CLAUDE_INPUT_PRICE_PER_MILLION")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(3.0);
+    let output = std::env::var("CLAUDE_OUTPUT_PRICE_PER_MILLION")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(15.0);
+    (input, output)
+}
 
 #[derive(Clone)]
 pub struct AnalyticsRepository {
@@ -43,9 +54,10 @@ impl AnalyticsRepository {
         let total_input: i64 = totals.get("input_tokens");
         let total_output: i64 = totals.get("output_tokens");
 
-        // Calculate estimated cost
-        let estimated_cost_usd = (total_input as f64 / 1_000_000.0) * INPUT_PRICE_PER_MILLION
-            + (total_output as f64 / 1_000_000.0) * OUTPUT_PRICE_PER_MILLION;
+        // Calculate estimated cost (configurable via env vars)
+        let (input_price, output_price) = token_prices();
+        let estimated_cost_usd = (total_input as f64 / 1_000_000.0) * input_price
+            + (total_output as f64 / 1_000_000.0) * output_price;
 
         // Get unique sessions count
         let sessions: SqliteRow = sqlx::query(
@@ -459,27 +471,31 @@ impl AnalyticsRepository {
                 te.task_id,
                 COALESCE(t.title, 'Unknown Task') as task_title,
                 SUM(te.input_tokens) as input_tokens,
-                SUM(te.output_tokens) as output_tokens,
-                CAST(
-                    SUM(te.input_tokens) * 3.0 / 1000000.0
-                    + SUM(te.output_tokens) * 15.0 / 1000000.0
-                AS REAL) as cost_usd
+                SUM(te.output_tokens) as output_tokens
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
             GROUP BY te.task_id, t.title
-            ORDER BY cost_usd DESC
             LIMIT 20
             "#,
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(|row| CostByTask {
-            task_id: row.get("task_id"),
-            task_title: row.get("task_title"),
-            input_tokens: row.get("input_tokens"),
-            output_tokens: row.get("output_tokens"),
-            cost_usd: row.get("cost_usd"),
-        }).collect())
+        let (input_price, output_price) = token_prices();
+        let mut results: Vec<CostByTask> = rows.into_iter().map(|row| {
+            let input_tokens: i64 = row.get("input_tokens");
+            let output_tokens: i64 = row.get("output_tokens");
+            let cost_usd = (input_tokens as f64 / 1_000_000.0) * input_price
+                + (output_tokens as f64 / 1_000_000.0) * output_price;
+            CostByTask {
+                task_id: row.get("task_id"),
+                task_title: row.get("task_title"),
+                input_tokens,
+                output_tokens,
+                cost_usd,
+            }
+        }).collect();
+        results.sort_by(|a, b| b.cost_usd.partial_cmp(&a.cost_usd).unwrap_or(std::cmp::Ordering::Equal));
+        Ok(results)
     }
 
     #[instrument(skip(self))]
@@ -515,10 +531,8 @@ impl AnalyticsRepository {
                 COUNT(*) as total_sessions,
                 CAST(COALESCE(AVG(session_total), 0) AS REAL) as avg_tokens_per_session,
                 COALESCE(MAX(session_total), 0) as max_tokens_per_session,
-                CAST(
-                    COALESCE(SUM(input_tokens), 0) * 3.0 / 1000000.0
-                    + COALESCE(SUM(output_tokens), 0) * 15.0 / 1000000.0
-                AS REAL) as total_cost_usd
+                COALESCE(SUM(input_tokens), 0) as total_input,
+                COALESCE(SUM(output_tokens), 0) as total_output
             FROM (
                 SELECT
                     session_id,
@@ -532,11 +546,16 @@ impl AnalyticsRepository {
         )
         .fetch_one(&self.pool)
         .await?;
+        let (input_price, output_price) = token_prices();
+        let total_input: i64 = row.get("total_input");
+        let total_output: i64 = row.get("total_output");
+        let total_cost_usd = (total_input as f64 / 1_000_000.0) * input_price
+            + (total_output as f64 / 1_000_000.0) * output_price;
         Ok(SessionSummary {
             total_sessions: row.get("total_sessions"),
             avg_tokens_per_session: row.get("avg_tokens_per_session"),
             max_tokens_per_session: row.get("max_tokens_per_session"),
-            total_cost_usd: row.get("total_cost_usd"),
+            total_cost_usd,
         })
     }
 

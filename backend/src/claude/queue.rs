@@ -85,7 +85,19 @@ impl SessionQueue {
                 "Starting next queued task"
             );
             drop(pending);
-            self.manager.start_session(queued.task, &queued.stage, queued.conversation_context, queued.resume_claude_session_id).await?;
+            if let Err(e) = self.manager.start_session(
+                queued.task.clone(),
+                &queued.stage,
+                queued.conversation_context,
+                queued.resume_claude_session_id,
+            ).await {
+                tracing::error!(
+                    task_id = %queued.task.id,
+                    task_title = %queued.task.title,
+                    error = %e,
+                    "Failed to start next queued task — slot remains free, task dropped from queue"
+                );
+            }
         }
 
         Ok(())

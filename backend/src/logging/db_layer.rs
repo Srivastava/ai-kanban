@@ -81,7 +81,10 @@ where
     /// When a new span is created, extract task_id/session_id from its fields
     /// and store in SpanContext, inheriting any unset values from the parent span.
     fn on_new_span(&self, attrs: &span::Attributes<'_>, id: &span::Id, ctx: Context<'_, S>) {
-        let span = ctx.span(id).expect("span not found in on_new_span");
+        let Some(span) = ctx.span(id) else {
+            // Span not yet registered — skip context extraction for this span
+            return;
+        };
 
         // Extract IDs from this span's own fields
         let mut span_ctx = SpanContext::default();
