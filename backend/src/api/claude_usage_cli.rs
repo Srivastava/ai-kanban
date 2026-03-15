@@ -11,6 +11,8 @@ use std::sync::{Arc, RwLock};
 use std::time::Instant;
 use tracing::{info, warn};
 
+use crate::claude::SessionQueue;
+
 #[derive(Debug, Default, Clone)]
 pub struct ClaudeCliUsage {
     /// 5-hour window usage (0.0–100.0)
@@ -272,12 +274,29 @@ pub struct UsageCache {
 pub type SharedUsageCache = Arc<RwLock<UsageCache>>;
 
 /// Create the shared cache and spawn the background polling daemon.
-/// Polls immediately on start, then every `interval_secs` seconds.
+///
+/// Poll frequency is dynamic:
+/// - 10 minutes when there is an active Claude session (fast feedback)
+/// - 1 hour when idle (avoid rate limits)
 ///
 /// Smart field-level caching: reset times and percentages from the previous
 /// successful poll are preserved when the new poll returns missing/zero values.
-pub fn start_usage_daemon(interval_secs: u64) -> SharedUsageCache {
-    let cache: SharedUsageCache = Arc::new(RwLock::new(UsageCache::default()));
+///
+/// Pre-seeded with the most recently known values so the dashboard shows
+/// meaningful data immediately on startup before the first real poll.
+pub fn start_usage_daemon(queue: Option<Arc<SessionQueue>>) -> SharedUsageCache {
+    let seed = ClaudeCliUsage {
+        pct_5hr: 5.0,
+        pct_week: 18.0,
+        // 5hr window resets ~2026-03-15 13:01 UTC (4h10m from seed time)
+        reset_5hr: Some("2026-03-15T13:01:00+00:00".to_string()),
+        // Weekly window resets 2026-03-21 Sat 11:00 AM PST = 19:00 UTC
+        reset_week: Some("2026-03-21T19:00:00+00:00".to_string()),
+    };
+    let cache: SharedUsageCache = Arc::new(RwLock::new(UsageCache {
+        data: seed,
+        fetched_at: None, // None signals this is a seed, not a real poll
+    }));
     let cache_clone = cache.clone();
 
     tokio::spawn(async move {
@@ -314,6 +333,17 @@ pub fn start_usage_daemon(interval_secs: u64) -> SharedUsageCache {
                 }
             }
 
+            // Dynamic interval: 10min during active sessions, 1hr when idle
+            let interval_secs = match &queue {
+                Some(q) if q.active_count().await > 0 => {
+                    info!("Usage daemon: active session detected, polling again in 10m");
+                    600
+                }
+                _ => {
+                    info!("Usage daemon: idle, polling again in 1h");
+                    3600
+                }
+            };
             tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
         }
     });

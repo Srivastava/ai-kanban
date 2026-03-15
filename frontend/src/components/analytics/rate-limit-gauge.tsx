@@ -22,12 +22,14 @@ function formatCountdown(resetAt: string): string {
 
 function formatResetDate(resetAt: string): string {
   const d = new Date(resetAt);
-  return d.toLocaleString('en-GB', {
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/Los_Angeles',
     weekday: 'short',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
     timeZoneName: 'short',
   });
 }
