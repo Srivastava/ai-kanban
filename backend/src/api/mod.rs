@@ -118,6 +118,7 @@ mod comments;
 mod logs;
 mod otlp_parser;
 pub mod claude_jsonl;
+pub mod claude_usage_cli;
 pub mod otlp;
 pub mod plan_tier;
 pub mod prometheus;

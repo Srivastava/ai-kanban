@@ -2,7 +2,7 @@
 /// matching what `claude /usage` reports.
 ///
 /// Claude Code rate limits track **output_tokens** per 5-hour window and per week.
-use chrono::{DateTime, Datelike, Duration, TimeZone, Utc, Weekday};
+use chrono::{DateTime, Datelike, Duration, TimeZone, Utc};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
@@ -13,6 +13,8 @@ pub struct ClaudeUsage {
     pub tokens_week: i64,
     /// Timestamp of earliest message in the 5hr window (for reset calculation)
     pub earliest_5hr: Option<DateTime<Utc>>,
+    /// Timestamp of earliest message in the 7-day rolling window (for reset calculation)
+    pub earliest_week: Option<DateTime<Utc>>,
 }
 
 pub fn read_claude_usage() -> ClaudeUsage {
@@ -28,45 +30,38 @@ pub fn read_claude_usage() -> ClaudeUsage {
 
     let now = Utc::now();
     let window_5hr_start = now - Duration::hours(5);
-
-    // Start of current week (Monday 00:00 UTC)
-    let days_from_monday = now.weekday().num_days_from_monday() as i64;
-    let week_start = (now - Duration::days(days_from_monday))
-        .date_naive()
-        .and_hms_opt(0, 0, 0)
-        .map(|dt| Utc.from_utc_datetime(&dt))
-        .unwrap_or(now);
+    // Rolling 7-day window — matches what `claude /usage` reports
+    let window_week_start = now - Duration::days(7);
 
     let mut usage = ClaudeUsage::default();
 
-    let Ok(project_entries) = std::fs::read_dir(&projects_dir) else {
-        return usage;
-    };
-
-    for project_entry in project_entries.flatten() {
-        let project_path = project_entry.path();
-        if !project_path.is_dir() {
-            continue;
-        }
-        let Ok(file_entries) = std::fs::read_dir(&project_path) else {
-            continue;
-        };
-        for file_entry in file_entries.flatten() {
-            let path = file_entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-                continue;
-            }
-            parse_jsonl_file(&path, window_5hr_start, week_start, &mut usage);
-        }
-    }
+    collect_jsonl_files(&projects_dir, window_5hr_start, window_week_start, &mut usage);
 
     usage
+}
+
+/// Recursively walk `dir`, calling `parse_jsonl_file` for every `.jsonl` found.
+fn collect_jsonl_files(
+    dir: &PathBuf,
+    window_5hr_start: DateTime<Utc>,
+    window_week_start: DateTime<Utc>,
+    usage: &mut ClaudeUsage,
+) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_jsonl_files(&path, window_5hr_start, window_week_start, usage);
+        } else if path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+            parse_jsonl_file(&path, window_5hr_start, window_week_start, usage);
+        }
+    }
 }
 
 fn parse_jsonl_file(
     path: &PathBuf,
     window_5hr_start: DateTime<Utc>,
-    week_start: DateTime<Utc>,
+    window_week_start: DateTime<Utc>,
     usage: &mut ClaudeUsage,
 ) {
     let Ok(file) = File::open(path) else { return };
@@ -105,8 +100,11 @@ fn parse_jsonl_file(
                 usage.earliest_5hr = Some(ts);
             }
         }
-        if ts >= week_start {
+        if ts >= window_week_start {
             usage.tokens_week += output;
+            if usage.earliest_week.map_or(true, |e| ts < e) {
+                usage.earliest_week = Some(ts);
+            }
         }
     }
 }
@@ -117,15 +115,21 @@ pub fn reset_5hr_from_earliest(earliest: Option<DateTime<Utc>>) -> Option<String
     earliest.map(|e| (e + Duration::hours(5)).to_rfc3339())
 }
 
-/// Next Monday 00:00 UTC
-pub fn next_monday_reset() -> String {
+/// Calculate the ISO-8601 reset time for the rolling 7-day window:
+/// = earliest event in window + 7 days.
+/// Falls back to next Monday 00:00 UTC if there is no usage data.
+pub fn reset_week_from_earliest(earliest: Option<DateTime<Utc>>) -> String {
+    if let Some(e) = earliest {
+        return (e + Duration::days(7)).to_rfc3339();
+    }
+    // Fallback: next Monday 00:00 UTC
     let now = Utc::now();
     let days_until_monday = (7 - now.weekday().num_days_from_monday() as i64) % 7;
     let days_until_monday = if days_until_monday == 0 { 7 } else { days_until_monday };
-    let next_monday = (now + Duration::days(days_until_monday))
+    (now + Duration::days(days_until_monday))
         .date_naive()
         .and_hms_opt(0, 0, 0)
         .map(|dt| Utc.from_utc_datetime(&dt))
-        .unwrap_or(now);
-    next_monday.to_rfc3339()
+        .unwrap_or(now)
+        .to_rfc3339()
 }

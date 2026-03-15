@@ -1,8 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { CommandCenter } from '@/components/analytics/command-center';
+
+const CommandCenter = dynamic(
+  () => import('@/components/analytics/command-center').then(m => m.CommandCenter),
+  { ssr: false }
+);
 import { TaskFilterBar } from '@/components/analytics/task-filter-bar';
 import { RoiCards } from '@/components/analytics/roi-cards';
 import { ProductivitySection } from '@/components/analytics/productivity-section';

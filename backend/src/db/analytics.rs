@@ -657,8 +657,7 @@ impl AnalyticsRepository {
                 CAST(COALESCE(SUM(CASE WHEN metric_name = 'claude_code.active_time.total'
                              THEN value ELSE 0 END), 0) AS REAL) AS total_active_time
             FROM otel_metrics
-            WHERE task_id IS NOT NULL
-              AND (? IS NULL OR task_id = ?)
+            WHERE (? IS NULL OR task_id = ?)
         "#)
         .bind(task_id)
         .bind(task_id)
@@ -757,6 +756,10 @@ impl AnalyticsRepository {
             }
 
             let tokens_in_window: i64 = ctxs[boundary_idx..].iter().sum();
+            // Skip stale/zombie sessions that have no token data
+            if tokens_in_window == 0 {
+                continue;
+            }
             let pct_used = if context_limit > 0 {
                 tokens_in_window as f64 / context_limit as f64 * 100.0
             } else {
