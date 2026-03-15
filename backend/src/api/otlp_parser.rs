@@ -57,7 +57,9 @@ pub fn parse_otlp_metrics(body: &Value) -> Vec<CreateOtelMetric> {
 
                 if let Some(dps) = data_points {
                     for dp in dps {
-                        let value = dp.get("asInt").and_then(|v| v.as_f64())
+                        let value = dp.get("asInt")
+                            .and_then(|v| v.as_f64()
+                                .or_else(|| v.as_str().and_then(|s| s.parse().ok())))
                             .or_else(|| dp.get("asDouble").and_then(|v| v.as_f64()))
                             .unwrap_or(0.0);
 
@@ -216,6 +218,41 @@ mod tests {
                 }]
             }]
         })
+    }
+
+    fn sample_body_string_int(metric_name: &str, value_str: &str, session_id: &str) -> Value {
+        serde_json::json!({
+            "resourceMetrics": [{
+                "resource": {"attributes": [
+                    {"key": "session.id", "value": {"stringValue": session_id}}
+                ]},
+                "scopeMetrics": [{"metrics": [{
+                    "name": metric_name,
+                    "unit": "1",
+                    "sum": {"dataPoints": [{
+                        "attributes": [],
+                        "asInt": value_str,
+                        "timeUnixNano": "1709000000000000000"
+                    }]}
+                }]}]
+            }]
+        })
+    }
+
+    #[test]
+    fn test_parse_asint_as_string() {
+        let body = sample_body_string_int("claude_code.commit.count", "42", "sess-abc");
+        let results = parse_otlp_metrics(&body);
+        assert_eq!(results.len(), 1);
+        assert!((results[0].value - 42.0).abs() < 0.01, "expected 42.0 got {}", results[0].value);
+    }
+
+    #[test]
+    fn test_parse_asint_as_number_still_works() {
+        let body = sample_body("claude_code.commit.count", 7, "sess-abc");
+        let results = parse_otlp_metrics(&body);
+        assert_eq!(results.len(), 1);
+        assert!((results[0].value - 7.0).abs() < 0.01);
     }
 
     #[test]
