@@ -158,3 +158,10 @@ pub struct SessionDetail {
     pub output_tokens: i64,
     pub total_tokens: i64,
 }
+
+#[derive(Debug, Serialize)]
+pub struct PlanTier {
+    pub tier: String,
+    pub limit_5hr: i64,
+    pub limit_week: i64,
+}

@@ -118,6 +118,7 @@ mod comments;
 mod logs;
 mod otlp_parser;
 pub mod otlp;
+pub mod plan_tier;
 pub mod prometheus;
 mod routes;
 mod sessions;
