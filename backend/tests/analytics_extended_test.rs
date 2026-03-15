@@ -1,8 +1,8 @@
 use ai_kanban_backend::db::{
-    create_pool, AnalyticsRepository, SessionMetricsRepository, SessionRepository, TaskRepository,
+    create_pool, AnalyticsRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, TaskRepository,
     TokenEventRepository,
 };
-use ai_kanban_backend::models::{CreateSession, CreateTask, CreateTokenEvent};
+use ai_kanban_backend::models::{CreateOtelMetric, CreateSession, CreateTask, CreateTokenEvent};
 
 struct Repos {
     analytics: AnalyticsRepository,
@@ -520,4 +520,109 @@ async fn test_session_timeline_ordered_by_sequence() {
     assert_eq!(events[0].sequence_no, 0);
     assert_eq!(events[1].sequence_no, 1);
     assert_eq!(events[2].sequence_no, 2);
+}
+
+async fn setup_roi_db() -> (sqlx::SqlitePool, TaskRepository, SessionRepository, TokenEventRepository, OtelMetricsRepository, AnalyticsRepository) {
+    let pool = create_pool(":memory:").await.unwrap();
+    (
+        pool.clone(),
+        TaskRepository::new(pool.clone()),
+        SessionRepository::new(pool.clone()),
+        TokenEventRepository::new(pool.clone()),
+        OtelMetricsRepository::new(pool.clone()),
+        AnalyticsRepository::new(pool.clone()),
+    )
+}
+
+#[tokio::test]
+async fn test_roi_metrics_no_data() {
+    let (_, _, _, _, _, analytics) = setup_roi_db().await;
+    let roi = analytics.roi_metrics(None).await.unwrap();
+    assert_eq!(roi.total_commits, 0);
+    assert_eq!(roi.total_prs, 0);
+    assert!(roi.cost_per_commit.is_none());
+    assert!(roi.cost_per_pr.is_none());
+    assert_eq!(roi.total_cost_usd, 0.0);
+}
+
+#[tokio::test]
+async fn test_roi_metrics_with_data() {
+    let (_, task_repo, session_repo, event_repo, otel_repo, analytics) = setup_roi_db().await;
+
+    let task = task_repo.create(CreateTask {
+        title: "Test Task".to_string(),
+        description: None,
+        project_path: "/tmp".to_string(),
+    }).await.unwrap();
+
+    let session = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
+
+    // Seed token event (100K input, 50K output)
+    event_repo.create(CreateTokenEvent {
+        session_id: session.id.clone(),
+        task_id: task.id.clone(),
+        event_type: "assistant".to_string(),
+        tool_name: None,
+        file_ext: None,
+        input_tokens: 100_000,
+        output_tokens: 50_000,
+        cache_read_tokens: 0,
+        cache_creation_tokens: 0,
+        model: None,
+        sequence_no: Some(0),
+    }).await.unwrap();
+
+    // Seed commit + PR OTel metrics
+    for (name, val) in [("claude_code.commit.count", 3.0), ("claude_code.pull_request.count", 1.0)] {
+        otel_repo.insert(CreateOtelMetric {
+            metric_name: name.to_string(),
+            value: val,
+            unit: None,
+            session_id: Some(session.id.clone()),
+            task_id: Some(task.id.clone()),
+            claude_session_id: "cs-abc".to_string(),
+            attributes: serde_json::json!({}),
+            otel_timestamp: 1_709_000_000_000_000_000,
+        }).await.unwrap();
+    }
+
+    let roi = analytics.roi_metrics(None).await.unwrap();
+    assert_eq!(roi.total_commits, 3);
+    assert_eq!(roi.total_prs, 1);
+    assert!(roi.cost_per_commit.is_some());
+    assert!(roi.cost_per_pr.is_some());
+    // 100K input @ $3/M = $0.30; 50K output @ $15/M = $0.75; total = $1.05
+    assert!((roi.total_cost_usd - 1.05).abs() < 0.01, "expected ~1.05, got {}", roi.total_cost_usd);
+    // cost_per_commit = 1.05 / 3 ≈ 0.35
+    assert!((roi.cost_per_commit.unwrap() - 0.35).abs() < 0.01);
+}
+
+#[tokio::test]
+async fn test_roi_metrics_task_filter() {
+    let (_, task_repo, session_repo, _, otel_repo, analytics) = setup_roi_db().await;
+
+    // Create two tasks
+    let t1 = task_repo.create(CreateTask { title: "T1".to_string(), description: None, project_path: "/tmp".to_string() }).await.unwrap();
+    let t2 = task_repo.create(CreateTask { title: "T2".to_string(), description: None, project_path: "/tmp".to_string() }).await.unwrap();
+    let s1 = session_repo.create(CreateSession { task_id: t1.id.clone() }).await.unwrap();
+    let s2 = session_repo.create(CreateSession { task_id: t2.id.clone() }).await.unwrap();
+
+    for (tid, sid, commits) in [(&t1.id, &s1.id, 2.0), (&t2.id, &s2.id, 5.0)] {
+        otel_repo.insert(CreateOtelMetric {
+            metric_name: "claude_code.commit.count".to_string(),
+            value: commits,
+            unit: None,
+            session_id: Some(sid.clone()),
+            task_id: Some(tid.clone()),
+            claude_session_id: "cs-x".to_string(),
+            attributes: serde_json::json!({}),
+            otel_timestamp: 1_709_000_000_000_000_000,
+        }).await.unwrap();
+    }
+
+    let all = analytics.roi_metrics(None).await.unwrap();
+    assert_eq!(all.total_commits, 7); // 2 + 5
+
+    let filtered = analytics.roi_metrics(Some(&t1.id)).await.unwrap();
+    assert_eq!(filtered.total_commits, 2);
 }

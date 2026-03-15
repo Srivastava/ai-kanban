@@ -78,6 +78,7 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         .route("/burn-rate", get(burn_rate))
         .route("/dev-activity", get(dev_activity))
         .route("/plan-tier", get(plan_tier_handler))
+        .route("/roi", get(roi_metrics_handler))
 }
 
 #[instrument(skip(state))]
@@ -401,4 +402,25 @@ pub async fn dev_activity(
 async fn plan_tier_handler() -> impl IntoResponse {
     info!("API: Getting plan tier");
     Json(crate::api::plan_tier::plan_tier_from_env()).into_response()
+}
+
+#[derive(Deserialize, Debug)]
+struct RoiQuery {
+    task_id: Option<String>,
+}
+
+#[instrument(skip(state))]
+async fn roi_metrics_handler(
+    State(state): State<AnalyticsApiState>,
+    Query(query): Query<RoiQuery>,
+) -> impl IntoResponse {
+    info!(task_id = ?query.task_id, "API: Getting ROI metrics");
+    match state.analytics.roi_metrics(query.task_id.as_deref()).await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => {
+            error!(error = %e, "API: Failed to get ROI metrics");
+            (StatusCode::INTERNAL_SERVER_ERROR,
+             Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
+    }
 }

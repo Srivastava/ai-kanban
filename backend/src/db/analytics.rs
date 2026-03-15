@@ -618,6 +618,97 @@ impl AnalyticsRepository {
         Ok(timeline)
     }
 
+    pub async fn roi_metrics(&self, task_id: Option<&str>) -> Result<crate::models::RoiMetrics> {
+        // token_prices() is defined in this same file — call directly, no import needed
+        let (input_price, output_price) = token_prices();
+
+        let cost_row = sqlx::query(r#"
+            SELECT
+                COALESCE(SUM(te.input_tokens), 0)  AS total_input,
+                COALESCE(SUM(te.output_tokens), 0) AS total_output,
+                COUNT(DISTINCT te.session_id)       AS session_count,
+                COALESCE(
+                    AVG(CASE WHEN s.ended_at IS NOT NULL
+                        THEN CAST((julianday(s.ended_at) - julianday(s.started_at)) * 86400.0 AS REAL)
+                        END),
+                    0.0
+                ) AS avg_duration_secs
+            FROM token_events te
+            JOIN sessions s ON s.id = te.session_id
+            WHERE (? IS NULL OR te.task_id = ?)
+        "#)
+        .bind(task_id)
+        .bind(task_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let total_input:  f64 = cost_row.get::<i64, _>("total_input")  as f64;
+        let total_output: f64 = cost_row.get::<i64, _>("total_output") as f64;
+        let avg_duration: f64 = cost_row.get("avg_duration_secs");
+        let total_cost = (total_input / 1_000_000.0) * input_price
+                       + (total_output / 1_000_000.0) * output_price;
+
+        let otel_row = sqlx::query(r#"
+            SELECT
+                CAST(COALESCE(SUM(CASE WHEN metric_name = 'claude_code.commit.count'
+                             THEN value ELSE 0 END), 0) AS REAL) AS total_commits,
+                CAST(COALESCE(SUM(CASE WHEN metric_name = 'claude_code.pull_request.count'
+                             THEN value ELSE 0 END), 0) AS REAL) AS total_prs,
+                CAST(COALESCE(SUM(CASE WHEN metric_name = 'claude_code.active_time.total'
+                             THEN value ELSE 0 END), 0) AS REAL) AS total_active_time
+            FROM otel_metrics
+            WHERE task_id IS NOT NULL
+              AND (? IS NULL OR task_id = ?)
+        "#)
+        .bind(task_id)
+        .bind(task_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        let total_commits: i64 = {
+            let v: f64 = otel_row.get("total_commits");
+            v as i64
+        };
+        let total_prs: i64 = {
+            let v: f64 = otel_row.get("total_prs");
+            v as i64
+        };
+        let total_active: f64 = otel_row.get("total_active_time");
+
+        let loc_row = sqlx::query(r#"
+            SELECT
+                CAST(
+                    COALESCE(MAX(sm.project_loc), 0)
+                    - COALESCE(MIN(CASE WHEN sm.project_loc > 0 THEN sm.project_loc END), 0)
+                AS REAL) AS net_loc
+            FROM session_metrics sm
+            JOIN sessions s ON s.id = sm.session_id
+            WHERE (? IS NULL OR s.task_id = ?)
+        "#)
+        .bind(task_id)
+        .bind(task_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // SQLite returns arithmetic expressions as REAL — decode as f64, cast to i64
+        let total_loc: i64 = {
+            let v: f64 = loc_row.get("net_loc");
+            v as i64
+        };
+
+        Ok(crate::models::RoiMetrics {
+            cost_per_commit:  if total_commits > 0 { Some(total_cost / total_commits as f64) } else { None },
+            cost_per_pr:      if total_prs > 0     { Some(total_cost / total_prs as f64)     } else { None },
+            cost_per_loc:     if total_loc > 0     { Some(total_cost / total_loc as f64)     } else { None },
+            total_commits,
+            total_prs,
+            total_loc,
+            total_active_time_secs: total_active,
+            avg_session_duration_secs: avg_duration,
+            total_cost_usd: total_cost,
+        })
+    }
+
     /// All token events for every session of a task, with claude_session_id for grouping.
     /// Cumulative totals are computed per claude_session_id.
     #[instrument(skip(self))]
