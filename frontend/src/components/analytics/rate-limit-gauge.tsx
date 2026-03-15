@@ -22,7 +22,7 @@ function formatCountdown(resetAt: string): string {
 
 function formatResetDate(resetAt: string): string {
   const d = new Date(resetAt);
-  return d.toLocaleString('en-US', {
+  const parts = d.toLocaleString('en-US', {
     timeZone: 'America/Los_Angeles',
     weekday: 'short',
     month: 'short',
@@ -30,8 +30,8 @@ function formatResetDate(resetAt: string): string {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
-    timeZoneName: 'short',
   });
+  return `${parts} PST`;
 }
 
 function formatTokens(n: number) {

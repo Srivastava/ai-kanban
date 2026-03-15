@@ -290,8 +290,8 @@ pub fn start_usage_daemon(queue: Option<Arc<SessionQueue>>) -> SharedUsageCache 
         pct_week: 18.0,
         // 5hr window resets ~2026-03-15 13:01 UTC (4h10m from seed time)
         reset_5hr: Some("2026-03-15T13:01:00+00:00".to_string()),
-        // Weekly window resets 2026-03-21 Sat 11:00 AM PST = 19:00 UTC
-        reset_week: Some("2026-03-21T19:00:00+00:00".to_string()),
+        // Weekly window resets 2026-03-21 Sat 11:00 AM LA time = 18:00 UTC (PDT, UTC-7)
+        reset_week: Some("2026-03-21T18:00:00+00:00".to_string()),
     };
     let cache: SharedUsageCache = Arc::new(RwLock::new(UsageCache {
         data: seed,
