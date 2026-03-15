@@ -77,6 +77,7 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         .route("/cost/by-task", get(cost_by_task))
         .route("/burn-rate", get(burn_rate))
         .route("/dev-activity", get(dev_activity))
+        .route("/plan-tier", get(plan_tier_handler))
 }
 
 #[instrument(skip(state))]
@@ -395,4 +396,9 @@ pub async fn dev_activity(
                 .into_response()
         }
     }
+}
+
+async fn plan_tier_handler() -> impl IntoResponse {
+    info!("API: Getting plan tier");
+    Json(crate::api::plan_tier::plan_tier_from_env()).into_response()
 }
