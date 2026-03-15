@@ -103,26 +103,21 @@ async fn overview(
     }
 }
 
-#[instrument(skip(state))]
-async fn usage_windows(
-    State(state): State<AnalyticsApiState>,
-) -> impl IntoResponse {
-    info!("API: Getting usage windows");
+async fn usage_windows() -> impl IntoResponse {
+    info!("API: Getting usage windows from Claude JSONL files");
     let plan = crate::api::plan_tier::plan_tier_from_env();
-    match state.analytics.usage_windows(plan.limit_5hr, plan.limit_week).await {
-        Ok(windows) => {
-            debug!("API: Usage windows retrieved");
-            Json(windows).into_response()
-        }
-        Err(e) => {
-            error!(error = %e, "API: Failed to get usage windows");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({ "error": e.to_string() })),
-            )
-                .into_response()
-        }
-    }
+    let jsonl = crate::api::claude_jsonl::read_claude_usage();
+    let reset_5hr = crate::api::claude_jsonl::reset_5hr_from_earliest(jsonl.earliest_5hr);
+    let reset_week = crate::api::claude_jsonl::next_monday_reset();
+    let windows = crate::models::UsageWindows {
+        tokens_5hr: jsonl.tokens_5hr,
+        tokens_week: jsonl.tokens_week,
+        limit_5hr: plan.limit_5hr,
+        limit_week: plan.limit_week,
+        reset_5hr,
+        reset_week,
+    };
+    Json(windows).into_response()
 }
 
 #[instrument(skip(state))]

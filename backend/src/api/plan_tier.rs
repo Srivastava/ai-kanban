@@ -28,10 +28,13 @@ pub fn plan_tier_from_env() -> crate::models::PlanTier {
         .unwrap_or_else(|_| "pro".to_string())
         .to_lowercase();
 
+    // Limits are output-token counts (what Claude Code /usage tracks).
+    // Pro: ~350K output tokens / 5hr, ~3.5M / week (derived empirically).
+    // max5 / max20 scale proportionally per Anthropic tier documentation.
     match tier_name.as_str() {
-        "max5"  => crate::models::PlanTier { tier: "max5".to_string(),  limit_5hr: 88_000,   limit_week: 5_000_000  },
-        "max20" => crate::models::PlanTier { tier: "max20".to_string(), limit_5hr: 220_000,  limit_week: 20_000_000 },
-        _       => crate::models::PlanTier { tier: "pro".to_string(),   limit_5hr: 19_000,   limit_week: 1_000_000  },
+        "max5"  => crate::models::PlanTier { tier: "max5".to_string(),  limit_5hr: 1_750_000,  limit_week: 17_500_000 },
+        "max20" => crate::models::PlanTier { tier: "max20".to_string(), limit_5hr: 7_000_000,  limit_week: 70_000_000 },
+        _       => crate::models::PlanTier { tier: "pro".to_string(),   limit_5hr: 350_000,    limit_week: 3_500_000  },
     }
 }
 
@@ -46,8 +49,8 @@ mod tests {
         std::env::remove_var("CLAUDE_WEEKLY_TOKEN_LIMIT");
         let t = plan_tier_from_env();
         assert_eq!(t.tier, "pro");
-        assert_eq!(t.limit_5hr, 19_000);
-        assert_eq!(t.limit_week, 1_000_000);
+        assert_eq!(t.limit_5hr, 350_000);
+        assert_eq!(t.limit_week, 3_500_000);
     }
 
     #[test]
@@ -67,7 +70,7 @@ mod tests {
         std::env::set_var("CLAUDE_PLAN_TIER", "max5");
         let t = plan_tier_from_env();
         assert_eq!(t.tier, "max5");
-        assert_eq!(t.limit_5hr, 88_000);
+        assert_eq!(t.limit_5hr, 1_750_000);
         std::env::remove_var("CLAUDE_PLAN_TIER");
     }
 }

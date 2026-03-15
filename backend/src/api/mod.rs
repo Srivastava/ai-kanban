@@ -117,6 +117,7 @@ mod analytics;
 mod comments;
 mod logs;
 mod otlp_parser;
+pub mod claude_jsonl;
 pub mod otlp;
 pub mod plan_tier;
 pub mod prometheus;
