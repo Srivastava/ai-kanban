@@ -26,8 +26,8 @@ export function CommandCenter() {
   const { data: windows } = useUsageWindows();
   const { data: plan } = usePlanTier();
 
-  const limit5hr = plan?.limit_5hr ?? 19_000;
-  const limitWeek = plan?.limit_week ?? 1_000_000;
+  const limit5hr = plan?.limit_5hr ?? 350_000;
+  const limitWeek = plan?.limit_week ?? 3_500_000;
 
   const burnLabel = burn
     ? `${formatTokens(Math.round(burn.tokens_per_minute * 60))}/hr — ${
@@ -52,6 +52,7 @@ export function CommandCenter() {
           used={windows?.tokens_week ?? 0}
           limit={limitWeek}
           resetAt={windows?.reset_week ?? null}
+          showDate
         />
       </div>
 

@@ -7,6 +7,8 @@ interface Props {
   used: number;
   limit: number;
   resetAt: string | null; // ISO-8601 timestamp
+  /** If true, shows absolute date/time instead of a live countdown */
+  showDate?: boolean;
 }
 
 function formatCountdown(resetAt: string): string {
@@ -18,20 +20,39 @@ function formatCountdown(resetAt: string): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function formatResetDate(resetAt: string): string {
+  const d = new Date(resetAt);
+  return d.toLocaleString('en-GB', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
+}
+
 function formatTokens(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
 
-export function RateLimitGauge({ label, used, limit, resetAt }: Props) {
-  const [countdown, setCountdown] = useState(resetAt ? formatCountdown(resetAt) : null);
+export function RateLimitGauge({ label, used, limit, resetAt, showDate = false }: Props) {
+  // Start null to avoid SSR/client Date.now() mismatch
+  const [countdown, setCountdown] = useState<string | null>(null);
+  const [resetLabel, setResetLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (!resetAt) return;
-    const id = setInterval(() => setCountdown(formatCountdown(resetAt)), 1_000);
-    return () => clearInterval(id);
-  }, [resetAt]);
+    if (showDate) {
+      setResetLabel(formatResetDate(resetAt));
+    } else {
+      setCountdown(formatCountdown(resetAt));
+      const id = setInterval(() => setCountdown(formatCountdown(resetAt)), 1_000);
+      return () => clearInterval(id);
+    }
+  }, [resetAt, showDate]);
 
   const pct = limit > 0 ? Math.min((used / limit) * 100, 100) : 0;
   const color = pct < 60 ? 'bg-emerald-500' : pct < 85 ? 'bg-amber-500' : 'bg-red-500';
@@ -51,9 +72,12 @@ export function RateLimitGauge({ label, used, limit, resetAt }: Props) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      {countdown && (
+      {resetAt && (
         <p className="text-xs text-muted-foreground">
-          Resets in <span className="font-mono">{countdown}</span>
+          {showDate
+            ? <>Resets <span className="font-medium text-foreground">{resetLabel ?? '…'}</span></>
+            : <>Resets in <span className="font-mono">{countdown ?? '…'}</span></>
+          }
         </p>
       )}
     </div>
