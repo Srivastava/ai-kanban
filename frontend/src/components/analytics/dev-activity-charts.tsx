@@ -34,7 +34,7 @@ export function DevActivityCharts() {
   );
 
   return (
-    <div className="space-y-4">
+    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       {/* Task selector */}
       <select
         className="rounded-md border border-border bg-background px-3 py-1.5 text-sm max-w-xs"
