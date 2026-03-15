@@ -6,7 +6,7 @@ import { logger } from '@/lib/logger';
 import type {
   AnalyticsOverview, BurnRate, CostByTask, DailyTokens, DevActivityRow, EfficiencyRow, LanguageTokens,
   MonthlyTokens, SessionDetail, SessionSummary, SessionTimelineEvent, TaskTimelineEvent, SessionTokens, TaskTokens,
-  TokensByStage, ToolTokens, WeeklyTokens, UsageWindows,
+  TokensByStage, ToolTokens, WeeklyTokens, UsageWindows, PlanTier, RoiMetrics, ContextWindowUsage,
 } from '@/types/analytics';
 
 export function useAnalyticsOverview() {
@@ -239,5 +239,31 @@ export function useDevActivity(taskId: string | null) {
     ),
     enabled: !!taskId,
     refetchInterval: 30_000,
+  });
+}
+
+export function usePlanTier() {
+  return useQuery({
+    queryKey: ['analytics', 'plan-tier'],
+    queryFn: () => apiClient<PlanTier>('/api/analytics/plan-tier'),
+    // No refetchInterval — static/env-driven
+  });
+}
+
+export function useRoiMetrics(taskId?: string | null) {
+  return useQuery({
+    queryKey: ['analytics', 'roi', taskId],
+    queryFn: () => apiClient<RoiMetrics>(
+      taskId ? `/api/analytics/roi?task_id=${taskId}` : '/api/analytics/roi'
+    ),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useContextUsage() {
+  return useQuery({
+    queryKey: ['analytics', 'context-usage'],
+    queryFn: () => apiClient<ContextWindowUsage[]>('/api/analytics/context-usage'),
+    refetchInterval: 15_000,
   });
 }

@@ -146,3 +146,29 @@ export interface DevActivityRow {
   output_tokens: number;
   cost_usd: number;
 }
+
+export interface PlanTier {
+  tier: string;
+  limit_5hr: number;
+  limit_week: number;
+}
+
+export interface RoiMetrics {
+  cost_per_commit: number | null;
+  cost_per_pr: number | null;
+  cost_per_loc: number | null;
+  total_commits: number;
+  total_prs: number;
+  total_loc: number;
+  total_active_time_secs: number;
+  avg_session_duration_secs: number;
+  total_cost_usd: number;
+}
+
+export interface ContextWindowUsage {
+  session_id: string;
+  task_title: string;
+  tokens_in_window: number;
+  context_limit: number;
+  pct_used: number;
+}
