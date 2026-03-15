@@ -626,3 +626,55 @@ async fn test_roi_metrics_task_filter() {
     let filtered = analytics.roi_metrics(Some(&t1.id)).await.unwrap();
     assert_eq!(filtered.total_commits, 2);
 }
+
+#[tokio::test]
+async fn test_context_window_usage_empty_when_no_running_sessions() {
+    let (_, _, _, _, _, analytics) = setup_roi_db().await;
+    let result = analytics.context_window_usage().await.unwrap();
+    assert!(result.is_empty(), "no running sessions → empty result");
+}
+
+#[tokio::test]
+async fn test_context_window_usage_running_session() {
+    let (pool, task_repo, session_repo, event_repo, _, analytics) = setup_roi_db().await;
+
+    let task = task_repo.create(CreateTask {
+        title: "Running Task".to_string(),
+        description: None,
+        project_path: "/tmp".to_string(),
+    }).await.unwrap();
+
+    let session = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
+
+    // Mark session as running
+    sqlx::query("UPDATE sessions SET status = 'running' WHERE id = ?")
+        .bind(&session.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    // Add token event: 50K input, 30K cache_read, 5K cache_creation
+    event_repo.create(CreateTokenEvent {
+        session_id: session.id.clone(),
+        task_id: task.id.clone(),
+        event_type: "assistant".to_string(),
+        tool_name: None,
+        file_ext: None,
+        input_tokens: 50_000,
+        output_tokens: 10_000,
+        cache_read_tokens: 30_000,
+        cache_creation_tokens: 5_000,
+        model: None,
+        sequence_no: Some(0),
+    }).await.unwrap();
+
+    let result = analytics.context_window_usage().await.unwrap();
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].task_title, "Running Task");
+    // tokens_in_window = 50_000 + 30_000 + 5_000 = 85_000
+    assert_eq!(result[0].tokens_in_window, 85_000);
+    let limit = result[0].context_limit;
+    assert!(limit > 0);
+    let pct = result[0].pct_used;
+    assert!((pct - (85_000.0 / limit as f64 * 100.0)).abs() < 0.1);
+}

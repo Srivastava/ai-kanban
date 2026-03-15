@@ -178,3 +178,12 @@ pub struct RoiMetrics {
     pub avg_session_duration_secs: f64,
     pub total_cost_usd:    f64,
 }
+
+#[derive(Debug, Serialize)]
+pub struct ContextWindowUsage {
+    pub session_id:       String,
+    pub task_title:       String,
+    pub tokens_in_window: i64,
+    pub context_limit:    i64,
+    pub pct_used:         f64,
+}

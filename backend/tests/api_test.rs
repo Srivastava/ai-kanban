@@ -895,3 +895,39 @@ async fn test_api_analytics_usage_windows() {
     let response = server.get("/api/analytics/usage-windows").await;
     assert_eq!(response.status_code(), StatusCode::OK);
 }
+
+// ==================== Analytics New Endpoints ====================
+
+#[tokio::test]
+async fn test_analytics_plan_tier_endpoint() {
+    // Clear env vars so we get a deterministic "pro" default
+    std::env::remove_var("CLAUDE_PLAN_TIER");
+    std::env::remove_var("CLAUDE_5HR_TOKEN_LIMIT");
+    std::env::remove_var("CLAUDE_WEEKLY_TOKEN_LIMIT");
+
+    let server = setup_test_server().await;
+    let resp = server.get("/api/analytics/plan-tier").await;
+    assert_eq!(resp.status_code(), StatusCode::OK);
+    let body: serde_json::Value = resp.json();
+    assert!(body["tier"].is_string());
+    assert!(body["limit_5hr"].as_i64().unwrap_or(0) > 0);
+}
+
+#[tokio::test]
+async fn test_analytics_roi_endpoint() {
+    let server = setup_test_server().await;
+    let resp = server.get("/api/analytics/roi").await;
+    assert_eq!(resp.status_code(), StatusCode::OK);
+    let body: serde_json::Value = resp.json();
+    assert!(body["total_commits"].is_number());
+    assert!(body["total_cost_usd"].is_number());
+}
+
+#[tokio::test]
+async fn test_analytics_context_usage_endpoint() {
+    let server = setup_test_server().await;
+    let resp = server.get("/api/analytics/context-usage").await;
+    assert_eq!(resp.status_code(), StatusCode::OK);
+    let body: serde_json::Value = resp.json();
+    assert!(body.is_array(), "context-usage should return an array");
+}

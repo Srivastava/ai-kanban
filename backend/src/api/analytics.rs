@@ -79,6 +79,7 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         .route("/dev-activity", get(dev_activity))
         .route("/plan-tier", get(plan_tier_handler))
         .route("/roi", get(roi_metrics_handler))
+        .route("/context-usage", get(context_usage_handler))
 }
 
 #[instrument(skip(state))]
@@ -419,6 +420,21 @@ async fn roi_metrics_handler(
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(error = %e, "API: Failed to get ROI metrics");
+            (StatusCode::INTERNAL_SERVER_ERROR,
+             Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn context_usage_handler(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    info!("API: Getting context window usage");
+    match state.analytics.context_window_usage().await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => {
+            error!(error = %e, "API: Failed to get context usage");
             (StatusCode::INTERNAL_SERVER_ERROR,
              Json(serde_json::json!({ "error": e.to_string() }))).into_response()
         }

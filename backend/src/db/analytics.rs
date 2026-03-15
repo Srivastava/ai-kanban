@@ -709,6 +709,72 @@ impl AnalyticsRepository {
         })
     }
 
+    pub async fn context_window_usage(&self) -> Result<Vec<crate::models::ContextWindowUsage>> {
+        let context_limit: i64 = std::env::var("CLAUDE_CONTEXT_LIMIT")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(190_000);
+
+        // Fetch all running sessions with their task titles
+        let sessions = sqlx::query(
+            r#"SELECT s.id AS session_id, t.title AS task_title
+               FROM sessions s
+               JOIN tasks t ON t.id = s.task_id
+               WHERE s.status = 'running'
+               ORDER BY s.started_at DESC"#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut result = Vec::new();
+
+        for row in sessions {
+            let session_id: String = row.get("session_id");
+            let task_title: String = row.get("task_title");
+
+            // Fetch token events for this session ordered by id ASC
+            // tokens_in_window = input_tokens + cache_read_tokens + cache_creation_tokens
+            let events = sqlx::query(
+                r#"SELECT input_tokens + cache_read_tokens + cache_creation_tokens AS ctx
+                   FROM token_events
+                   WHERE session_id = ?
+                   ORDER BY id ASC"#
+            )
+            .bind(&session_id)
+            .fetch_all(&self.pool)
+            .await?;
+
+            // Find last compaction boundary (ctx < 50% of previous)
+            let mut boundary_idx = 0usize;
+            let ctxs: Vec<i64> = events.iter()
+                .map(|r| r.get::<i64, _>("ctx"))
+                .collect();
+
+            for i in 1..ctxs.len() {
+                if ctxs[i] < ctxs[i - 1] / 2 {
+                    boundary_idx = i;
+                }
+            }
+
+            let tokens_in_window: i64 = ctxs[boundary_idx..].iter().sum();
+            let pct_used = if context_limit > 0 {
+                tokens_in_window as f64 / context_limit as f64 * 100.0
+            } else {
+                0.0
+            };
+
+            result.push(crate::models::ContextWindowUsage {
+                session_id,
+                task_title,
+                tokens_in_window,
+                context_limit,
+                pct_used,
+            });
+        }
+
+        Ok(result)
+    }
+
     /// All token events for every session of a task, with claude_session_id for grouping.
     /// Cumulative totals are computed per claude_session_id.
     #[instrument(skip(self))]
