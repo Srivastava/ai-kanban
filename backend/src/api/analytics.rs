@@ -108,15 +108,8 @@ async fn usage_windows(
     State(state): State<AnalyticsApiState>,
 ) -> impl IntoResponse {
     info!("API: Getting usage windows");
-    let limit_5hr: i64 = std::env::var("CLAUDE_5HR_TOKEN_LIMIT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
-    let limit_week: i64 = std::env::var("CLAUDE_WEEKLY_TOKEN_LIMIT")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(0);
-    match state.analytics.usage_windows(limit_5hr, limit_week).await {
+    let plan = crate::api::plan_tier::plan_tier_from_env();
+    match state.analytics.usage_windows(plan.limit_5hr, plan.limit_week).await {
         Ok(windows) => {
             debug!("API: Usage windows retrieved");
             Json(windows).into_response()

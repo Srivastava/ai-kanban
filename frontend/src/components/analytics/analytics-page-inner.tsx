@@ -22,16 +22,18 @@ export function AnalyticsPageInner() {
     searchParams.get('task')
   );
 
-  // Sync task selection to URL
+  // Sync task selection to URL — only when selectedTaskId changes, not when
+  // searchParams changes (that would cause an infinite loop).
   useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
+    const current = searchParams.get('task') ?? null;
+    if (current === selectedTaskId) return; // already in sync
     if (selectedTaskId) {
-      params.set('task', selectedTaskId);
+      router.replace(`?task=${selectedTaskId}`, { scroll: false });
     } else {
-      params.delete('task');
+      router.replace('?', { scroll: false });
     }
-    router.replace(`?${params.toString()}`, { scroll: false });
-  }, [selectedTaskId, searchParams, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTaskId]);
 
   return (
     <main className="flex-1 pb-20 md:pb-6">
