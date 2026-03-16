@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '@/test/utils';
 import { CreateTaskDialog } from './create-task-dialog';
@@ -89,11 +89,12 @@ describe('CreateTaskDialog', () => {
     expect(screen.getByLabelText(/project/i)).toBeTruthy();
   });
 
-  it('rejects path separators in project name', () => {
+  it('rejects path separators in project name', async () => {
+    const user = userEvent.setup();
     renderWithProviders(<CreateTaskDialog open={true} onOpenChange={vi.fn()} />);
     const input = screen.getByPlaceholderText(/e\.g\. my-app/i);
-    fireEvent.change(input, { target: { value: '../evil' } });
-    // sanitizeProjectName removes .. sequences
+    await user.type(input, '../evil');
+    // sanitizeProjectName strips .. sequences on each keystroke via onChange
     expect((input as HTMLInputElement).value).not.toContain('..');
   });
 });
