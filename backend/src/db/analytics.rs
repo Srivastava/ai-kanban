@@ -485,6 +485,7 @@ impl AnalyticsRepository {
             limit_week,
             reset_5hr,
             reset_week: Some(reset_week),
+            // false is correct here: this is the DB/JSONL fallback path and we do have data
             no_data: false,
         })
     }
@@ -498,7 +499,9 @@ impl AnalyticsRepository {
                 te.task_id,
                 COALESCE(t.title, 'Unknown Task') as task_title,
                 SUM(te.input_tokens) as input_tokens,
-                SUM(te.output_tokens) as output_tokens
+                SUM(te.output_tokens) as output_tokens,
+                SUM(te.cache_creation_tokens) as cache_creation_tokens,
+                SUM(te.cache_read_tokens) as cache_read_tokens
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
             GROUP BY te.task_id, t.title
@@ -511,8 +514,12 @@ impl AnalyticsRepository {
         let mut results: Vec<CostByTask> = rows.into_iter().map(|row| {
             let input_tokens: i64 = row.get("input_tokens");
             let output_tokens: i64 = row.get("output_tokens");
+            let cache_creation: i64 = row.get("cache_creation_tokens");
+            let cache_read: i64 = row.get("cache_read_tokens");
             let cost_usd = (input_tokens as f64 / 1_000_000.0) * input_price
-                + (output_tokens as f64 / 1_000_000.0) * output_price;
+                + (output_tokens as f64 / 1_000_000.0) * output_price
+                + (cache_creation as f64 / 1_000_000.0) * input_price
+                + (cache_read as f64 / 1_000_000.0) * (input_price * 0.10);
             CostByTask {
                 task_id: row.get("task_id"),
                 task_title: row.get("task_title"),
@@ -559,12 +566,16 @@ impl AnalyticsRepository {
                 CAST(COALESCE(AVG(session_total), 0) AS REAL) as avg_tokens_per_session,
                 COALESCE(MAX(session_total), 0) as max_tokens_per_session,
                 COALESCE(SUM(input_tokens), 0) as total_input,
-                COALESCE(SUM(output_tokens), 0) as total_output
+                COALESCE(SUM(output_tokens), 0) as total_output,
+                COALESCE(SUM(cache_creation_tokens), 0) as total_cache_creation,
+                COALESCE(SUM(cache_read_tokens), 0) as total_cache_read
             FROM (
                 SELECT
                     session_id,
                     SUM(input_tokens) as input_tokens,
                     SUM(output_tokens) as output_tokens,
+                    SUM(cache_creation_tokens) as cache_creation_tokens,
+                    SUM(cache_read_tokens) as cache_read_tokens,
                     SUM(input_tokens + output_tokens) as session_total
                 FROM token_events
                 GROUP BY session_id
@@ -576,8 +587,12 @@ impl AnalyticsRepository {
         let (input_price, output_price) = token_prices();
         let total_input: i64 = row.get("total_input");
         let total_output: i64 = row.get("total_output");
+        let total_cache_creation: i64 = row.get("total_cache_creation");
+        let total_cache_read: i64 = row.get("total_cache_read");
         let total_cost_usd = (total_input as f64 / 1_000_000.0) * input_price
-            + (total_output as f64 / 1_000_000.0) * output_price;
+            + (total_output as f64 / 1_000_000.0) * output_price
+            + (total_cache_creation as f64 / 1_000_000.0) * input_price
+            + (total_cache_read as f64 / 1_000_000.0) * (input_price * 0.10);
         Ok(SessionSummary {
             total_sessions: row.get("total_sessions"),
             avg_tokens_per_session: row.get("avg_tokens_per_session"),
@@ -657,9 +672,11 @@ impl AnalyticsRepository {
 
         let cost_row = sqlx::query(r#"
             SELECT
-                COALESCE(SUM(te.input_tokens), 0)  AS total_input,
-                COALESCE(SUM(te.output_tokens), 0) AS total_output,
-                COUNT(DISTINCT te.session_id)       AS session_count,
+                COALESCE(SUM(te.input_tokens), 0)          AS total_input,
+                COALESCE(SUM(te.output_tokens), 0)         AS total_output,
+                COALESCE(SUM(te.cache_creation_tokens), 0) AS total_cache_creation,
+                COALESCE(SUM(te.cache_read_tokens), 0)     AS total_cache_read,
+                COUNT(DISTINCT te.session_id)               AS session_count,
                 COALESCE(
                     AVG(CASE WHEN s.ended_at IS NOT NULL
                         THEN CAST((julianday(s.ended_at) - julianday(s.started_at)) * 86400.0 AS REAL)
@@ -675,11 +692,15 @@ impl AnalyticsRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        let total_input:  f64 = cost_row.get::<i64, _>("total_input")  as f64;
-        let total_output: f64 = cost_row.get::<i64, _>("total_output") as f64;
+        let total_input:          f64 = cost_row.get::<i64, _>("total_input")          as f64;
+        let total_output:         f64 = cost_row.get::<i64, _>("total_output")         as f64;
+        let total_cache_creation: f64 = cost_row.get::<i64, _>("total_cache_creation") as f64;
+        let total_cache_read:     f64 = cost_row.get::<i64, _>("total_cache_read")     as f64;
         let avg_duration: f64 = cost_row.get("avg_duration_secs");
         let total_cost = (total_input / 1_000_000.0) * input_price
-                       + (total_output / 1_000_000.0) * output_price;
+                       + (total_output / 1_000_000.0) * output_price
+                       + (total_cache_creation / 1_000_000.0) * input_price
+                       + (total_cache_read / 1_000_000.0) * (input_price * 0.10);
 
         let otel_row = sqlx::query(r#"
             SELECT

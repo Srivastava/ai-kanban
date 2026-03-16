@@ -1,6 +1,8 @@
 export interface AnalyticsOverview {
   total_input_tokens: number;
   total_output_tokens: number;
+  total_cache_creation_tokens: number;
+  total_cache_read_tokens: number;
   total_sessions: number;
   total_tasks_with_sessions: number;
   estimated_cost_usd: number;
@@ -11,18 +13,24 @@ export interface DailyTokens {
   date: string;
   input_tokens: number;
   output_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
 }
 
 export interface WeeklyTokens {
   week_start: string;
   input_tokens: number;
   output_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
 }
 
 export interface MonthlyTokens {
   month: string;
   input_tokens: number;
   output_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
 }
 
 export interface TaskTokens {
@@ -30,6 +38,8 @@ export interface TaskTokens {
   task_title: string;
   input_tokens: number;
   output_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
   total_tokens: number;
 }
 
@@ -38,6 +48,8 @@ export interface SessionTokens {
   task_title: string;
   input_tokens: number;
   output_tokens: number;
+  cache_creation_tokens: number;
+  cache_read_tokens: number;
   total_tokens: number;
   started_at: string | null;
 }
