@@ -33,9 +33,12 @@ const TOOLTIP_STYLE = {
   fontSize: '12px',
 };
 
-export function SessionTimelineChart() {
+interface Props { taskId?: string | null }
+
+export function SessionTimelineChart({ taskId: externalTaskId }: Props) {
   const { data: tasks = [] } = useTokensByTask();
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [internalTaskId, setInternalTaskId] = useState<string | null>(null);
+  const selectedTaskId = externalTaskId ?? internalTaskId;
   const { data: sessions = [], isLoading } = useTaskSessions(selectedTaskId);
 
   // Latest 20 sessions, reversed so the chart reads oldest → newest (left → right)
@@ -63,23 +66,27 @@ export function SessionTimelineChart() {
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <div className="flex items-center gap-4 flex-wrap">
         <h3 className="font-semibold">Session Token Timeline</h3>
-        <select
-          className="flex-1 max-w-xs rounded-md border border-border bg-background px-3 py-1.5 text-sm"
-          value={selectedTaskId ?? ''}
-          onChange={(e) => setSelectedTaskId(e.target.value || null)}
-        >
-          <option value="">Select a task...</option>
-          {tasks.map((t) => (
-            <option key={t.task_id} value={t.task_id}>
-              {t.task_title} — {t.total_tokens.toLocaleString()} tokens
-            </option>
-          ))}
-        </select>
+        {!externalTaskId && (
+          <select
+            className="flex-1 max-w-xs rounded-md border border-border bg-background px-3 py-1.5 text-sm"
+            value={internalTaskId ?? ''}
+            onChange={(e) => setInternalTaskId(e.target.value || null)}
+          >
+            <option value="">Select a task...</option>
+            {tasks.map((t) => (
+              <option key={t.task_id} value={t.task_id}>
+                {t.task_title} — {t.total_tokens.toLocaleString()} tokens
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {!selectedTaskId ? (
         <div className="h-48 flex items-center justify-center">
-          <p className="text-muted-foreground text-sm">Select a task to view its session history</p>
+          <p className="text-muted-foreground text-sm">
+            {externalTaskId ? 'Loading sessions…' : 'Select a task to view its session history'}
+          </p>
         </div>
       ) : isLoading ? (
         <div className="h-64 animate-pulse bg-muted rounded" />

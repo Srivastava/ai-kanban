@@ -8,8 +8,11 @@ function fmt(n: number): string {
   return `${n}`;
 }
 
-export function CostBreakdownTable() {
-  const { data = [], isLoading } = useCostByTask();
+interface Props { taskId?: string | null }
+
+export function CostBreakdownTable({ taskId }: Props) {
+  const { data: allData = [], isLoading } = useCostByTask();
+  const data = taskId ? allData.filter((r) => r.task_id === taskId) : allData;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">

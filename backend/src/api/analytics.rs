@@ -33,6 +33,7 @@ impl From<AppState> for AnalyticsApiState {
 struct DaysQuery {
     #[serde(default = "default_days")]
     days: i64,
+    task_id: Option<String>,
 }
 
 fn default_days() -> i64 {
@@ -43,6 +44,7 @@ fn default_days() -> i64 {
 struct WeeksQuery {
     #[serde(default = "default_weeks")]
     weeks: i64,
+    task_id: Option<String>,
 }
 
 fn default_weeks() -> i64 {
@@ -53,6 +55,12 @@ fn default_weeks() -> i64 {
 struct MonthsQuery {
     #[serde(default = "default_months")]
     months: i64,
+    task_id: Option<String>,
+}
+
+#[derive(Deserialize, Debug)]
+struct TaskFilterQuery {
+    task_id: Option<String>,
 }
 
 fn default_months() -> i64 {
@@ -159,7 +167,7 @@ async fn daily_tokens(
     Query(query): Query<DaysQuery>,
 ) -> impl IntoResponse {
     info!(days = query.days, "API: Getting daily tokens");
-    match state.analytics.daily_tokens(query.days).await {
+    match state.analytics.daily_tokens(query.days, query.task_id.as_deref()).await {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Daily tokens retrieved");
             Json(tokens).into_response()
@@ -181,7 +189,7 @@ async fn weekly_tokens(
     Query(query): Query<WeeksQuery>,
 ) -> impl IntoResponse {
     info!(weeks = query.weeks, "API: Getting weekly tokens");
-    match state.analytics.weekly_tokens(query.weeks).await {
+    match state.analytics.weekly_tokens(query.weeks, query.task_id.as_deref()).await {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Weekly tokens retrieved");
             Json(tokens).into_response()
@@ -203,7 +211,7 @@ async fn monthly_tokens(
     Query(query): Query<MonthsQuery>,
 ) -> impl IntoResponse {
     info!(months = query.months, "API: Getting monthly tokens");
-    match state.analytics.monthly_tokens(query.months).await {
+    match state.analytics.monthly_tokens(query.months, query.task_id.as_deref()).await {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Monthly tokens retrieved");
             Json(tokens).into_response()
@@ -264,9 +272,10 @@ async fn tokens_by_session(
 #[instrument(skip(state))]
 async fn tokens_by_tool(
     State(state): State<AnalyticsApiState>,
+    Query(query): Query<TaskFilterQuery>,
 ) -> impl IntoResponse {
     info!("API: Getting tokens by tool");
-    match state.analytics.tokens_by_tool().await {
+    match state.analytics.tokens_by_tool(query.task_id.as_deref()).await {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Tokens by tool retrieved");
             Json(tokens).into_response()
@@ -285,9 +294,10 @@ async fn tokens_by_tool(
 #[instrument(skip(state))]
 async fn tokens_by_language(
     State(state): State<AnalyticsApiState>,
+    Query(query): Query<TaskFilterQuery>,
 ) -> impl IntoResponse {
     info!("API: Getting tokens by language");
-    match state.analytics.tokens_by_language().await {
+    match state.analytics.tokens_by_language(query.task_id.as_deref()).await {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Tokens by language retrieved");
             Json(tokens).into_response()
@@ -356,9 +366,12 @@ async fn cost_by_task(State(state): State<AnalyticsApiState>) -> impl IntoRespon
 }
 
 #[instrument(skip(state))]
-async fn tokens_by_stage(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
+async fn tokens_by_stage(
+    State(state): State<AnalyticsApiState>,
+    Query(query): Query<TaskFilterQuery>,
+) -> impl IntoResponse {
     info!("API: Getting tokens by stage");
-    match state.analytics.tokens_by_stage().await {
+    match state.analytics.tokens_by_stage(query.task_id.as_deref()).await {
         Ok(data) => { debug!(count = data.len(), "retrieved"); Json(data).into_response() }
         Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
     }

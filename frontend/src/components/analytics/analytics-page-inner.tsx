@@ -27,11 +27,10 @@ export function AnalyticsPageInner() {
     searchParams.get('task')
   );
 
-  // Sync task selection to URL — only when selectedTaskId changes, not when
-  // searchParams changes (that would cause an infinite loop).
+  // Sync task selection to URL
   useEffect(() => {
     const current = searchParams.get('task') ?? null;
-    if (current === selectedTaskId) return; // already in sync
+    if (current === selectedTaskId) return;
     if (selectedTaskId) {
       router.replace(`?task=${selectedTaskId}`, { scroll: false });
     } else {
@@ -47,7 +46,7 @@ export function AnalyticsPageInner() {
         <CommandCenter />
       </section>
 
-      {/* Sticky task filter */}
+      {/* Sticky task filter — sole filter for entire page */}
       <TaskFilterBar selectedTaskId={selectedTaskId} onSelect={setSelectedTaskId} />
 
       <div className="p-4 sm:p-6 space-y-10">
@@ -61,20 +60,20 @@ export function AnalyticsPageInner() {
           </div>
           <RoiCards taskId={selectedTaskId} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <CostBreakdownTable />
-            <TokensByTaskChart />
+            <CostBreakdownTable taskId={selectedTaskId} />
+            <TokensByTaskChart taskId={selectedTaskId} />
           </div>
         </section>
 
         {/* Usage Trends */}
         <section className="space-y-4">
           <h2 className="text-base font-semibold">Usage Trends</h2>
-          <TokenTimeChart />
+          <TokenTimeChart taskId={selectedTaskId} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ToolBreakdownChart />
-            <LanguageChart />
+            <ToolBreakdownChart taskId={selectedTaskId} />
+            <LanguageChart taskId={selectedTaskId} />
           </div>
-          <StageBreakdownChart />
+          <StageBreakdownChart taskId={selectedTaskId} />
         </section>
 
         {/* Productivity */}
@@ -96,8 +95,8 @@ export function AnalyticsPageInner() {
               {selectedTaskId ? 'Sessions for selected task' : 'Select a task above to filter'}
             </p>
           </div>
-          <SessionTimelineChart />
-          <DevActivityCharts />
+          <SessionTimelineChart taskId={selectedTaskId} />
+          <DevActivityCharts taskId={selectedTaskId} />
         </section>
       </div>
     </main>

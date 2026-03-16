@@ -18,12 +18,14 @@ const LABEL_MAP: Record<string, string> = {
   output: 'Output',
 };
 
-export function TokenTimeChart() {
+interface Props { taskId?: string | null }
+
+export function TokenTimeChart({ taskId }: Props) {
   const [period, setPeriod] = useState<Period>('daily');
 
-  const daily = useDailyTokens(30);
-  const weekly = useWeeklyTokens(12);
-  const monthly = useMonthlyTokens(6);
+  const daily = useDailyTokens(30, taskId);
+  const weekly = useWeeklyTokens(12, taskId);
+  const monthly = useMonthlyTokens(6, taskId);
 
   const dataMap = {
     daily: (daily.data ?? []).map((d) => ({

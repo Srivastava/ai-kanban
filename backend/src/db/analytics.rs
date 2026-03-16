@@ -119,10 +119,11 @@ impl AnalyticsRepository {
 
     /// Get daily token usage for the last N days
     #[instrument(skip(self))]
-    pub async fn daily_tokens(&self, days: i64) -> Result<Vec<DailyTokens>> {
+    pub async fn daily_tokens(&self, days: i64, task_id: Option<&str>) -> Result<Vec<DailyTokens>> {
         debug!(days = days, "Fetching daily tokens");
 
-        let rows = sqlx::query(
+        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let sql = format!(
             r#"
             SELECT
                 DATE(timestamp) as date,
@@ -131,14 +132,24 @@ impl AnalyticsRepository {
                 SUM(cache_creation_tokens) as cache_creation_tokens,
                 SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
-            WHERE DATE(timestamp) >= DATE('now', ?)
+            WHERE DATE(timestamp) >= DATE('now', ?){task_filter}
             GROUP BY DATE(timestamp)
             ORDER BY date ASC
-            "#
-        )
-        .bind(format!("-{} days", days))
-        .fetch_all(&self.pool)
-        .await?;
+            "#,
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql)
+                .bind(format!("-{} days", days))
+                .bind(tid)
+                .fetch_all(&self.pool)
+                .await?
+        } else {
+            sqlx::query(&sql)
+                .bind(format!("-{} days", days))
+                .fetch_all(&self.pool)
+                .await?
+        };
 
         Ok(rows
             .into_iter()
@@ -154,10 +165,11 @@ impl AnalyticsRepository {
 
     /// Get weekly token usage for the last N weeks
     #[instrument(skip(self))]
-    pub async fn weekly_tokens(&self, weeks: i64) -> Result<Vec<WeeklyTokens>> {
+    pub async fn weekly_tokens(&self, weeks: i64, task_id: Option<&str>) -> Result<Vec<WeeklyTokens>> {
         debug!(weeks = weeks, "Fetching weekly tokens");
 
-        let rows = sqlx::query(
+        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let sql = format!(
             r#"
             SELECT
                 DATE(timestamp, 'weekday 0', '-6 days') as week_start,
@@ -166,14 +178,24 @@ impl AnalyticsRepository {
                 SUM(cache_creation_tokens) as cache_creation_tokens,
                 SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
-            WHERE DATE(timestamp) >= DATE('now', 'weekday 0', ?)
+            WHERE DATE(timestamp) >= DATE('now', 'weekday 0', ?){task_filter}
             GROUP BY week_start
             ORDER BY week_start ASC
-            "#
-        )
-        .bind(format!("-{} days", weeks * 7))
-        .fetch_all(&self.pool)
-        .await?;
+            "#,
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql)
+                .bind(format!("-{} days", weeks * 7))
+                .bind(tid)
+                .fetch_all(&self.pool)
+                .await?
+        } else {
+            sqlx::query(&sql)
+                .bind(format!("-{} days", weeks * 7))
+                .fetch_all(&self.pool)
+                .await?
+        };
 
         Ok(rows
             .into_iter()
@@ -189,10 +211,11 @@ impl AnalyticsRepository {
 
     /// Get monthly token usage for the last N months
     #[instrument(skip(self))]
-    pub async fn monthly_tokens(&self, months: i64) -> Result<Vec<MonthlyTokens>> {
+    pub async fn monthly_tokens(&self, months: i64, task_id: Option<&str>) -> Result<Vec<MonthlyTokens>> {
         debug!(months = months, "Fetching monthly tokens");
 
-        let rows = sqlx::query(
+        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let sql = format!(
             r#"
             SELECT
                 strftime('%Y-%m', timestamp) as month,
@@ -201,14 +224,24 @@ impl AnalyticsRepository {
                 SUM(cache_creation_tokens) as cache_creation_tokens,
                 SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
-            WHERE DATE(timestamp) >= DATE('now', ?)
+            WHERE DATE(timestamp) >= DATE('now', ?){task_filter}
             GROUP BY month
             ORDER BY month ASC
-            "#
-        )
-        .bind(format!("-{} months", months))
-        .fetch_all(&self.pool)
-        .await?;
+            "#,
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql)
+                .bind(format!("-{} months", months))
+                .bind(tid)
+                .fetch_all(&self.pool)
+                .await?
+        } else {
+            sqlx::query(&sql)
+                .bind(format!("-{} months", months))
+                .fetch_all(&self.pool)
+                .await?
+        };
 
         Ok(rows
             .into_iter()
@@ -313,10 +346,11 @@ impl AnalyticsRepository {
 
     /// Get token usage aggregated by tool
     #[instrument(skip(self))]
-    pub async fn tokens_by_tool(&self) -> Result<Vec<ToolTokens>> {
+    pub async fn tokens_by_tool(&self, task_id: Option<&str>) -> Result<Vec<ToolTokens>> {
         debug!("Fetching tokens by tool");
 
-        let rows = sqlx::query(
+        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let sql = format!(
             r#"
             SELECT
                 COALESCE(tool_name, 'unknown') as tool_name,
@@ -324,13 +358,17 @@ impl AnalyticsRepository {
                 SUM(output_tokens) as output_tokens,
                 COUNT(*) as call_count
             FROM token_events
-            WHERE tool_name IS NOT NULL
+            WHERE tool_name IS NOT NULL{task_filter}
             GROUP BY tool_name
             ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
-            "#
-        )
-        .fetch_all(&self.pool)
-        .await?;
+            "#,
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql).bind(tid).fetch_all(&self.pool).await?
+        } else {
+            sqlx::query(&sql).fetch_all(&self.pool).await?
+        };
 
         Ok(rows
             .into_iter()
@@ -345,10 +383,11 @@ impl AnalyticsRepository {
 
     /// Get token usage aggregated by file extension (language)
     #[instrument(skip(self))]
-    pub async fn tokens_by_language(&self) -> Result<Vec<LanguageTokens>> {
+    pub async fn tokens_by_language(&self, task_id: Option<&str>) -> Result<Vec<LanguageTokens>> {
         debug!("Fetching tokens by language");
 
-        let rows = sqlx::query(
+        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let sql = format!(
             r#"
             SELECT
                 COALESCE(file_ext, 'unknown') as file_ext,
@@ -356,13 +395,17 @@ impl AnalyticsRepository {
                 SUM(output_tokens) as output_tokens,
                 COUNT(*) as call_count
             FROM token_events
-            WHERE file_ext IS NOT NULL
+            WHERE file_ext IS NOT NULL{task_filter}
             GROUP BY file_ext
             ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
-            "#
-        )
-        .fetch_all(&self.pool)
-        .await?;
+            "#,
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql).bind(tid).fetch_all(&self.pool).await?
+        } else {
+            sqlx::query(&sql).fetch_all(&self.pool).await?
+        };
 
         Ok(rows
             .into_iter()
@@ -548,22 +591,36 @@ impl AnalyticsRepository {
     }
 
     #[instrument(skip(self))]
-    pub async fn tokens_by_stage(&self) -> Result<Vec<TokensByStage>> {
+    pub async fn tokens_by_stage(&self, task_id: Option<&str>) -> Result<Vec<TokensByStage>> {
         debug!("Fetching tokens by stage");
-        let rows = sqlx::query(
+        let task_filter = if task_id.is_some() { "WHERE te.task_id = ?" } else { "" };
+        let sql = format!(
             r#"
             SELECT
-                t.stage,
+                COALESCE(
+                    (SELECT sh.to_stage FROM stage_history sh
+                     WHERE sh.task_id = te.task_id AND sh.moved_at <= te.timestamp
+                     ORDER BY sh.moved_at DESC LIMIT 1),
+                    (SELECT sh.from_stage FROM stage_history sh
+                     WHERE sh.task_id = te.task_id
+                     ORDER BY sh.moved_at ASC LIMIT 1),
+                    t.stage
+                ) as stage,
                 SUM(te.input_tokens) as input_tokens,
                 SUM(te.output_tokens) as output_tokens
             FROM token_events te
             JOIN tasks t ON te.task_id = t.id
-            GROUP BY t.stage
-            ORDER BY t.stage ASC
+            {task_filter}
+            GROUP BY stage
+            ORDER BY stage ASC
             "#,
-        )
-        .fetch_all(&self.pool)
-        .await?;
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql).bind(tid).fetch_all(&self.pool).await?
+        } else {
+            sqlx::query(&sql).fetch_all(&self.pool).await?
+        };
         Ok(rows.into_iter().map(|row| TokensByStage {
             stage: row.get("stage"),
             input_tokens: row.get("input_tokens"),

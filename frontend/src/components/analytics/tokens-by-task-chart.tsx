@@ -13,8 +13,11 @@ function truncate(s: string, n = 18): string {
   return s.length > n ? s.slice(0, n) + '\u2026' : s;
 }
 
-export function TokensByTaskChart() {
-  const { data = [], isLoading } = useTokensByTask();
+interface Props { taskId?: string | null }
+
+export function TokensByTaskChart({ taskId }: Props) {
+  const { data: allData = [], isLoading } = useTokensByTask();
+  const data = taskId ? allData.filter((r) => r.task_id === taskId) : allData;
 
   const chartData = [...data]
     .sort((a, b) => {

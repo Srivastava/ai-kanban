@@ -18,8 +18,11 @@ const TOOLTIP_STYLE = {
   fontSize: '12px',
 };
 
-export function DevActivityCharts() {
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+interface Props { taskId?: string | null }
+
+export function DevActivityCharts({ taskId: externalTaskId }: Props) {
+  const [internalTaskId, setInternalTaskId] = useState<string | null>(null);
+  const selectedTaskId = externalTaskId ?? internalTaskId;
   const { data: tasks = [] } = useTokensByTask();
   const { data = [], isLoading } = useDevActivity(selectedTaskId);
 
@@ -35,19 +38,21 @@ export function DevActivityCharts() {
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-      {/* Task selector */}
-      <select
-        className="rounded-md border border-border bg-background px-3 py-1.5 text-sm max-w-xs"
-        value={selectedTaskId ?? ''}
-        onChange={(e) => setSelectedTaskId(e.target.value || null)}
-      >
-        <option value="">Select a task…</option>
-        {tasks.map((t) => (
-          <option key={t.task_id} value={t.task_id}>
-            {t.task_title}
-          </option>
-        ))}
-      </select>
+      {/* Task selector — hidden when external taskId provided */}
+      {!externalTaskId && (
+        <select
+          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm max-w-xs"
+          value={internalTaskId ?? ''}
+          onChange={(e) => setInternalTaskId(e.target.value || null)}
+        >
+          <option value="">Select a task…</option>
+          {tasks.map((t) => (
+            <option key={t.task_id} value={t.task_id}>
+              {t.task_title}
+            </option>
+          ))}
+        </select>
+      )}
 
       {!selectedTaskId ? (
         <div className="h-32 flex items-center justify-center rounded-lg border border-dashed border-border">

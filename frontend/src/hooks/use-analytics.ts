@@ -28,42 +28,45 @@ export function useAnalyticsOverview() {
   });
 }
 
-export function useDailyTokens(days = 30) {
-  logger.debug('useDailyTokens hook called', { days });
+export function useDailyTokens(days = 30, taskId?: string | null) {
+  logger.debug('useDailyTokens hook called', { days, taskId });
 
   return useQuery({
-    queryKey: ['analytics', 'daily', days],
+    queryKey: ['analytics', 'daily', days, taskId],
     queryFn: async () => {
-      logger.debug('useDailyTokens: fetching daily tokens', { days });
-      const result = await apiClient<DailyTokens[]>(`/api/analytics/tokens/daily?days=${days}`);
+      logger.debug('useDailyTokens: fetching daily tokens', { days, taskId });
+      const params = taskId ? `days=${days}&task_id=${taskId}` : `days=${days}`;
+      const result = await apiClient<DailyTokens[]>(`/api/analytics/tokens/daily?${params}`);
       logger.debug('useDailyTokens: fetch complete', { count: result.length });
       return result;
     },
   });
 }
 
-export function useWeeklyTokens(weeks = 12) {
-  logger.debug('useWeeklyTokens hook called', { weeks });
+export function useWeeklyTokens(weeks = 12, taskId?: string | null) {
+  logger.debug('useWeeklyTokens hook called', { weeks, taskId });
 
   return useQuery({
-    queryKey: ['analytics', 'weekly', weeks],
+    queryKey: ['analytics', 'weekly', weeks, taskId],
     queryFn: async () => {
-      logger.debug('useWeeklyTokens: fetching weekly tokens', { weeks });
-      const result = await apiClient<WeeklyTokens[]>(`/api/analytics/tokens/weekly?weeks=${weeks}`);
+      logger.debug('useWeeklyTokens: fetching weekly tokens', { weeks, taskId });
+      const params = taskId ? `weeks=${weeks}&task_id=${taskId}` : `weeks=${weeks}`;
+      const result = await apiClient<WeeklyTokens[]>(`/api/analytics/tokens/weekly?${params}`);
       logger.debug('useWeeklyTokens: fetch complete', { count: result.length });
       return result;
     },
   });
 }
 
-export function useMonthlyTokens(months = 6) {
-  logger.debug('useMonthlyTokens hook called', { months });
+export function useMonthlyTokens(months = 6, taskId?: string | null) {
+  logger.debug('useMonthlyTokens hook called', { months, taskId });
 
   return useQuery({
-    queryKey: ['analytics', 'monthly', months],
+    queryKey: ['analytics', 'monthly', months, taskId],
     queryFn: async () => {
-      logger.debug('useMonthlyTokens: fetching monthly tokens', { months });
-      const result = await apiClient<MonthlyTokens[]>(`/api/analytics/tokens/monthly?months=${months}`);
+      logger.debug('useMonthlyTokens: fetching monthly tokens', { months, taskId });
+      const params = taskId ? `months=${months}&task_id=${taskId}` : `months=${months}`;
+      const result = await apiClient<MonthlyTokens[]>(`/api/analytics/tokens/monthly?${params}`);
       logger.debug('useMonthlyTokens: fetch complete', { count: result.length });
       return result;
     },
@@ -98,28 +101,30 @@ export function useTokensBySession() {
   });
 }
 
-export function useTokensByTool() {
-  logger.debug('useTokensByTool hook called');
+export function useTokensByTool(taskId?: string | null) {
+  logger.debug('useTokensByTool hook called', { taskId });
 
   return useQuery({
-    queryKey: ['analytics', 'by-tool'],
+    queryKey: ['analytics', 'by-tool', taskId],
     queryFn: async () => {
       logger.debug('useTokensByTool: fetching tokens by tool');
-      const result = await apiClient<ToolTokens[]>('/api/analytics/tokens/by-tool');
+      const url = taskId ? `/api/analytics/tokens/by-tool?task_id=${taskId}` : '/api/analytics/tokens/by-tool';
+      const result = await apiClient<ToolTokens[]>(url);
       logger.debug('useTokensByTool: fetch complete', { count: result.length, tools: result.map(t => t.tool_name) });
       return result;
     },
   });
 }
 
-export function useTokensByLanguage() {
-  logger.debug('useTokensByLanguage hook called');
+export function useTokensByLanguage(taskId?: string | null) {
+  logger.debug('useTokensByLanguage hook called', { taskId });
 
   return useQuery({
-    queryKey: ['analytics', 'by-language'],
+    queryKey: ['analytics', 'by-language', taskId],
     queryFn: async () => {
       logger.debug('useTokensByLanguage: fetching tokens by language');
-      const result = await apiClient<LanguageTokens[]>('/api/analytics/tokens/by-language');
+      const url = taskId ? `/api/analytics/tokens/by-language?task_id=${taskId}` : '/api/analytics/tokens/by-language';
+      const result = await apiClient<LanguageTokens[]>(url);
       logger.debug('useTokensByLanguage: fetch complete', { count: result.length, languages: result.map(l => l.file_ext) });
       return result;
     },
@@ -179,11 +184,12 @@ export function useCostByTask() {
   });
 }
 
-export function useTokensByStage() {
+export function useTokensByStage(taskId?: string | null) {
   return useQuery({
-    queryKey: ['analytics', 'by-stage'],
+    queryKey: ['analytics', 'by-stage', taskId],
     queryFn: async () => {
-      const result = await apiClient<TokensByStage[]>('/api/analytics/tokens/by-stage');
+      const url = taskId ? `/api/analytics/tokens/by-stage?task_id=${taskId}` : '/api/analytics/tokens/by-stage';
+      const result = await apiClient<TokensByStage[]>(url);
       logger.debug('useTokensByStage: fetch complete', { count: result.length });
       return result;
     },
