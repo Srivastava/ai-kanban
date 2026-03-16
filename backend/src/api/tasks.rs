@@ -9,7 +9,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 
 #[derive(Deserialize, Debug)]
 struct ListQuery {
@@ -81,6 +81,28 @@ async fn create_task(
     Json(create): Json<CreateTask>,
 ) -> impl IntoResponse {
     info!(title = %create.title, project_path = %create.project_path, "Creating task");
+
+    // Auto-create ~/Projects/<name> if the path starts with ~/Projects/
+    if let Some(name) = create.project_path.strip_prefix("~/Projects/") {
+        // Security: reject any path component that could escape the Projects directory
+        if name.contains('/') || name.contains('\\') || name.contains("..") || name.is_empty() {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "Invalid project path: use a simple directory name under ~/Projects/" })),
+            ).into_response();
+        }
+        if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+            let full_path = std::path::PathBuf::from(home).join("Projects").join(name);
+            if !full_path.exists() {
+                if let Err(e) = std::fs::create_dir_all(&full_path) {
+                    warn!(path = %full_path.display(), error = %e, "Failed to create project directory");
+                } else {
+                    info!(path = %full_path.display(), "Created project directory");
+                }
+            }
+        }
+    }
+
     match state.repo.create(create).await {
         Ok(task) => {
             info!(task_id = %task.id, title = %task.title, stage = %task.stage, project_path = %task.project_path, "Task created");
