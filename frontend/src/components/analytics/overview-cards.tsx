@@ -2,10 +2,20 @@
 
 import { useAnalyticsOverview } from '@/hooks/use-analytics';
 
+// Sonnet 3.5/3.7 pricing per 1M tokens
+const INPUT_PRICE = 3.0;
+const OUTPUT_PRICE = 15.0;
+const CACHE_WRITE_PRICE = 3.75;
+const CACHE_READ_PRICE = 0.30;
+
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return `${n}`;
+}
+
+function fmtCost(n: number): string {
+  return `$${n.toFixed(2)}`;
 }
 
 function Skeleton() {
@@ -15,12 +25,18 @@ function Skeleton() {
 export function OverviewCards() {
   const { data, isLoading } = useAnalyticsOverview();
 
-  const cached = data
-    ? (data.total_cache_creation_tokens ?? 0) + (data.total_cache_read_tokens ?? 0)
-    : 0;
+  const cacheCreation = data?.total_cache_creation_tokens ?? 0;
+  const cacheRead = data?.total_cache_read_tokens ?? 0;
+  const cached = cacheCreation + cacheRead;
   const effectiveTotal = data
     ? data.total_input_tokens + cached + data.total_output_tokens
     : 0;
+
+  // Cost breakdown by token type
+  const costInput        = data ? (data.total_input_tokens   / 1_000_000) * INPUT_PRICE        : 0;
+  const costCacheWrite   = data ? (cacheCreation             / 1_000_000) * CACHE_WRITE_PRICE  : 0;
+  const costCacheRead    = data ? (cacheRead                 / 1_000_000) * CACHE_READ_PRICE   : 0;
+  const costOutput       = data ? (data.total_output_tokens  / 1_000_000) * OUTPUT_PRICE       : 0;
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -33,12 +49,16 @@ export function OverviewCards() {
         {data && !isLoading ? (
           <div className="text-xs space-y-0.5 mt-1">
             <div className="flex justify-between text-muted-foreground">
-              <span>Input</span>
+              <span>New input</span>
               <span>{fmt(data.total_input_tokens)}</span>
             </div>
             <div className="flex justify-between text-amber-500/80">
-              <span>Cached ⚡</span>
-              <span>{fmt(cached)}</span>
+              <span>Cache write ⚡</span>
+              <span>{fmt(cacheCreation)}</span>
+            </div>
+            <div className="flex justify-between text-amber-400/70">
+              <span>Cache read ⚡</span>
+              <span>{fmt(cacheRead)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground">
               <span>Output</span>
@@ -50,13 +70,34 @@ export function OverviewCards() {
         )}
       </div>
 
-      {/* Cost */}
+      {/* Cost with breakdown */}
       <div className="rounded-xl border border-border bg-card p-5 space-y-1">
         <p className="text-xs text-muted-foreground uppercase tracking-wider">Estimated Cost</p>
         <p className="text-2xl font-bold">
-          {isLoading ? <Skeleton /> : (data ? `$${data.estimated_cost_usd.toFixed(4)}` : '—')}
+          {isLoading ? <Skeleton /> : (data ? fmtCost(data.estimated_cost_usd) : '—')}
         </p>
-        <p className="text-xs text-muted-foreground">Claude Sonnet pricing</p>
+        {data && !isLoading ? (
+          <div className="text-xs space-y-0.5 mt-1">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Output</span>
+              <span>{fmtCost(costOutput)}</span>
+            </div>
+            <div className="flex justify-between text-amber-500/80">
+              <span>Cache write</span>
+              <span>{fmtCost(costCacheWrite)}</span>
+            </div>
+            <div className="flex justify-between text-amber-400/70">
+              <span>Cache read</span>
+              <span>{fmtCost(costCacheRead)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Input</span>
+              <span>{fmtCost(costInput)}</span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Claude Sonnet pricing</p>
+        )}
       </div>
 
       {/* Sessions */}
