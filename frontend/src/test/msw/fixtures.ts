@@ -49,8 +49,8 @@ export const mockOverview: AnalyticsOverview = {
 };
 
 export const mockCostByTask: CostByTask[] = [
-  { task_id: 'task-123', task_title: 'Test task', input_tokens: 80000, output_tokens: 24000, cost_usd: 0.6 },
-  { task_id: 'task-456', task_title: 'In-progress task', input_tokens: 40000, output_tokens: 10000, cost_usd: 0.27 },
+  { task_id: 'task-123', task_title: 'Test task', input_tokens: 80000, output_tokens: 24000, cache_creation_tokens: 5000, cache_read_tokens: 12000, cost_usd: 0.6 },
+  { task_id: 'task-456', task_title: 'In-progress task', input_tokens: 40000, output_tokens: 10000, cache_creation_tokens: 2000, cache_read_tokens: 8000, cost_usd: 0.27 },
 ];
 
 export const mockTokensByStage: TokensByStage[] = [

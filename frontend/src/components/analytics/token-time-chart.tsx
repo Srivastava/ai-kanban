@@ -12,6 +12,12 @@ function formatTokens(n: number) {
   return `${n}`;
 }
 
+const LABEL_MAP: Record<string, string> = {
+  input: 'Input',
+  cached: 'Cached',
+  output: 'Output',
+};
+
 export function TokenTimeChart() {
   const [period, setPeriod] = useState<Period>('daily');
 
@@ -20,9 +26,24 @@ export function TokenTimeChart() {
   const monthly = useMonthlyTokens(6);
 
   const dataMap = {
-    daily: (daily.data ?? []).map((d) => ({ label: d.date.slice(5), input: d.input_tokens, output: d.output_tokens })),
-    weekly: (weekly.data ?? []).map((d) => ({ label: d.week_start.slice(5), input: d.input_tokens, output: d.output_tokens })),
-    monthly: (monthly.data ?? []).map((d) => ({ label: d.month, input: d.input_tokens, output: d.output_tokens })),
+    daily: (daily.data ?? []).map((d) => ({
+      label: d.date.slice(5),
+      input: d.input_tokens,
+      cached: (d.cache_creation_tokens ?? 0) + (d.cache_read_tokens ?? 0),
+      output: d.output_tokens,
+    })),
+    weekly: (weekly.data ?? []).map((d) => ({
+      label: d.week_start.slice(5),
+      input: d.input_tokens,
+      cached: (d.cache_creation_tokens ?? 0) + (d.cache_read_tokens ?? 0),
+      output: d.output_tokens,
+    })),
+    monthly: (monthly.data ?? []).map((d) => ({
+      label: d.month,
+      input: d.input_tokens,
+      cached: (d.cache_creation_tokens ?? 0) + (d.cache_read_tokens ?? 0),
+      output: d.output_tokens,
+    })),
   };
 
   const data = dataMap[period];
@@ -60,6 +81,10 @@ export function TokenTimeChart() {
                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
               </linearGradient>
+              <linearGradient id="cachedGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+              </linearGradient>
               <linearGradient id="outputGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
@@ -77,11 +102,12 @@ export function TokenTimeChart() {
               label={{ value: 'Tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }}
             />
             <Tooltip
-              formatter={(value, name) => [formatTokens(Number(value)), name === 'input' ? 'Input tokens' : 'Output tokens']}
+              formatter={(value, name) => [formatTokens(Number(value)), LABEL_MAP[String(name)] ?? String(name)]}
               contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
             />
-            <Legend formatter={(value) => (value === 'input' ? 'Input' : 'Output')} iconType="circle" />
+            <Legend formatter={(value) => LABEL_MAP[value] ?? value} iconType="circle" />
             <Area type="monotone" dataKey="input" stroke="#6366f1" fill="url(#inputGrad)" strokeWidth={2} dot={false} />
+            <Area type="monotone" dataKey="cached" stroke="#f59e0b" fill="url(#cachedGrad)" strokeWidth={2} dot={false} />
             <Area type="monotone" dataKey="output" stroke="#a855f7" fill="url(#outputGrad)" strokeWidth={2} dot={false} />
           </AreaChart>
         </ResponsiveContainer>

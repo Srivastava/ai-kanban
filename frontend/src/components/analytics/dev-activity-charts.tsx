@@ -74,9 +74,11 @@ export function DevActivityCharts() {
               </p>
             </div>
             <div className="rounded-lg bg-muted/50 px-3 py-2">
-              <p className="text-xs text-muted-foreground">Tokens (in/out)</p>
-              <p className="font-semibold">
+              <p className="text-xs text-muted-foreground">Tokens (in / cached / out)</p>
+              <p className="font-semibold text-sm">
                 <span className="text-blue-500">{formatTokens(row.input_tokens ?? 0)}</span>
+                {' / '}
+                <span className="text-amber-500">{formatTokens((row.cache_creation_tokens ?? 0) + (row.cache_read_tokens ?? 0))}</span>
                 {' / '}
                 <span className="text-violet-500">{formatTokens(row.output_tokens ?? 0)}</span>
               </p>

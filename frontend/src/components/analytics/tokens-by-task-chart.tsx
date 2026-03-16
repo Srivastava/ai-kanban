@@ -23,6 +23,7 @@ export function TokensByTaskChart() {
       label: truncate(d.task_title),
       fullTitle: d.task_title,
       input: d.input_tokens,
+      cached: (d.cache_creation_tokens ?? 0) + (d.cache_read_tokens ?? 0),
       output: d.output_tokens,
     }));
 
@@ -61,10 +62,10 @@ export function TokensByTaskChart() {
             />
             <Tooltip
               labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
-              formatter={(value, name) => [
-                formatTokens(Number(value)),
-                name === 'input' ? 'Input tokens' : 'Output tokens',
-              ]}
+              formatter={(value, name) => {
+                const labels: Record<string, string> = { input: 'Input', cached: 'Cached', output: 'Output' };
+                return [formatTokens(Number(value)), labels[String(name)] ?? String(name)];
+              }}
               contentStyle={{
                 background: 'hsl(var(--card))',
                 border: '1px solid hsl(var(--border))',
@@ -72,8 +73,9 @@ export function TokensByTaskChart() {
                 fontSize: '12px',
               }}
             />
-            <Legend formatter={(v) => (v === 'input' ? 'Input' : 'Output')} iconType="circle" />
+            <Legend formatter={(v: string) => ({ input: 'Input', cached: 'Cached', output: 'Output' }[v] ?? v)} iconType="circle" />
             <Bar dataKey="input" stackId="a" fill="#6366f1" name="input" />
+            <Bar dataKey="cached" stackId="a" fill="#f59e0b" name="cached" />
             <Bar dataKey="output" stackId="a" fill="#a855f7" name="output" />
           </BarChart>
         </ResponsiveContainer>

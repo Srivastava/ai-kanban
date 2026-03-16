@@ -2,6 +2,12 @@
 
 import { useCostByTask } from '@/hooks/use-analytics';
 
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${n}`;
+}
+
 export function CostBreakdownTable() {
   const { data = [], isLoading } = useCostByTask();
 
@@ -21,27 +27,34 @@ export function CostBreakdownTable() {
               <tr className="border-b border-border text-left text-xs text-muted-foreground uppercase tracking-wider">
                 <th className="pb-2 pr-4 font-medium">Task</th>
                 <th className="pb-2 pr-4 font-medium text-right">Input</th>
+                <th className="pb-2 pr-4 font-medium text-right text-amber-500/80">Cached</th>
                 <th className="pb-2 pr-4 font-medium text-right">Output</th>
                 <th className="pb-2 font-medium text-right">Cost</th>
               </tr>
             </thead>
             <tbody>
-              {data.map((row) => (
-                <tr key={row.task_id} className="border-b border-border/50 last:border-0">
-                  <td className="py-2 pr-4 truncate max-w-[200px]" title={row.task_title}>
-                    {row.task_title}
-                  </td>
-                  <td className="py-2 pr-4 text-right text-muted-foreground">
-                    {row.input_tokens.toLocaleString()}
-                  </td>
-                  <td className="py-2 pr-4 text-right text-muted-foreground">
-                    {row.output_tokens.toLocaleString()}
-                  </td>
-                  <td className="py-2 text-right font-medium tabular-nums">
-                    ${row.cost_usd.toFixed(6)}
-                  </td>
-                </tr>
-              ))}
+              {data.map((row) => {
+                const cached = (row.cache_creation_tokens ?? 0) + (row.cache_read_tokens ?? 0);
+                return (
+                  <tr key={row.task_id} className="border-b border-border/50 last:border-0">
+                    <td className="py-2 pr-4 truncate max-w-[200px]" title={row.task_title}>
+                      {row.task_title}
+                    </td>
+                    <td className="py-2 pr-4 text-right text-muted-foreground">
+                      {fmt(row.input_tokens)}
+                    </td>
+                    <td className="py-2 pr-4 text-right text-amber-500/80">
+                      {fmt(cached)}
+                    </td>
+                    <td className="py-2 pr-4 text-right text-muted-foreground">
+                      {fmt(row.output_tokens)}
+                    </td>
+                    <td className="py-2 text-right font-medium tabular-nums">
+                      ${row.cost_usd.toFixed(6)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
