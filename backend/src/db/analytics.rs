@@ -9,19 +9,32 @@ use std::collections::HashMap;
 use sqlx::{SqlitePool, sqlite::SqliteRow, Row};
 use tracing::{debug, instrument};
 
-/// Returns (input_price_per_million, output_price_per_million) in USD.
-/// Configurable via CLAUDE_INPUT_PRICE_PER_MILLION and CLAUDE_OUTPUT_PRICE_PER_MILLION env vars.
-/// Defaults: $3.00 / $15.00 (Claude Sonnet rates).
-pub fn token_prices() -> (f64, f64) {
+/// Sonnet pricing per million tokens (USD).
+/// - Input:         $3.00  (uncached new input)
+/// - Output:        $15.00
+/// - Cache write:   $3.75  (1.25× input — writing to prompt cache)
+/// - Cache read:    $0.30  (0.10× input — reading from prompt cache)
+///
+/// Configurable via env vars CLAUDE_INPUT_PRICE_PER_MILLION,
+/// CLAUDE_OUTPUT_PRICE_PER_MILLION, CLAUDE_CACHE_WRITE_PRICE_PER_MILLION,
+/// CLAUDE_CACHE_READ_PRICE_PER_MILLION.
+pub struct TokenPrices {
+    pub input: f64,
+    pub output: f64,
+    pub cache_write: f64,
+    pub cache_read: f64,
+}
+
+pub fn token_prices() -> TokenPrices {
     let input = std::env::var("CLAUDE_INPUT_PRICE_PER_MILLION")
-        .ok()
-        .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(3.0);
+        .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(3.0);
     let output = std::env::var("CLAUDE_OUTPUT_PRICE_PER_MILLION")
-        .ok()
-        .and_then(|v| v.parse::<f64>().ok())
-        .unwrap_or(15.0);
-    (input, output)
+        .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(15.0);
+    let cache_write = std::env::var("CLAUDE_CACHE_WRITE_PRICE_PER_MILLION")
+        .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(3.75);
+    let cache_read = std::env::var("CLAUDE_CACHE_READ_PRICE_PER_MILLION")
+        .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.30);
+    TokenPrices { input, output, cache_write, cache_read }
 }
 
 #[derive(Clone)]
@@ -59,11 +72,11 @@ impl AnalyticsRepository {
         let total_cache_read: i64 = totals.get("cache_read_tokens");
 
         // Calculate estimated cost (configurable via env vars)
-        let (input_price, output_price) = token_prices();
-        let estimated_cost_usd = (total_input as f64 / 1_000_000.0) * input_price
-            + (total_output as f64 / 1_000_000.0) * output_price
-            + (total_cache_creation as f64 / 1_000_000.0) * input_price
-            + (total_cache_read as f64 / 1_000_000.0) * (input_price * 0.10);
+        let p = token_prices();
+        let estimated_cost_usd = (total_input as f64 / 1_000_000.0) * p.input
+            + (total_output as f64 / 1_000_000.0) * p.output
+            + (total_cache_creation as f64 / 1_000_000.0) * p.cache_write
+            + (total_cache_read as f64 / 1_000_000.0) * p.cache_read;
 
         // Get unique sessions count
         let sessions: SqliteRow = sqlx::query(
@@ -510,16 +523,16 @@ impl AnalyticsRepository {
         )
         .fetch_all(&self.pool)
         .await?;
-        let (input_price, output_price) = token_prices();
+        let p = token_prices();
         let mut results: Vec<CostByTask> = rows.into_iter().map(|row| {
             let input_tokens: i64 = row.get("input_tokens");
             let output_tokens: i64 = row.get("output_tokens");
             let cache_creation: i64 = row.get("cache_creation_tokens");
             let cache_read: i64 = row.get("cache_read_tokens");
-            let cost_usd = (input_tokens as f64 / 1_000_000.0) * input_price
-                + (output_tokens as f64 / 1_000_000.0) * output_price
-                + (cache_creation as f64 / 1_000_000.0) * input_price
-                + (cache_read as f64 / 1_000_000.0) * (input_price * 0.10);
+            let cost_usd = (input_tokens as f64 / 1_000_000.0) * p.input
+                + (output_tokens as f64 / 1_000_000.0) * p.output
+                + (cache_creation as f64 / 1_000_000.0) * p.cache_write
+                + (cache_read as f64 / 1_000_000.0) * p.cache_read;
             CostByTask {
                 task_id: row.get("task_id"),
                 task_title: row.get("task_title"),
@@ -586,15 +599,15 @@ impl AnalyticsRepository {
         )
         .fetch_one(&self.pool)
         .await?;
-        let (input_price, output_price) = token_prices();
+        let p = token_prices();
         let total_input: i64 = row.get("total_input");
         let total_output: i64 = row.get("total_output");
         let total_cache_creation: i64 = row.get("total_cache_creation");
         let total_cache_read: i64 = row.get("total_cache_read");
-        let total_cost_usd = (total_input as f64 / 1_000_000.0) * input_price
-            + (total_output as f64 / 1_000_000.0) * output_price
-            + (total_cache_creation as f64 / 1_000_000.0) * input_price
-            + (total_cache_read as f64 / 1_000_000.0) * (input_price * 0.10);
+        let total_cost_usd = (total_input as f64 / 1_000_000.0) * p.input
+            + (total_output as f64 / 1_000_000.0) * p.output
+            + (total_cache_creation as f64 / 1_000_000.0) * p.cache_write
+            + (total_cache_read as f64 / 1_000_000.0) * p.cache_read;
         Ok(SessionSummary {
             total_sessions: row.get("total_sessions"),
             avg_tokens_per_session: row.get("avg_tokens_per_session"),
@@ -670,7 +683,7 @@ impl AnalyticsRepository {
 
     pub async fn roi_metrics(&self, task_id: Option<&str>) -> Result<crate::models::RoiMetrics> {
         // token_prices() is defined in this same file — call directly, no import needed
-        let (input_price, output_price) = token_prices();
+        let p = token_prices();
 
         let cost_row = sqlx::query(r#"
             SELECT
@@ -699,10 +712,10 @@ impl AnalyticsRepository {
         let total_cache_creation: f64 = cost_row.get::<i64, _>("total_cache_creation") as f64;
         let total_cache_read:     f64 = cost_row.get::<i64, _>("total_cache_read")     as f64;
         let avg_duration: f64 = cost_row.get("avg_duration_secs");
-        let total_cost = (total_input / 1_000_000.0) * input_price
-                       + (total_output / 1_000_000.0) * output_price
-                       + (total_cache_creation / 1_000_000.0) * input_price
-                       + (total_cache_read / 1_000_000.0) * (input_price * 0.10);
+        let total_cost = (total_input / 1_000_000.0) * p.input
+                       + (total_output / 1_000_000.0) * p.output
+                       + (total_cache_creation / 1_000_000.0) * p.cache_write
+                       + (total_cache_read / 1_000_000.0) * p.cache_read;
 
         let otel_row = sqlx::query(r#"
             SELECT

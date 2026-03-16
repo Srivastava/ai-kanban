@@ -4,21 +4,19 @@ import { useAnalyticsOverview, useBurnRate, useUsageWindows, usePlanTier } from 
 import { RateLimitGauge } from './rate-limit-gauge';
 import { ContextWindowGauges } from './context-window-gauge';
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="space-y-0.5">
-      <p className="text-xs text-muted-foreground uppercase tracking-wider">{label}</p>
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  );
-}
+// Sonnet pricing per 1M tokens
+const INPUT_PRICE = 3.0;
+const OUTPUT_PRICE = 15.0;
+const CACHE_WRITE_PRICE = 3.75;
+const CACHE_READ_PRICE = 0.30;
 
-function formatTokens(n: number) {
+function fmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
 }
+
+function fmtCost(n: number) { return `$${n.toFixed(2)}`; }
 
 export function CommandCenter() {
   const { data: overview } = useAnalyticsOverview();
@@ -30,12 +28,23 @@ export function CommandCenter() {
   const limitWeek = plan?.limit_week ?? 3_500_000;
 
   const burnLabel = burn
-    ? `${formatTokens(Math.round(burn.tokens_per_minute * 60))}/hr — ${
+    ? `${fmt(Math.round(burn.tokens_per_minute * 60))}/hr — ${
         burn.tokens_per_minute > 0 && windows
           ? `limit in ~${Math.round((limit5hr - (windows.tokens_5hr ?? 0)) / burn.tokens_per_minute / 60)}h`
           : 'at limit pace'
       }`
     : null;
+
+  const cacheCreation = overview?.total_cache_creation_tokens ?? 0;
+  const cacheRead = overview?.total_cache_read_tokens ?? 0;
+  const effectiveTotal = overview
+    ? overview.total_input_tokens + cacheCreation + cacheRead + overview.total_output_tokens
+    : 0;
+
+  const costInput      = overview ? (overview.total_input_tokens / 1_000_000) * INPUT_PRICE      : 0;
+  const costCacheWrite = overview ? (cacheCreation               / 1_000_000) * CACHE_WRITE_PRICE : 0;
+  const costCacheRead  = overview ? (cacheRead                   / 1_000_000) * CACHE_READ_PRICE  : 0;
+  const costOutput     = overview ? (overview.total_output_tokens/ 1_000_000) * OUTPUT_PRICE      : 0;
 
   return (
     <div className="rounded-xl border border-border bg-gradient-to-br from-card to-card/60 p-5 sm:p-6 space-y-6">
@@ -73,20 +82,40 @@ export function CommandCenter() {
 
       {/* Headline stats */}
       <div className="grid grid-cols-3 gap-4 pt-2 border-t border-border">
-        <Stat
-          label="Total Cost"
-          value={overview ? `$${overview.estimated_cost_usd.toFixed(2)}` : '—'}
-        />
-        <Stat
-          label="Total Tokens"
-          value={overview ? formatTokens(overview.total_input_tokens + overview.total_output_tokens) : '—'}
-          sub={overview ? `${formatTokens(overview.total_input_tokens)} in / ${formatTokens(overview.total_output_tokens)} out` : ''}
-        />
-        <Stat
-          label="Sessions"
-          value={overview ? String(overview.total_sessions) : '—'}
-          sub={overview ? `${overview.active_sessions_today} today` : ''}
-        />
+        {/* Cost with breakdown */}
+        <div className="space-y-0.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Cost</p>
+          <p className="text-2xl font-bold tabular-nums">{overview ? fmtCost(overview.estimated_cost_usd) : '—'}</p>
+          {overview && (
+            <div className="text-xs space-y-0.5 mt-1">
+              <div className="flex justify-between text-muted-foreground"><span>Output</span><span>{fmtCost(costOutput)}</span></div>
+              <div className="flex justify-between text-amber-500/80"><span>Cache write</span><span>{fmtCost(costCacheWrite)}</span></div>
+              <div className="flex justify-between text-amber-400/70"><span>Cache read</span><span>{fmtCost(costCacheRead)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Input</span><span>{fmtCost(costInput)}</span></div>
+            </div>
+          )}
+        </div>
+
+        {/* Tokens with breakdown */}
+        <div className="space-y-0.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Tokens</p>
+          <p className="text-2xl font-bold tabular-nums">{overview ? fmt(effectiveTotal) : '—'}</p>
+          {overview && (
+            <div className="text-xs space-y-0.5 mt-1">
+              <div className="flex justify-between text-muted-foreground"><span>New input</span><span>{fmt(overview.total_input_tokens)}</span></div>
+              <div className="flex justify-between text-amber-500/80"><span>Cache write</span><span>{fmt(cacheCreation)}</span></div>
+              <div className="flex justify-between text-amber-400/70"><span>Cache read</span><span>{fmt(cacheRead)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Output</span><span>{fmt(overview.total_output_tokens)}</span></div>
+            </div>
+          )}
+        </div>
+
+        {/* Sessions */}
+        <div className="space-y-0.5">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Sessions</p>
+          <p className="text-2xl font-bold tabular-nums">{overview ? String(overview.total_sessions) : '—'}</p>
+          {overview && <p className="text-xs text-muted-foreground">{overview.active_sessions_today} today</p>}
+        </div>
       </div>
     </div>
   );
