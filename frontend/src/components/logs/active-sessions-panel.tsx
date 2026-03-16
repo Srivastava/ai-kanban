@@ -74,7 +74,7 @@ export function ActiveSessionsPanel({ onSessionClick, activeSessionId }: Props) 
                     <th className="text-left px-4 py-1.5 font-medium">Session ID</th>
                     <th className="text-left px-3 py-1.5 font-medium">Task</th>
                     <th className="text-left px-3 py-1.5 font-medium">Started</th>
-                    <th className="text-right px-4 py-1.5 font-medium">Tokens</th>
+                    <th className="text-right px-4 py-1.5 font-medium">in / cached / out</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
@@ -122,10 +122,14 @@ function SessionRow({
       <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">
         {fmtTime(session.started_at)}
       </td>
-      <td className="px-4 py-1.5 text-right">
+      <td className="px-4 py-1.5 text-right font-mono text-[11px]">
         <span className="font-medium">{fmtTokens(session.total_tokens)}</span>
-        <span className="text-muted-foreground ml-1">
-          ({fmtTokens(session.input_tokens)}↑ {fmtTokens(session.output_tokens)}↓)
+        <span className="text-muted-foreground ml-1.5">
+          {fmtTokens(session.input_tokens)}↑
+          {' '}
+          <span className="text-amber-500/80">{fmtTokens((session.cache_creation_tokens ?? 0) + (session.cache_read_tokens ?? 0))}⚡</span>
+          {' '}
+          {fmtTokens(session.output_tokens)}↓
         </span>
       </td>
     </tr>
