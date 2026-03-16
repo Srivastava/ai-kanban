@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
+use std::sync::RwLock as StdRwLock;
 use std::time::Instant;
 use tokio::sync::{broadcast, RwLock};
 use tokio::time::Duration;
@@ -70,6 +71,7 @@ struct RunningSession {
 
 pub struct ClaudeManager {
     active_sessions: Arc<RwLock<HashMap<String, RunningSession>>>,
+    last_session_ended_at: Arc<StdRwLock<Option<Instant>>>,
     output_tx: broadcast::Sender<ClaudeEvent>,
     session_repo: SessionRepository,
     token_event_repo: TokenEventRepository,
@@ -97,6 +99,7 @@ impl ClaudeManager {
         let (output_tx, _) = broadcast::channel(1024);
         Self {
             active_sessions: Arc::new(RwLock::new(HashMap::new())),
+            last_session_ended_at: Arc::new(StdRwLock::new(None)),
             output_tx,
             session_repo,
             token_event_repo,
@@ -523,6 +526,7 @@ impl ClaudeManager {
         // Completion task: once stdout+stderr close, wait on child, update session status
         let session_id_for_completion = session.id.clone();
         let active_sessions_for_completion = self.active_sessions.clone();
+        let last_ended_for_completion = self.last_session_ended_at.clone();
         let session_repo_for_completion = self.session_repo.clone();
         let comment_repo_for_completion = self.comment_repo.clone();
         let output_tx_for_completion = self.output_tx.clone();
@@ -542,7 +546,11 @@ impl ClaudeManager {
             // Take the child out of active_sessions
             let child_opt = {
                 let mut sessions = active_sessions_for_completion.write().await;
-                sessions.remove(&session_id_for_completion).map(|rs| rs.child)
+                let child = sessions.remove(&session_id_for_completion).map(|rs| rs.child);
+                if let Ok(mut ts) = last_ended_for_completion.write() {
+                    *ts = Some(Instant::now());
+                }
+                child
             };
 
             // Wait on child to reap the zombie and get exit status
@@ -821,6 +829,22 @@ impl ClaudeManager {
 
     pub async fn active_count(&self) -> usize {
         self.active_sessions.read().await.len()
+    }
+
+    /// Returns true if a session is currently running OR ended within the last 30 minutes.
+    /// Note: resets to false on server restart (Instant is not persisted).
+    pub async fn recently_active(&self) -> bool {
+        // active_sessions uses tokio RwLock → .read().await
+        if self.active_sessions.read().await.len() > 0 {
+            return true;
+        }
+        // last_session_ended_at uses std RwLock → .read() returns Result (not a future)
+        if let Ok(ts) = self.last_session_ended_at.read() {
+            if let Some(ended) = *ts {
+                return ended.elapsed() < std::time::Duration::from_secs(30 * 60);
+            }
+        }
+        false
     }
 
     pub async fn is_active(&self, session_id: &str) -> bool {

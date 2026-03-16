@@ -135,6 +135,10 @@ impl SessionQueue {
         self.manager.active_count().await
     }
 
+    pub async fn recently_active(&self) -> bool {
+        self.manager.recently_active().await
+    }
+
     pub async fn get_active_session_for_task(&self, task_id: &str) -> Option<String> {
         self.manager.get_active_session_for_task(task_id).await
     }

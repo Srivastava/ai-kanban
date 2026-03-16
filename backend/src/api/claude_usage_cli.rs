@@ -354,8 +354,8 @@ pub fn start_usage_daemon(queue: Option<Arc<SessionQueue>>) -> SharedUsageCache 
                 }
             } else {
                 match &queue {
-                    Some(q) if q.active_count().await > 0 => {
-                        info!("Usage daemon: active session, polling again in 10m");
+                    Some(q) if q.recently_active().await => {
+                        info!("Usage daemon: recently active, polling again in 10m");
                         600
                     }
                     _ => {
