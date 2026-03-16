@@ -1,5 +1,6 @@
 use super::TaskApiState;
-use crate::models::{CreateTask, UpdateTask};
+use crate::models::{CommentWithReplies, CreateTask, UpdateTask};
+use std::collections::HashSet;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -205,6 +206,76 @@ async fn start_session(
     }
 }
 
+/// Build the comment context string for injecting into a Claude session.
+///
+/// cutoff=None: include all non-litellm comments and their replies.
+/// cutoff=Some(dt):
+///   - Rule 3 (first): include comments where parent.created_at > dt (with all their replies).
+///   - Rule 2 (second): for any remaining parent with replies where reply.created_at > dt,
+///     include the parent as `[context]` plus only the qualifying replies.
+pub fn build_comment_history(
+    comments: &[CommentWithReplies],
+    cutoff: Option<chrono::DateTime<chrono::Utc>>,
+) -> Option<String> {
+    fn fmt(author: &str, content: &str) -> String {
+        let prefix = if author == "claude" { "[Claude]" } else { "[You]" };
+        format!("{}: {}", prefix, content)
+    }
+
+    let lines: Vec<String> = match cutoff {
+        None => comments
+            .iter()
+            .filter(|c| c.comment.author != "litellm")
+            .flat_map(|c| {
+                let mut ls = vec![fmt(&c.comment.author, &c.comment.content)];
+                for r in c.replies.iter().filter(|r| r.author != "litellm") {
+                    ls.push(format!("  {}", fmt(&r.author, &r.content)));
+                }
+                ls
+            })
+            .collect(),
+
+        Some(cutoff_dt) => {
+            let mut included_ids: HashSet<String> = HashSet::new();
+            let mut ls: Vec<String> = Vec::new();
+
+            // Rule 3: new top-level comments (parent.created_at > cutoff)
+            for c in comments
+                .iter()
+                .filter(|c| c.comment.author != "litellm" && c.comment.created_at > cutoff_dt)
+            {
+                included_ids.insert(c.comment.id.clone());
+                ls.push(fmt(&c.comment.author, &c.comment.content));
+                for r in c.replies.iter().filter(|r| r.author != "litellm") {
+                    ls.push(format!("  {}", fmt(&r.author, &r.content)));
+                }
+            }
+
+            // Rule 2: old parents that have new replies
+            for c in comments
+                .iter()
+                .filter(|c| c.comment.author != "litellm" && !included_ids.contains(&c.comment.id))
+            {
+                let new_replies: Vec<_> = c
+                    .replies
+                    .iter()
+                    .filter(|r| r.author != "litellm" && r.created_at > cutoff_dt)
+                    .collect();
+                if !new_replies.is_empty() {
+                    ls.push(format!("[context] {}", fmt(&c.comment.author, &c.comment.content)));
+                    for r in &new_replies {
+                        ls.push(format!("  {}", fmt(&r.author, &r.content)));
+                    }
+                }
+            }
+
+            ls
+        }
+    };
+
+    if lines.is_empty() { None } else { Some(lines.join("\n")) }
+}
+
 #[instrument(skip(state))]
 async fn continue_session(
     State(state): State<TaskApiState>,
@@ -260,44 +331,15 @@ async fn continue_session(
     let total_replies: usize = comments.iter().map(|c| c.replies.len()).sum();
 
     let cutoff = if resume_claude_session_id.is_some() { prior_session_ended_at } else { None };
-    let human_comments: Vec<_> = comments.iter()
-        .filter(|c| c.comment.author != "litellm")
-        .filter(|c| {
-            // If we're resuming with a known cutoff, only include new comments
-            match cutoff {
-                Some(ended_at) => c.comment.created_at > ended_at,
-                None => true,
-            }
-        })
-        .collect();
 
-    let new_comment_count = human_comments.len();
-    let comment_history = if human_comments.is_empty() {
-        None
-    } else {
-        let history = human_comments.iter().flat_map(|c| {
-            let prefix = match c.comment.author.as_str() {
-                "claude" => "[Claude]",
-                _ => "[You]",
-            };
-            let mut lines = vec![format!("{}: {}", prefix, c.comment.content)];
-            for reply in c.replies.iter().filter(|r| r.author != "litellm") {
-                let reply_prefix = match reply.author.as_str() {
-                    "claude" => "[Claude]",
-                    _ => "[You]",
-                };
-                lines.push(format!("  {}: {}", reply_prefix, reply.content));
-            }
-            lines
-        }).collect::<Vec<_>>().join("\n");
-        Some(history)
-    };
+    let comment_history = build_comment_history(&comments, cutoff);
+    let new_comment_count = comment_history.as_ref().map(|h| h.lines().count()).unwrap_or(0);
 
     // Prepend compressed context if available (from prior high-token sessions).
     // Only include compressed context when NOT doing a true --resume (avoid duplication).
     let conversation_context = if resume_claude_session_id.is_some() {
         // True resume: only inject new comments, Claude already has full prior context
-        comment_history.clone().map(|h| format!("## New messages since last session:\n{h}"))
+        comment_history.map(|h| format!("## New messages since last session:\n{h}"))
     } else {
         // Context injection (no --resume): include full compressed context + history
         match (&task.compressed_context, &comment_history) {
@@ -380,5 +422,106 @@ async fn move_task(
             )
                 .into_response()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_comment_history;
+    use crate::models::{Comment, CommentWithReplies};
+    use chrono::{DateTime, TimeZone, Utc};
+
+    fn make_comment(id: &str, author: &str, content: &str, ts: DateTime<Utc>) -> Comment {
+        Comment {
+            id: id.to_string(),
+            task_id: "t1".to_string(),
+            parent_id: None,
+            author: author.to_string(),
+            content: content.to_string(),
+            created_at: ts,
+        }
+    }
+
+    fn make_reply(id: &str, parent_id: &str, author: &str, content: &str, ts: DateTime<Utc>) -> Comment {
+        Comment {
+            id: id.to_string(),
+            task_id: "t1".to_string(),
+            parent_id: Some(parent_id.to_string()),
+            author: author.to_string(),
+            content: content.to_string(),
+            created_at: ts,
+        }
+    }
+
+    #[test]
+    fn test_no_cutoff_includes_all_comments_and_replies() {
+        let t = Utc.with_ymd_and_hms(2026, 3, 1, 10, 0, 0).unwrap();
+        let comments = vec![
+            CommentWithReplies {
+                comment: make_comment("c1", "user", "hello", t),
+                replies: vec![make_reply("r1", "c1", "claude", "hi", t)],
+            },
+        ];
+        let result = build_comment_history(&comments, None).unwrap();
+        assert!(result.contains("[You]: hello"));
+        assert!(result.contains("[Claude]: hi"));
+    }
+
+    #[test]
+    fn test_cutoff_excludes_old_parent_with_no_new_replies() {
+        let old = Utc.with_ymd_and_hms(2026, 3, 1, 10, 0, 0).unwrap();
+        let cutoff = Utc.with_ymd_and_hms(2026, 3, 2, 0, 0, 0).unwrap();
+        let comments = vec![
+            CommentWithReplies {
+                comment: make_comment("c1", "user", "old comment", old),
+                replies: vec![],
+            },
+        ];
+        let result = build_comment_history(&comments, Some(cutoff));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_cutoff_includes_old_parent_as_context_when_new_reply_exists() {
+        let old = Utc.with_ymd_and_hms(2026, 3, 1, 10, 0, 0).unwrap();
+        let new_ts = Utc.with_ymd_and_hms(2026, 3, 3, 10, 0, 0).unwrap();
+        let cutoff = Utc.with_ymd_and_hms(2026, 3, 2, 0, 0, 0).unwrap();
+        let comments = vec![
+            CommentWithReplies {
+                comment: make_comment("c1", "user", "old parent", old),
+                replies: vec![make_reply("r1", "c1", "user", "new reply", new_ts)],
+            },
+        ];
+        let result = build_comment_history(&comments, Some(cutoff)).unwrap();
+        assert!(result.contains("[context]"), "Should include parent as context");
+        assert!(result.contains("old parent"));
+        assert!(result.contains("new reply"));
+    }
+
+    #[test]
+    fn test_cutoff_excludes_old_reply_on_old_parent() {
+        let old = Utc.with_ymd_and_hms(2026, 3, 1, 10, 0, 0).unwrap();
+        let cutoff = Utc.with_ymd_and_hms(2026, 3, 2, 0, 0, 0).unwrap();
+        let comments = vec![
+            CommentWithReplies {
+                comment: make_comment("c1", "user", "old parent", old),
+                replies: vec![make_reply("r1", "c1", "user", "old reply", old)],
+            },
+        ];
+        let result = build_comment_history(&comments, Some(cutoff));
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_litellm_comments_excluded() {
+        let t = Utc.with_ymd_and_hms(2026, 3, 3, 10, 0, 0).unwrap();
+        let comments = vec![
+            CommentWithReplies {
+                comment: make_comment("c1", "litellm", "summary", t),
+                replies: vec![],
+            },
+        ];
+        let result = build_comment_history(&comments, None);
+        assert!(result.is_none());
     }
 }
