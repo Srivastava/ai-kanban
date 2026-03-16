@@ -109,30 +109,37 @@ async fn usage_windows(State(state): State<AnalyticsApiState>) -> impl IntoRespo
     info!("API: Getting usage windows from daemon cache");
     let plan = crate::api::plan_tier::plan_tier_from_env();
 
-    // Read from the background daemon's cache (never blocks, always fast)
-    let cli = state
-        .usage_cache
-        .read()
-        .map(|c| c.data.clone())
-        .unwrap_or_default();
-
-    // When daemon has data, use it; otherwise fall back to JSONL for everything
-    let (tokens_5hr, tokens_week, reset_5hr, reset_week) = if cli.pct_5hr.unwrap_or(0.0) > 0.0 || cli.pct_week.unwrap_or(0.0) > 0.0 {
-        let t5 = ((cli.pct_5hr.unwrap_or(0.0) / 100.0) * plan.limit_5hr as f64).round() as i64;
-        let tw = ((cli.pct_week.unwrap_or(0.0) / 100.0) * plan.limit_week as f64).round() as i64;
-        let r5 = cli.reset_5hr;
-        let rw = cli.reset_week.unwrap_or_else(|| {
-            let j = crate::api::claude_jsonl::read_claude_usage();
-            crate::api::claude_jsonl::reset_week_from_earliest(j.earliest_week)
-        });
-        (t5, tw, r5, rw)
-    } else {
-        // Daemon hasn't gotten data yet (rate limited or first start) — use JSONL
-        let j = crate::api::claude_jsonl::read_claude_usage();
-        let r5 = crate::api::claude_jsonl::reset_5hr_from_earliest(j.earliest_5hr);
-        let rw = crate::api::claude_jsonl::reset_week_from_earliest(j.earliest_week);
-        (j.tokens_5hr, j.tokens_week, r5, rw)
+    let cache_guard = state.usage_cache.read();
+    let (cli, last_poll_no_data, has_prior_data) = match cache_guard {
+        Ok(c) => (c.data.clone(), c.last_poll_no_data, c.fetched_at.is_some()),
+        Err(_) => (crate::api::claude_usage_cli::ClaudeCliUsage::default(), false, false),
     };
+
+    // no_data = true only when: last poll failed AND we had a prior successful poll
+    // (if daemon never had data, JSONL fallback serves the response — no_data stays false)
+    let no_data = last_poll_no_data && has_prior_data;
+
+    let (tokens_5hr, tokens_week, reset_5hr, reset_week) =
+        if cli.pct_5hr.is_some() || cli.pct_week.is_some() {
+            let t5 = cli.pct_5hr
+                .map(|p| ((p / 100.0) * plan.limit_5hr as f64).round() as i64)
+                .unwrap_or(0);
+            let tw = cli.pct_week
+                .map(|p| ((p / 100.0) * plan.limit_week as f64).round() as i64)
+                .unwrap_or(0);
+            let r5 = cli.reset_5hr;
+            let rw = cli.reset_week.unwrap_or_else(|| {
+                let j = crate::api::claude_jsonl::read_claude_usage();
+                crate::api::claude_jsonl::reset_week_from_earliest(j.earliest_week)
+            });
+            (t5, tw, r5, Some(rw))
+        } else {
+            // Daemon hasn't gotten data yet — use JSONL
+            let j = crate::api::claude_jsonl::read_claude_usage();
+            let r5 = crate::api::claude_jsonl::reset_5hr_from_earliest(j.earliest_5hr);
+            let rw = crate::api::claude_jsonl::reset_week_from_earliest(j.earliest_week);
+            (j.tokens_5hr, j.tokens_week, r5, Some(rw))
+        };
 
     let windows = crate::models::UsageWindows {
         tokens_5hr,
@@ -141,6 +148,7 @@ async fn usage_windows(State(state): State<AnalyticsApiState>) -> impl IntoRespo
         limit_week: plan.limit_week,
         reset_5hr,
         reset_week,
+        no_data,
     };
     Json(windows).into_response()
 }

@@ -93,7 +93,8 @@ export interface UsageWindows {
   limit_5hr: number;
   limit_week: number;
   reset_5hr: string | null;
-  reset_week: string;
+  reset_week: string | null;
+  no_data: boolean;
 }
 
 export interface CostByTask {

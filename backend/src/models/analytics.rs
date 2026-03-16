@@ -87,8 +87,10 @@ pub struct UsageWindows {
     pub limit_week: i64,
     /// ISO-8601 timestamp when the current 5-hr window resets (null if no usage)
     pub reset_5hr: Option<String>,
-    /// ISO-8601 timestamp when the weekly window resets (always next Monday 00:00 UTC)
-    pub reset_week: String,
+    /// ISO-8601 timestamp when the weekly window resets (null if no usage)
+    pub reset_week: Option<String>,
+    /// True when the last daemon poll failed but prior data existed (stale data warning)
+    pub no_data: bool,
 }
 
 #[derive(Debug, Serialize)]

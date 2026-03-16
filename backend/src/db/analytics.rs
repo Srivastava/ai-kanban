@@ -452,7 +452,8 @@ impl AnalyticsRepository {
             limit_5hr,
             limit_week,
             reset_5hr,
-            reset_week,
+            reset_week: Some(reset_week),
+            no_data: false,
         })
     }
 
