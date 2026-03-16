@@ -15,10 +15,10 @@ use crate::claude::SessionQueue;
 
 #[derive(Debug, Default, Clone)]
 pub struct ClaudeCliUsage {
-    /// 5-hour window usage (0.0–100.0)
-    pub pct_5hr: f64,
-    /// Weekly window usage (0.0–100.0)
-    pub pct_week: f64,
+    /// 5-hour window usage (0.0–100.0), None if not parseable
+    pub pct_5hr: Option<f64>,
+    /// Weekly window usage (0.0–100.0), None if not parseable
+    pub pct_week: Option<f64>,
     /// ISO-8601 UTC reset time for 5hr window
     pub reset_5hr: Option<String>,
     /// ISO-8601 UTC reset time for weekly window
@@ -135,17 +135,15 @@ pub fn parse_claude_usage_output(raw: &str) -> ClaudeCliUsage {
         (collapsed.as_str(), "")
     };
 
-    let pct_5hr = pct_re
+    let pct_5hr: Option<f64> = pct_re
         .captures_iter(section_5hr)
         .filter_map(|c| c[1].parse::<f64>().ok())
-        .next()
-        .unwrap_or(0.0);
+        .next();
 
-    let pct_week = pct_re
+    let pct_week: Option<f64> = pct_re
         .captures_iter(section_week)
         .filter_map(|c| c[1].parse::<f64>().ok())
-        .next()
-        .unwrap_or(0.0);
+        .next();
 
     // For reset times, look for any line in each section that contains am/pm or "Resets"
     let reset_5hr = section_5hr
@@ -286,8 +284,8 @@ pub type SharedUsageCache = Arc<RwLock<UsageCache>>;
 /// meaningful data immediately on startup before the first real poll.
 pub fn start_usage_daemon(queue: Option<Arc<SessionQueue>>) -> SharedUsageCache {
     let seed = ClaudeCliUsage {
-        pct_5hr: 5.0,
-        pct_week: 18.0,
+        pct_5hr: Some(5.0),
+        pct_week: Some(18.0),
         // 5hr window resets ~2026-03-15 13:01 UTC (4h10m from seed time)
         reset_5hr: Some("2026-03-15T13:01:00+00:00".to_string()),
         // Weekly window resets 2026-03-21 Sat 11:00 AM LA time = 18:00 UTC (PDT, UTC-7)
@@ -304,21 +302,21 @@ pub fn start_usage_daemon(queue: Option<Arc<SessionQueue>>) -> SharedUsageCache 
             let result = tokio::task::spawn_blocking(run_claude_usage).await;
             match result {
                 Ok(new) => {
-                    let has_data = new.pct_5hr > 0.0 || new.pct_week > 0.0
+                    let has_data = new.pct_5hr.is_some() || new.pct_week.is_some()
                         || new.reset_5hr.is_some() || new.reset_week.is_some();
                     if has_data {
                         if let Ok(mut c) = cache_clone.write() {
                             // Merge: keep previous cached values for any fields
                             // that the new poll didn't return valid data for.
                             let merged = ClaudeCliUsage {
-                                pct_5hr: if new.pct_5hr > 0.0 { new.pct_5hr } else { c.data.pct_5hr },
-                                pct_week: if new.pct_week > 0.0 { new.pct_week } else { c.data.pct_week },
+                                pct_5hr: new.pct_5hr.or(c.data.pct_5hr),
+                                pct_week: new.pct_week.or(c.data.pct_week),
                                 reset_5hr: new.reset_5hr.or_else(|| c.data.reset_5hr.clone()),
                                 reset_week: new.reset_week.or_else(|| c.data.reset_week.clone()),
                             };
                             info!(
-                                pct_5hr = merged.pct_5hr,
-                                pct_week = merged.pct_week,
+                                pct_5hr = ?merged.pct_5hr,
+                                pct_week = ?merged.pct_week,
                                 "Usage daemon: refreshed from claude /usage"
                             );
                             c.data = merged;
@@ -366,11 +364,36 @@ Current week (all models)
 Resets Mar 21, 11am (America/Los_Angeles)
 ";
         let u = parse_claude_usage_output(raw);
-        assert_eq!(u.pct_5hr, 88.0);
-        assert_eq!(u.pct_week, 15.0);
+        assert_eq!(u.pct_5hr, Some(88.0));
+        assert_eq!(u.pct_week, Some(15.0));
         assert!(u.reset_week.is_some());
         // reset_week should be March 21
         let rw = u.reset_week.unwrap();
         assert!(rw.contains("2026-03-21"), "got: {rw}");
+    }
+
+    #[test]
+    fn test_parse_returns_some_pcts_when_data_present() {
+        let raw = "Current session\n████ 88% used\nResets 1am (America/Los_Angeles)\nCurrent week (all models)\n██ 15% used\nResets Mar 21, 11am (America/Los_Angeles)\n";
+        let u = parse_claude_usage_output(raw);
+        assert_eq!(u.pct_5hr, Some(88.0));
+        assert_eq!(u.pct_week, Some(15.0));
+    }
+
+    #[test]
+    fn test_parse_returns_none_pcts_when_no_data() {
+        let u = parse_claude_usage_output("");
+        assert_eq!(u.pct_5hr, None);
+        assert_eq!(u.pct_week, None);
+        assert!(u.reset_5hr.is_none());
+        assert!(u.reset_week.is_none());
+    }
+
+    #[test]
+    fn test_parse_zero_pct_returns_some_zero() {
+        let raw = "Current session\n0% used\nResets 1am (America/Los_Angeles)\nCurrent week\n0% used\n";
+        let u = parse_claude_usage_output(raw);
+        assert_eq!(u.pct_5hr, Some(0.0));
+        assert_eq!(u.pct_week, Some(0.0));
     }
 }
