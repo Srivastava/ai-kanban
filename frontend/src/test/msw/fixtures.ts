@@ -40,6 +40,8 @@ export const mockLog: LogEntry = {
 export const mockOverview: AnalyticsOverview = {
   total_input_tokens: 150000,
   total_output_tokens: 45000,
+  total_cache_creation_tokens: 0,
+  total_cache_read_tokens: 0,
   total_sessions: 12,
   total_tasks_with_sessions: 5,
   estimated_cost_usd: 1.125,
