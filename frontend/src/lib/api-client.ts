@@ -90,3 +90,11 @@ export async function apiClient<T>(
     throw error;
   }
 }
+
+export async function getProjects(): Promise<string[]> {
+  try {
+    return await apiClient<string[]>('/api/fs/projects');
+  } catch {
+    return [];
+  }
+}

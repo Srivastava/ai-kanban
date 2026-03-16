@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,36 +13,49 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateTask } from '@/hooks/use-tasks';
+import { getProjects } from '@/lib/api-client';
 
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const DEFAULT_PROJECT_PATH = '/';
+function sanitizeProjectName(raw: string): string {
+  // Remove path separators and collapse .. sequences
+  return raw.replace(/[/\\]/g, '').replace(/\.\./g, '');
+}
 
 export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [projectPath, setProjectPath] = useState(DEFAULT_PROJECT_PATH);
+  const [projectName, setProjectName] = useState('');
+  const [existingProjects, setExistingProjects] = useState<string[]>([]);
 
   const createTask = useCreateTask();
 
+  // Fetch existing project names when dialog opens
+  useEffect(() => {
+    if (open) {
+      getProjects().then(setExistingProjects);
+    }
+  }, [open]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title.trim() || !projectName.trim()) return;
 
-    if (!title.trim()) return;
+    const sanitized = sanitizeProjectName(projectName.trim());
+    if (!sanitized) return;
 
     await createTask.mutateAsync({
       title: title.trim(),
       description: description.trim() || undefined,
-      project_path: projectPath.trim() || DEFAULT_PROJECT_PATH,
+      project_path: `~/Projects/${sanitized}`,
     });
 
-    // Reset form
     setTitle('');
     setDescription('');
-    setProjectPath(DEFAULT_PROJECT_PATH);
+    setProjectName('');
     onOpenChange(false);
   };
 
@@ -82,15 +95,27 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="projectPath" className="text-sm font-medium">
-                Project Path
+              <label htmlFor="projectName" className="text-sm font-medium">
+                Project *
               </label>
               <Input
-                id="projectPath"
-                value={projectPath}
-                onChange={(e) => setProjectPath(e.target.value)}
-                placeholder="/"
+                id="projectName"
+                list="projects-datalist"
+                value={projectName}
+                onChange={(e) => setProjectName(sanitizeProjectName(e.target.value))}
+                placeholder="e.g. my-app"
+                required
               />
+              <datalist id="projects-datalist">
+                {existingProjects.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                Select an existing project or type a new name.
+                New directories are created automatically under{' '}
+                <code className="font-mono bg-muted px-1 rounded">~/Projects/</code>.
+              </p>
             </div>
           </div>
           <DialogFooter>
@@ -101,7 +126,10 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!title.trim() || createTask.isPending}>
+            <Button
+              type="submit"
+              disabled={!title.trim() || !projectName.trim() || createTask.isPending}
+            >
               {createTask.isPending ? 'Creating...' : 'Create Task'}
             </Button>
           </DialogFooter>
