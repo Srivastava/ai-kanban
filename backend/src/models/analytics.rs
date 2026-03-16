@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 pub struct AnalyticsOverview {
     pub total_input_tokens: i64,
     pub total_output_tokens: i64,
+    pub total_cache_creation_tokens: i64,
+    pub total_cache_read_tokens: i64,
     pub total_sessions: i64,
     pub total_tasks_with_sessions: i64,
     pub estimated_cost_usd: f64,
@@ -15,6 +17,8 @@ pub struct DailyTokens {
     pub date: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cache_read_tokens: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -22,6 +26,8 @@ pub struct WeeklyTokens {
     pub week_start: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cache_read_tokens: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -29,6 +35,8 @@ pub struct MonthlyTokens {
     pub month: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cache_read_tokens: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -37,6 +45,8 @@ pub struct TaskTokens {
     pub task_title: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cache_read_tokens: i64,
     pub total_tokens: i64,
 }
 
@@ -46,6 +56,8 @@ pub struct SessionTokens {
     pub task_title: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cache_read_tokens: i64,
     pub total_tokens: i64,
     pub started_at: Option<String>,
 }

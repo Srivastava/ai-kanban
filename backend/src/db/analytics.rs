@@ -44,7 +44,9 @@ impl AnalyticsRepository {
             r#"
             SELECT
                 COALESCE(SUM(input_tokens), 0) as input_tokens,
-                COALESCE(SUM(output_tokens), 0) as output_tokens
+                COALESCE(SUM(output_tokens), 0) as output_tokens,
+                COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens,
+                COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
             FROM token_events
             "#
         )
@@ -53,11 +55,15 @@ impl AnalyticsRepository {
 
         let total_input: i64 = totals.get("input_tokens");
         let total_output: i64 = totals.get("output_tokens");
+        let total_cache_creation: i64 = totals.get("cache_creation_tokens");
+        let total_cache_read: i64 = totals.get("cache_read_tokens");
 
         // Calculate estimated cost (configurable via env vars)
         let (input_price, output_price) = token_prices();
         let estimated_cost_usd = (total_input as f64 / 1_000_000.0) * input_price
-            + (total_output as f64 / 1_000_000.0) * output_price;
+            + (total_output as f64 / 1_000_000.0) * output_price
+            + (total_cache_creation as f64 / 1_000_000.0) * input_price
+            + (total_cache_read as f64 / 1_000_000.0) * (input_price * 0.10);
 
         // Get unique sessions count
         let sessions: SqliteRow = sqlx::query(
@@ -79,7 +85,7 @@ impl AnalyticsRepository {
 
         // Get active sessions today
         let active_today: SqliteRow = sqlx::query(
-            "SELECT COUNT(DISTINCT session_id) as count FROM token_events WHERE DATE(timestamp) = DATE('now')"
+            "SELECT COUNT(*) as count FROM sessions WHERE DATE(started_at) = DATE('now')"
         )
         .fetch_one(&self.pool)
         .await?;
@@ -89,6 +95,8 @@ impl AnalyticsRepository {
         Ok(AnalyticsOverview {
             total_input_tokens: total_input,
             total_output_tokens: total_output,
+            total_cache_creation_tokens: total_cache_creation,
+            total_cache_read_tokens: total_cache_read,
             total_sessions: session_count,
             total_tasks_with_sessions: task_count,
             estimated_cost_usd,
@@ -106,7 +114,9 @@ impl AnalyticsRepository {
             SELECT
                 DATE(timestamp) as date,
                 SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens
+                SUM(output_tokens) as output_tokens,
+                SUM(cache_creation_tokens) as cache_creation_tokens,
+                SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
             WHERE DATE(timestamp) >= DATE('now', ?)
             GROUP BY DATE(timestamp)
@@ -123,6 +133,8 @@ impl AnalyticsRepository {
                 date: row.get("date"),
                 input_tokens: row.get("input_tokens"),
                 output_tokens: row.get("output_tokens"),
+                cache_creation_tokens: row.get("cache_creation_tokens"),
+                cache_read_tokens: row.get("cache_read_tokens"),
             })
             .collect())
     }
@@ -137,7 +149,9 @@ impl AnalyticsRepository {
             SELECT
                 DATE(timestamp, 'weekday 0', '-6 days') as week_start,
                 SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens
+                SUM(output_tokens) as output_tokens,
+                SUM(cache_creation_tokens) as cache_creation_tokens,
+                SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
             WHERE DATE(timestamp) >= DATE('now', 'weekday 0', ?)
             GROUP BY week_start
@@ -154,6 +168,8 @@ impl AnalyticsRepository {
                 week_start: row.get("week_start"),
                 input_tokens: row.get("input_tokens"),
                 output_tokens: row.get("output_tokens"),
+                cache_creation_tokens: row.get("cache_creation_tokens"),
+                cache_read_tokens: row.get("cache_read_tokens"),
             })
             .collect())
     }
@@ -168,7 +184,9 @@ impl AnalyticsRepository {
             SELECT
                 strftime('%Y-%m', timestamp) as month,
                 SUM(input_tokens) as input_tokens,
-                SUM(output_tokens) as output_tokens
+                SUM(output_tokens) as output_tokens,
+                SUM(cache_creation_tokens) as cache_creation_tokens,
+                SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
             WHERE DATE(timestamp) >= DATE('now', ?)
             GROUP BY month
@@ -185,6 +203,8 @@ impl AnalyticsRepository {
                 month: row.get("month"),
                 input_tokens: row.get("input_tokens"),
                 output_tokens: row.get("output_tokens"),
+                cache_creation_tokens: row.get("cache_creation_tokens"),
+                cache_read_tokens: row.get("cache_read_tokens"),
             })
             .collect())
     }
@@ -200,10 +220,12 @@ impl AnalyticsRepository {
                 te.task_id,
                 COALESCE(t.title, 'Unknown Task') as task_title,
                 SUM(te.input_tokens) as input_tokens,
-                SUM(te.output_tokens) as output_tokens
+                SUM(te.output_tokens) as output_tokens,
+                SUM(te.cache_creation_tokens) as cache_creation_tokens,
+                SUM(te.cache_read_tokens) as cache_read_tokens
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
-            GROUP BY te.task_id, t.title
+            GROUP BY te.task_id
             ORDER BY (SUM(te.input_tokens) + SUM(te.output_tokens)) DESC
             "#
         )
@@ -215,11 +237,15 @@ impl AnalyticsRepository {
             .map(|row| {
                 let input: i64 = row.get("input_tokens");
                 let output: i64 = row.get("output_tokens");
+                let cache_creation: i64 = row.get("cache_creation_tokens");
+                let cache_read: i64 = row.get("cache_read_tokens");
                 TaskTokens {
                     task_id: row.get("task_id"),
                     task_title: row.get("task_title"),
                     input_tokens: input,
                     output_tokens: output,
+                    cache_creation_tokens: cache_creation,
+                    cache_read_tokens: cache_read,
                     total_tokens: input + output,
                 }
             })
@@ -238,6 +264,8 @@ impl AnalyticsRepository {
                 COALESCE(t.title, 'Unknown Task') as task_title,
                 SUM(te.input_tokens) as input_tokens,
                 SUM(te.output_tokens) as output_tokens,
+                SUM(te.cache_creation_tokens) as cache_creation_tokens,
+                SUM(te.cache_read_tokens) as cache_read_tokens,
                 MIN(te.timestamp) as started_at
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
@@ -253,12 +281,16 @@ impl AnalyticsRepository {
             .map(|row| {
                 let input: i64 = row.get("input_tokens");
                 let output: i64 = row.get("output_tokens");
+                let cache_creation: i64 = row.get("cache_creation_tokens");
+                let cache_read: i64 = row.get("cache_read_tokens");
                 let started_at: Option<String> = row.get("started_at");
                 SessionTokens {
                     session_id: row.get("session_id"),
                     task_title: row.get("task_title"),
                     input_tokens: input,
                     output_tokens: output,
+                    cache_creation_tokens: cache_creation,
+                    cache_read_tokens: cache_read,
                     total_tokens: input + output,
                     started_at,
                 }
