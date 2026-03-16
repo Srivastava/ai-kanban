@@ -12,8 +12,12 @@ function formatTokens(n: number): string {
   return `${n}`;
 }
 
-function formatReset(iso: string | null): { label: string; countdown: string } {
-  if (!iso) return { label: '—', countdown: 'no usage' };
+function formatReset(
+  iso: string | null,
+  noData: boolean,
+): { label: string; countdown: string } {
+  if (noData) return { label: '—', countdown: 'Rate limited' };
+  if (!iso) return { label: '—', countdown: 'No data yet' };
   const d = new Date(iso);
   const label = new Intl.DateTimeFormat('en-US', {
     timeZone: TZ,
@@ -72,8 +76,9 @@ export function UsageWindowsCard() {
       }).format(new Date(dataUpdatedAt))
     : null;
 
-  const reset5hr = formatReset(data?.reset_5hr ?? null);
-  const resetWeek = formatReset(data?.reset_week ?? null);
+  const noData = data?.no_data ?? false;
+  const reset5hr = formatReset(data?.reset_5hr ?? null, noData);
+  const resetWeek = formatReset(data?.reset_week ?? null, false);
 
   const skeleton = (
     <span className="animate-pulse bg-muted rounded w-16 h-6 inline-block" />
