@@ -525,6 +525,8 @@ impl AnalyticsRepository {
                 task_title: row.get("task_title"),
                 input_tokens,
                 output_tokens,
+                cache_creation_tokens: cache_creation,
+                cache_read_tokens: cache_read,
                 cost_usd,
             }
         }).collect();
