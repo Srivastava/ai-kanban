@@ -266,7 +266,10 @@ fn to_24h(hour: u32, ampm: &str) -> u32 {
 #[derive(Clone, Debug, Default)]
 pub struct UsageCache {
     pub data: ClaudeCliUsage,
+    /// Set when the last successful poll completed
     pub fetched_at: Option<Instant>,
+    /// True when the most recent poll returned no parseable data
+    pub last_poll_no_data: bool,
 }
 
 pub type SharedUsageCache = Arc<RwLock<UsageCache>>;
@@ -274,74 +277,94 @@ pub type SharedUsageCache = Arc<RwLock<UsageCache>>;
 /// Create the shared cache and spawn the background polling daemon.
 ///
 /// Poll frequency is dynamic:
+/// - Rate limited: sleep until reset_5hr (capped at 6h)
 /// - 10 minutes when there is an active Claude session (fast feedback)
 /// - 1 hour when idle (avoid rate limits)
 ///
 /// Smart field-level caching: reset times and percentages from the previous
 /// successful poll are preserved when the new poll returns missing/zero values.
-///
-/// Pre-seeded with the most recently known values so the dashboard shows
-/// meaningful data immediately on startup before the first real poll.
 pub fn start_usage_daemon(queue: Option<Arc<SessionQueue>>) -> SharedUsageCache {
-    let seed = ClaudeCliUsage {
-        pct_5hr: Some(5.0),
-        pct_week: Some(18.0),
-        // 5hr window resets ~2026-03-15 13:01 UTC (4h10m from seed time)
-        reset_5hr: Some("2026-03-15T13:01:00+00:00".to_string()),
-        // Weekly window resets 2026-03-21 Sat 11:00 AM LA time = 18:00 UTC (PDT, UTC-7)
-        reset_week: Some("2026-03-21T18:00:00+00:00".to_string()),
-    };
-    let cache: SharedUsageCache = Arc::new(RwLock::new(UsageCache {
-        data: seed,
-        fetched_at: None, // None signals this is a seed, not a real poll
-    }));
+    // Start empty — no hardcoded seed dates.
+    // The first poll runs immediately and populates the cache within seconds.
+    let cache: SharedUsageCache = Arc::new(RwLock::new(UsageCache::default()));
     let cache_clone = cache.clone();
 
     tokio::spawn(async move {
         loop {
             let result = tokio::task::spawn_blocking(run_claude_usage).await;
-            match result {
+
+            let has_data = match &result {
                 Ok(new) => {
-                    let has_data = new.pct_5hr.is_some() || new.pct_week.is_some()
-                        || new.reset_5hr.is_some() || new.reset_week.is_some();
+                    new.pct_5hr.is_some() || new.pct_week.is_some()
+                        || new.reset_5hr.is_some() || new.reset_week.is_some()
+                }
+                Err(_) => false,
+            };
+
+            if let Ok(new) = result {
+                if let Ok(mut c) = cache_clone.write() {
+                    c.last_poll_no_data = !has_data;
                     if has_data {
-                        if let Ok(mut c) = cache_clone.write() {
-                            // Merge: keep previous cached values for any fields
-                            // that the new poll didn't return valid data for.
-                            let merged = ClaudeCliUsage {
-                                pct_5hr: new.pct_5hr.or(c.data.pct_5hr),
-                                pct_week: new.pct_week.or(c.data.pct_week),
-                                reset_5hr: new.reset_5hr.or_else(|| c.data.reset_5hr.clone()),
-                                reset_week: new.reset_week.or_else(|| c.data.reset_week.clone()),
-                            };
-                            info!(
-                                pct_5hr = ?merged.pct_5hr,
-                                pct_week = ?merged.pct_week,
-                                "Usage daemon: refreshed from claude /usage"
-                            );
-                            c.data = merged;
-                            c.fetched_at = Some(Instant::now());
-                        }
+                        let merged = ClaudeCliUsage {
+                            pct_5hr: new.pct_5hr.or(c.data.pct_5hr),
+                            pct_week: new.pct_week.or(c.data.pct_week),
+                            reset_5hr: new.reset_5hr.or_else(|| c.data.reset_5hr.clone()),
+                            reset_week: new.reset_week.or_else(|| c.data.reset_week.clone()),
+                        };
+                        info!(
+                            pct_5hr = ?merged.pct_5hr,
+                            pct_week = ?merged.pct_week,
+                            "Usage daemon: refreshed from claude /usage"
+                        );
+                        c.data = merged;
+                        c.fetched_at = Some(Instant::now());
                     } else {
-                        warn!("Usage daemon: claude /usage returned no data (rate limited or error); keeping cached value");
+                        warn!("Usage daemon: no parseable data (rate limited or error); keeping cached value");
                     }
                 }
-                Err(e) => {
-                    warn!("Usage daemon: spawn_blocking failed: {e}");
+            } else {
+                warn!("Usage daemon: spawn_blocking failed");
+                if let Ok(mut c) = cache_clone.write() {
+                    c.last_poll_no_data = true;
                 }
             }
 
-            // Dynamic interval: 10min during active sessions, 1hr when idle
-            let interval_secs = match &queue {
-                Some(q) if q.active_count().await > 0 => {
-                    info!("Usage daemon: active session detected, polling again in 10m");
-                    600
-                }
-                _ => {
-                    info!("Usage daemon: idle, polling again in 1h");
+            // Dynamic interval:
+            // - Rate limited: sleep until the 5hr reset (capped at 6h)
+            // - Active session (running or ended <30min ago): 10 min
+            // - Idle: 1 hour
+            let interval_secs: u64 = if !has_data {
+                // Rate limited — sleep until reset_5hr if known, else 1h
+                let reset_str = cache_clone.read().ok()
+                    .and_then(|c| c.data.reset_5hr.clone());
+                if let Some(s) = reset_str {
+                    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&s) {
+                        let secs = (dt.with_timezone(&Utc) - Utc::now()).num_seconds();
+                        if secs > 60 {
+                            info!("Usage daemon: rate limited, sleeping {}s (capped at 6h)", secs.min(6 * 3600));
+                            secs.min(6 * 3600) as u64
+                        } else {
+                            3600
+                        }
+                    } else {
+                        3600
+                    }
+                } else {
                     3600
                 }
+            } else {
+                match &queue {
+                    Some(q) if q.active_count().await > 0 => {
+                        info!("Usage daemon: active session, polling again in 10m");
+                        600
+                    }
+                    _ => {
+                        info!("Usage daemon: idle, polling again in 1h");
+                        3600
+                    }
+                }
             };
+
             tokio::time::sleep(tokio::time::Duration::from_secs(interval_secs)).await;
         }
     });

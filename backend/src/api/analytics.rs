@@ -117,9 +117,9 @@ async fn usage_windows(State(state): State<AnalyticsApiState>) -> impl IntoRespo
         .unwrap_or_default();
 
     // When daemon has data, use it; otherwise fall back to JSONL for everything
-    let (tokens_5hr, tokens_week, reset_5hr, reset_week) = if cli.pct_5hr > 0.0 || cli.pct_week > 0.0 {
-        let t5 = ((cli.pct_5hr / 100.0) * plan.limit_5hr as f64).round() as i64;
-        let tw = ((cli.pct_week / 100.0) * plan.limit_week as f64).round() as i64;
+    let (tokens_5hr, tokens_week, reset_5hr, reset_week) = if cli.pct_5hr.unwrap_or(0.0) > 0.0 || cli.pct_week.unwrap_or(0.0) > 0.0 {
+        let t5 = ((cli.pct_5hr.unwrap_or(0.0) / 100.0) * plan.limit_5hr as f64).round() as i64;
+        let tw = ((cli.pct_week.unwrap_or(0.0) / 100.0) * plan.limit_week as f64).round() as i64;
         let r5 = cli.reset_5hr;
         let rw = cli.reset_week.unwrap_or_else(|| {
             let j = crate::api::claude_jsonl::read_claude_usage();
