@@ -42,4 +42,6 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Standalone comment routes (delete by ID)
         .nest("/api/comments", comment_standalone_routes().with_state(comment_state))
+        // Filesystem utility routes (stateless)
+        .route("/api/fs/projects", axum::routing::get(crate::api::fs::list_projects))
 }

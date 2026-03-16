@@ -115,6 +115,7 @@ impl From<AppState> for SettingsApiState {
 
 mod analytics;
 mod comments;
+pub mod fs;
 mod logs;
 mod otlp_parser;
 pub mod claude_jsonl;
