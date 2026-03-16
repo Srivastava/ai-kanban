@@ -364,6 +364,11 @@ impl ClaudeManager {
             let mut peak_input_tokens: i64 = 0;
             let mut first_tool_seen = false;
             let mut claude_session_id_captured = false;
+            // Deduplication buffer: keep only the LAST event per message_id.
+            // Claude emits 2 assistant events per API call (streaming-start with output=0,
+            // then final with output=N). Both share the same message_id. By keeping only
+            // the last, we get correct output counts without double-counting input/cache.
+            let mut pending_events: HashMap<String, (CreateTokenEvent, i64)> = HashMap::new();
             for line in reader.lines() {
                 if let Ok(text) = line {
                     debug!(session_id = %session_id, "stdout: {}", text);
@@ -428,7 +433,7 @@ impl ClaudeManager {
                         if total_context > peak_input_tokens {
                             peak_input_tokens = total_context;
                         }
-                        let rt = tokio::runtime::Handle::current();
+
                         let event = CreateTokenEvent {
                             session_id: session_id.clone(),
                             task_id: task_id_for_events.clone(),
@@ -444,10 +449,25 @@ impl ClaudeManager {
                         };
                         sequence_no += 1;
 
-                        let repo = token_event_repo.clone();
-                        rt.spawn(async move {
-                            let _ = repo.create(event).await;
-                        });
+                        match parsed.message_id {
+                            Some(msg_id) => {
+                                // Buffer: keep only the last event for this message_id.
+                                // Claude emits streaming-start (output=0) then final (output=N)
+                                // — both have the same message_id, same input/cache counts.
+                                pending_events.insert(msg_id, (event, sequence_no));
+                            }
+                            None => {
+                                // result event — cumulative session totals, would double-count.
+                                // Flush all buffered assistant events instead.
+                                let rt = tokio::runtime::Handle::current();
+                                for (pending_event, _seq) in pending_events.drain().map(|(_, v)| v) {
+                                    let repo = token_event_repo.clone();
+                                    rt.spawn(async move {
+                                        let _ = repo.create(pending_event).await;
+                                    });
+                                }
+                            }
+                        }
                     }
 
                     if let Some(r) = extract_result_text(&text) {
@@ -498,6 +518,17 @@ impl ClaudeManager {
                             is_error: false,
                         });
                     }
+                }
+            }
+            // Flush any remaining buffered events (session ended without a result event,
+            // or last API call's final event hasn't been superseded).
+            if !pending_events.is_empty() {
+                let rt = tokio::runtime::Handle::current();
+                for (pending_event, _seq) in pending_events.drain().map(|(_, v)| v) {
+                    let repo = token_event_repo.clone();
+                    rt.spawn(async move {
+                        let _ = repo.create(pending_event).await;
+                    });
                 }
             }
             (result_text, display_lines, peak_input_tokens)

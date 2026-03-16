@@ -13,6 +13,10 @@ pub struct ParsedTokenEvent {
     /// Tokens written to prompt cache
     pub cache_creation_tokens: i64,
     pub model: Option<String>,
+    /// Claude's message ID — used for deduplication.
+    /// Each API call emits 2 stream events (streaming-start + final). The final event
+    /// has the correct token counts; dedup by message_id keeps only the last one.
+    pub message_id: Option<String>,
 }
 
 /// Try to parse a JSONL line from Claude's stream-json output.
@@ -47,6 +51,11 @@ fn parse_assistant_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> 
         .and_then(|m| m.as_str())
         .map(|s| s.to_string());
 
+    let message_id = message
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
     let (tool_name, file_ext) = extract_tool_info(message);
 
     Some(ParsedTokenEvent {
@@ -58,6 +67,7 @@ fn parse_assistant_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> 
         cache_read_tokens,
         cache_creation_tokens,
         model,
+        message_id,
     })
 }
 
@@ -81,6 +91,7 @@ fn parse_result_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> {
         cache_read_tokens,
         cache_creation_tokens,
         model: None,
+        message_id: None,
     })
 }
 
