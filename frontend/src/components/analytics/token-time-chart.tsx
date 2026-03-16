@@ -14,7 +14,7 @@ function formatTokens(n: number) {
 
 const LABEL_MAP: Record<string, string> = {
   input: 'Input',
-  cached: 'Cached',
+  cached: 'Cached (→)',
   output: 'Output',
 };
 
@@ -48,7 +48,6 @@ export function TokenTimeChart() {
 
   const data = dataMap[period];
   const isLoading = { daily, weekly, monthly }[period].isLoading;
-  const xLabel = { daily: 'Date', weekly: 'Week', monthly: 'Month' }[period];
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
@@ -75,14 +74,14 @@ export function TokenTimeChart() {
         <div className="h-64 flex items-center justify-center"><p className="text-muted-foreground text-sm">No token data yet. Run a Claude session to see usage.</p></div>
       ) : (
         <ResponsiveContainer width="100%" height={256}>
-          <AreaChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+          <AreaChart data={data} margin={{ top: 5, right: 55, left: 10, bottom: 5 }}>
             <defs>
               <linearGradient id="inputGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
                 <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="cachedGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.2} />
                 <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
               </linearGradient>
               <linearGradient id="outputGrad" x1="0" y1="0" x2="0" y2="1">
@@ -95,18 +94,27 @@ export function TokenTimeChart() {
               dataKey="label"
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
             />
+            {/* Left axis: input + output */}
             <YAxis
+              yAxisId="left"
               tickFormatter={formatTokens}
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+            />
+            {/* Right axis: cached (much larger scale) */}
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              tickFormatter={formatTokens}
+              tick={{ fontSize: 11, fill: '#f59e0b99' }}
             />
             <Tooltip
               formatter={(value, name) => [formatTokens(Number(value)), LABEL_MAP[String(name)] ?? String(name)]}
               contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
             />
             <Legend formatter={(value) => LABEL_MAP[value] ?? value} iconType="circle" />
-            <Area type="monotone" dataKey="input" stroke="#6366f1" fill="url(#inputGrad)" strokeWidth={2} dot={false} />
-            <Area type="monotone" dataKey="cached" stroke="#f59e0b" fill="url(#cachedGrad)" strokeWidth={2} dot={false} />
-            <Area type="monotone" dataKey="output" stroke="#a855f7" fill="url(#outputGrad)" strokeWidth={2} dot={false} />
+            <Area yAxisId="left" type="monotone" dataKey="input" stroke="#6366f1" fill="url(#inputGrad)" strokeWidth={2} dot={false} />
+            <Area yAxisId="left" type="monotone" dataKey="output" stroke="#a855f7" fill="url(#outputGrad)" strokeWidth={2} dot={false} />
+            <Area yAxisId="right" type="monotone" dataKey="cached" stroke="#f59e0b" fill="url(#cachedGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
           </AreaChart>
         </ResponsiveContainer>
       )}

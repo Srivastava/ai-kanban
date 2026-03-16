@@ -18,9 +18,9 @@ export function TokensByTaskChart() {
 
   const chartData = [...data]
     .sort((a, b) => {
-      // Sort by effective total (what the bar width represents)
-      const effectiveA = a.input_tokens + (a.cache_creation_tokens ?? 0) + (a.cache_read_tokens ?? 0) + a.output_tokens;
-      const effectiveB = b.input_tokens + (b.cache_creation_tokens ?? 0) + (b.cache_read_tokens ?? 0) + b.output_tokens;
+      // Sort by input + output (the "work" tokens — cache overwhelms scale)
+      const effectiveA = a.input_tokens + a.output_tokens;
+      const effectiveB = b.input_tokens + b.output_tokens;
       return effectiveB - effectiveA;
     })
     .slice(0, 15)
@@ -28,8 +28,9 @@ export function TokensByTaskChart() {
       label: truncate(d.task_title),
       fullTitle: d.task_title,
       input: d.input_tokens,
-      cached: (d.cache_creation_tokens ?? 0) + (d.cache_read_tokens ?? 0),
       output: d.output_tokens,
+      // cached kept for tooltip only — too large to show in bars
+      cachedTooltip: (d.cache_creation_tokens ?? 0) + (d.cache_read_tokens ?? 0),
     }));
 
   const dynamicHeight = Math.max(240, chartData.length * 30);
@@ -65,9 +66,17 @@ export function TokensByTaskChart() {
             />
             <Tooltip
               labelFormatter={(_, payload) => payload?.[0]?.payload?.fullTitle ?? ''}
-              formatter={(value, name) => {
-                const labels: Record<string, string> = { input: 'Input', cached: 'Cached', output: 'Output' };
-                return [formatTokens(Number(value)), labels[String(name)] ?? String(name)];
+              formatter={(value, name, props) => {
+                const labels: Record<string, string> = { input: 'Input', output: 'Output' };
+                const rows: [string, string][] = [[formatTokens(Number(value)), labels[String(name)] ?? String(name)]];
+                // Append cached as extra info on the last series
+                if (String(name) === 'output') {
+                  const cached = props?.payload?.cachedTooltip ?? 0;
+                  if (cached > 0) {
+                    return [[formatTokens(Number(value)), 'Output'], [formatTokens(cached), 'Cached (ctx)']];
+                  }
+                }
+                return rows;
               }}
               contentStyle={{
                 background: 'hsl(var(--card))',
@@ -76,9 +85,8 @@ export function TokensByTaskChart() {
                 fontSize: '12px',
               }}
             />
-            <Legend formatter={(v: string) => ({ input: 'Input', cached: 'Cached', output: 'Output' }[v] ?? v)} iconType="circle" />
+            <Legend formatter={(v: string) => ({ input: 'Input', output: 'Output' }[v] ?? v)} iconType="circle" />
             <Bar dataKey="input" stackId="a" fill="#6366f1" name="input" />
-            <Bar dataKey="cached" stackId="a" fill="#f59e0b" name="cached" />
             <Bar dataKey="output" stackId="a" fill="#a855f7" name="output" />
           </BarChart>
         </ResponsiveContainer>
