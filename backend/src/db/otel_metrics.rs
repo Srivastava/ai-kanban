@@ -86,8 +86,10 @@ impl OtelMetricsRepository {
                  -- Cost from OTel where available
                  COALESCE(oa.cost_usd, 0.0) as cost_usd,
                  -- Token totals from token_events (well-correlated via session FK)
-                 COALESCE(ta.input_tokens,  0.0) as input_tokens,
-                 COALESCE(ta.output_tokens, 0.0) as output_tokens
+                 COALESCE(ta.input_tokens,           0.0) as input_tokens,
+                 COALESCE(ta.output_tokens,          0.0) as output_tokens,
+                 COALESCE(ta.cache_creation_tokens,  0.0) as cache_creation_tokens,
+                 COALESCE(ta.cache_read_tokens,      0.0) as cache_read_tokens
                FROM tasks t
                JOIN sessions s ON s.task_id = t.id
                -- Session metrics: get current LOC and baseline (first non-zero LOC)
@@ -114,8 +116,10 @@ impl OtelMetricsRepository {
                LEFT JOIN (
                  SELECT
                    task_id,
-                   CAST(SUM(input_tokens)  AS REAL) as input_tokens,
-                   CAST(SUM(output_tokens) AS REAL) as output_tokens
+                   CAST(SUM(input_tokens)           AS REAL) as input_tokens,
+                   CAST(SUM(output_tokens)          AS REAL) as output_tokens,
+                   CAST(SUM(cache_creation_tokens)  AS REAL) as cache_creation_tokens,
+                   CAST(SUM(cache_read_tokens)      AS REAL) as cache_read_tokens
                  FROM token_events
                  WHERE task_id IS NOT NULL
                  GROUP BY task_id
@@ -130,14 +134,16 @@ impl OtelMetricsRepository {
         .await?;
 
         Ok(rows.into_iter().map(|row| DevActivityRow {
-            task_id:       row.get("task_id"),
-            task_title:    row.get("task_title"),
-            session_count: row.get("session_count"),
-            lines_added:   row.get::<f64, _>("loc_written"),
-            lines_deleted: 0.0, // net growth metric — deletions absorbed into loc_written
-            input_tokens:  row.get::<f64, _>("input_tokens"),
-            output_tokens: row.get::<f64, _>("output_tokens"),
-            cost_usd:      row.get::<f64, _>("cost_usd"),
+            task_id:                row.get("task_id"),
+            task_title:             row.get("task_title"),
+            session_count:          row.get("session_count"),
+            lines_added:            row.get::<f64, _>("loc_written"),
+            lines_deleted:          0.0, // net growth metric — deletions absorbed into loc_written
+            input_tokens:           row.get::<f64, _>("input_tokens"),
+            output_tokens:          row.get::<f64, _>("output_tokens"),
+            cache_creation_tokens:  row.get::<f64, _>("cache_creation_tokens"),
+            cache_read_tokens:      row.get::<f64, _>("cache_read_tokens"),
+            cost_usd:               row.get::<f64, _>("cost_usd"),
         }).collect())
     }
 }

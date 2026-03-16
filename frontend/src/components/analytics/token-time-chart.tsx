@@ -75,7 +75,7 @@ export function TokenTimeChart() {
         <div className="h-64 flex items-center justify-center"><p className="text-muted-foreground text-sm">No token data yet. Run a Claude session to see usage.</p></div>
       ) : (
         <ResponsiveContainer width="100%" height={256}>
-          <AreaChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 30 }}>
+          <AreaChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <defs>
               <linearGradient id="inputGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
@@ -94,12 +94,10 @@ export function TokenTimeChart() {
             <XAxis
               dataKey="label"
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-              label={{ value: xLabel, position: 'insideBottom', offset: -15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }}
             />
             <YAxis
               tickFormatter={formatTokens}
               tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-              label={{ value: 'Tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 11, fill: 'hsl(var(--muted-foreground))' } }}
             />
             <Tooltip
               formatter={(value, name) => [formatTokens(Number(value)), LABEL_MAP[String(name)] ?? String(name)]}

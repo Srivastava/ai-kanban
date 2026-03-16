@@ -122,15 +122,12 @@ function SessionRow({
       <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">
         {fmtTime(session.started_at)}
       </td>
-      <td className="px-4 py-1.5 text-right font-mono text-[11px]">
-        <span className="font-medium">{fmtTokens(session.total_tokens)}</span>
-        <span className="text-muted-foreground ml-1.5">
-          {fmtTokens(session.input_tokens)}↑
-          {' '}
-          <span className="text-amber-500/80">{fmtTokens((session.cache_creation_tokens ?? 0) + (session.cache_read_tokens ?? 0))}⚡</span>
-          {' '}
-          {fmtTokens(session.output_tokens)}↓
-        </span>
+      <td className="px-4 py-1.5 text-right font-mono text-[11px] text-muted-foreground">
+        <span>{fmtTokens(session.input_tokens)}↑</span>
+        {' '}
+        <span className="text-amber-500/80">{fmtTokens((session.cache_creation_tokens ?? 0) + (session.cache_read_tokens ?? 0))}⚡</span>
+        {' '}
+        <span>{fmtTokens(session.output_tokens)}↓</span>
       </td>
     </tr>
   );
