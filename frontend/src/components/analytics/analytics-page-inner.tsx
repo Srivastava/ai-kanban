@@ -19,6 +19,7 @@ import { CostBreakdownTable } from '@/components/analytics/cost-breakdown-table'
 import { SessionTimelineChart } from '@/components/analytics/session-timeline-chart';
 import { DevActivityCharts } from '@/components/analytics/dev-activity-charts';
 import { TokensByTaskChart } from '@/components/analytics/tokens-by-task-chart';
+import { CumulativeCostChart } from '@/components/analytics/cumulative-cost-chart';
 
 export function AnalyticsPageInner() {
   const searchParams = useSearchParams();
@@ -63,6 +64,7 @@ export function AnalyticsPageInner() {
             <CostBreakdownTable taskId={selectedTaskId} />
             <TokensByTaskChart taskId={selectedTaskId} />
           </div>
+          <CumulativeCostChart taskId={selectedTaskId} />
         </section>
 
         {/* Usage Trends */}

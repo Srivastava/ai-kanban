@@ -58,7 +58,7 @@ export function ProductivitySection({ taskId }: Props) {
       )}
 
       {/* Token efficiency — reuse existing component */}
-      <TokenEfficiencyChart />
+      <TokenEfficiencyChart taskId={taskId} />
     </div>
   );
 }
