@@ -32,11 +32,11 @@ export function CumulativeCostChart({ taskId }: Props) {
 
   let running = 0;
   const chartData = daily.map((d) => {
-    running += dayCost(d);
+    const cost = dayCost(d);
+    running += cost;
     return {
       date: d.date.slice(5), // strip year: "03-17"
       cumulative: parseFloat(running.toFixed(4)),
-      daily: parseFloat(dayCost(d).toFixed(4)),
     };
   });
 
@@ -79,10 +79,7 @@ export function CumulativeCostChart({ taskId }: Props) {
               tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             />
             <Tooltip
-              formatter={(value, name) => [
-                `$${Number(value).toFixed(4)}`,
-                name === 'cumulative' ? 'Cumulative' : 'Daily',
-              ]}
+              formatter={(value) => [`$${Number(value).toFixed(4)}`, 'Cumulative']}
               contentStyle={TOOLTIP_STYLE}
             />
             <Area
