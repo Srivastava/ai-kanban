@@ -477,15 +477,16 @@ async fn context_usage_handler(
     }
 }
 
-pub async fn loc_history(
+async fn loc_history(
     State(state): State<AnalyticsApiState>,
     Path(task_id): Path<String>,
 ) -> impl IntoResponse {
     match state.analytics.session_loc_history(&task_id).await {
         Ok(data) => Json(data).into_response(),
         Err(e) => {
-            tracing::error!("loc_history error: {e}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            error!(error = %e, "API: Failed to get LOC history");
+            (StatusCode::INTERNAL_SERVER_ERROR,
+             Json(serde_json::json!({ "error": e.to_string() }))).into_response()
         }
     }
 }

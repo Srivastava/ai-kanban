@@ -2,6 +2,7 @@ use crate::models::{
     AnalyticsOverview, BurnRate, CostByTask, DailyTokens, WeeklyTokens, MonthlyTokens,
     SessionSummary, TaskTokens, SessionTokens, ToolTokens, LanguageTokens,
     EfficiencyRow, SessionTimelineEvent, TaskTimelineEvent, TokensByStage, UsageWindows,
+    LocHistoryEntry,
 };
 use anyhow::Result;
 use chrono::{Datelike, Duration, Utc};
@@ -968,7 +969,10 @@ impl AnalyticsRepository {
         Ok(events)
     }
 
-    pub async fn session_loc_history(&self, task_id: &str) -> Result<Vec<crate::models::LocHistoryEntry>> {
+    #[instrument(skip(self))]
+    pub async fn session_loc_history(&self, task_id: &str) -> Result<Vec<LocHistoryEntry>> {
+        debug!("Fetching session LOC history");
+
         let rows = sqlx::query(
             r#"
             SELECT
@@ -986,7 +990,7 @@ impl AnalyticsRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|row| crate::models::LocHistoryEntry {
+        Ok(rows.into_iter().map(|row| LocHistoryEntry {
             session_id: row.get("session_id"),
             session_index: row.get("session_index"),
             project_loc: row.get("project_loc"),
