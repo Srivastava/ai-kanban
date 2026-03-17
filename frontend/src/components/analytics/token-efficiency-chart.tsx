@@ -9,12 +9,6 @@ function formatTokens(n: number): string {
   return `${n}`;
 }
 
-const TOOLTIP_STYLE = {
-  background: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
-  borderRadius: '8px',
-  fontSize: '12px',
-};
 
 interface Props { taskId?: string | null }
 
@@ -36,7 +30,9 @@ export function TokenEfficiencyChart({ taskId }: Props) {
   if (taskId) {
     const row = chartData.find((d) => d.task_id === taskId) ?? allData.find((d) => d.task_id === taskId);
     const allWithLoc = allData.filter((d) => d.lines_written > 0);
-    const sorted = [...allWithLoc].sort((a, b) => (a.tokens_per_line ?? 0) - (b.tokens_per_line ?? 0));
+    const sorted = [...allWithLoc]
+      .filter((d) => d.tokens_per_line != null && d.tokens_per_line > 0)
+      .sort((a, b) => (a.tokens_per_line ?? 0) - (b.tokens_per_line ?? 0));
     const rank = row ? sorted.findIndex((d) => d.task_id === taskId) + 1 : null;
     const tpl = row && 'tokens_per_line' in row && row.tokens_per_line
       ? Math.round(row.tokens_per_line)
@@ -95,7 +91,7 @@ export function TokenEfficiencyChart({ taskId }: Props) {
             <XAxis
               dataKey="lines"
               type="number"
-              tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : `${v}`}
+              tickFormatter={formatTokens}
               tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
             >
               <Label value="Lines written" position="insideBottom" offset={-15} style={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
@@ -121,7 +117,6 @@ export function TokenEfficiencyChart({ taskId }: Props) {
                   </div>
                 );
               }}
-              contentStyle={TOOLTIP_STYLE}
             />
             <Scatter
               data={chartData}
