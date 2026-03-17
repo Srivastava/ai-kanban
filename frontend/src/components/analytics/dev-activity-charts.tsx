@@ -1,9 +1,11 @@
 'use client';
 
+import {
+  LineChart, Line, AreaChart, Area,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+} from 'recharts';
+import { useDevActivity, useLocHistory, useTaskSessions, useTokensByTask } from '@/hooks/use-analytics';
 import { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
-import { useDevActivity } from '@/hooks/use-analytics';
-import { useTokensByTask } from '@/hooks/use-analytics';
 
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -25,16 +27,29 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
   const selectedTaskId = externalTaskId ?? internalTaskId;
   const { data: tasks = [] } = useTokensByTask();
   const { data = [], isLoading } = useDevActivity(selectedTaskId);
+  const { data: locHistory = [] } = useLocHistory(selectedTaskId);
+  const { data: sessions = [] } = useTaskSessions(selectedTaskId);
 
   const row = data[0] ?? null;
 
-  const skeleton = <div className="h-32 animate-pulse bg-muted rounded" />;
+  // LOC growth line chart data
+  const locData = locHistory.map((entry) => ({
+    label: `#${entry.session_index}`,
+    loc: entry.project_loc,
+  }));
 
-  const empty = (
-    <div className="h-32 flex items-center justify-center">
-      <p className="text-muted-foreground text-sm">No data for this task</p>
-    </div>
-  );
+  // Token stacked area chart data — sessions ordered chronologically.
+  // Note: SessionDetail does not include cache_creation/cache_read tokens,
+  // so we show only input + output (two-layer stack).
+  const sessionTokenData = [...sessions]
+    .reverse() // sessions come newest-first, reverse for timeline
+    .map((s, i) => ({
+      label: `#${i + 1}`,
+      input: s.input_tokens,
+      output: s.output_tokens,
+    }));
+
+  const skeleton = <div className="h-40 animate-pulse bg-muted rounded" />;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
@@ -47,23 +62,23 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
         >
           <option value="">Select a task…</option>
           {tasks.map((t) => (
-            <option key={t.task_id} value={t.task_id}>
-              {t.task_title}
-            </option>
+            <option key={t.task_id} value={t.task_id}>{t.task_title}</option>
           ))}
         </select>
       )}
 
       {!selectedTaskId ? (
-        <div className="h-32 flex items-center justify-center rounded-lg border border-dashed border-border">
+        <div className="h-40 flex items-center justify-center rounded-lg border border-dashed border-border">
           <p className="text-muted-foreground text-sm">Select a task to view dev activity</p>
         </div>
       ) : isLoading ? (
         skeleton
       ) : !row ? (
-        empty
+        <div className="h-40 flex items-center justify-center">
+          <p className="text-muted-foreground text-sm">No data for this task</p>
+        </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Summary row */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-lg bg-muted/50 px-3 py-2">
@@ -94,60 +109,70 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
             </div>
           </div>
 
-          {/* Charts */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Lines of Code */}
+            {/* LOC growth line chart */}
             <div className="rounded-xl border border-border bg-card p-5 space-y-2">
-              <h3 className="font-semibold text-sm">Lines Written (net growth)</h3>
-              <p className="text-xs text-muted-foreground">Project LOC growth across sessions — current minus baseline</p>
-              {row.lines_added === 0 ? (
-                <div className="h-32 flex items-center justify-center">
-                  <p className="text-xs text-muted-foreground italic">No session LOC data yet</p>
+              <h3 className="font-semibold text-sm">Project LOC Over Sessions</h3>
+              <p className="text-xs text-muted-foreground">How the codebase grew session by session</p>
+              {locData.length < 2 ? (
+                <div className="h-40 flex items-center justify-center">
+                  <p className="text-xs text-muted-foreground italic">
+                    {locData.length === 0 ? 'No LOC snapshots yet' : 'Only one session — need more to show trend'}
+                  </p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
-                  <BarChart
-                    data={[{ name: row.task_title, loc: Math.round(row.lines_added) }]}
-                    margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
-                  >
+                  <LineChart data={locData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                    <YAxis tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : `${v}`} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis
+                      tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : `${v}`}
+                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                    />
                     <Tooltip
-                      formatter={(value) => [typeof value === 'number' ? value.toLocaleString() : String(value), 'Lines written (net)']}
+                      formatter={(value) => [typeof value === 'number' ? value.toLocaleString() : value, 'Lines of code']}
                       contentStyle={TOOLTIP_STYLE}
                     />
-                    <Bar dataKey="loc" fill="#22c55e" name="loc" radius={[3, 3, 0, 0]} />
-                  </BarChart>
+                    <Line
+                      type="monotone"
+                      dataKey="loc"
+                      stroke="#22c55e"
+                      strokeWidth={2}
+                      dot={{ fill: '#22c55e', r: 3 }}
+                      activeDot={{ r: 5 }}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               )}
             </div>
 
-            {/* Token Usage */}
+            {/* Token stacked area chart */}
             <div className="rounded-xl border border-border bg-card p-5 space-y-2">
-              <h3 className="font-semibold text-sm">Token Usage</h3>
-              <p className="text-xs text-muted-foreground">Input + output tokens across all sessions</p>
-              {row.input_tokens === 0 && row.output_tokens === 0 ? (
-                <div className="h-32 flex items-center justify-center">
-                  <p className="text-xs text-muted-foreground italic">No token data for this task</p>
+              <h3 className="font-semibold text-sm">Token Usage Per Session</h3>
+              <p className="text-xs text-muted-foreground">Input and output tokens per session</p>
+              {sessionTokenData.length < 2 ? (
+                <div className="h-40 flex items-center justify-center">
+                  <p className="text-xs text-muted-foreground italic">
+                    {sessionTokenData.length === 0 ? 'No session data' : 'Only one session — need more to show trend'}
+                  </p>
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
-                  <BarChart
-                    data={[{ name: row.task_title, input: row.input_tokens, output: row.output_tokens }]}
-                    margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
-                  >
+                  <AreaChart data={sessionTokenData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                     <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                     <Tooltip
-                      formatter={(value, name) => [formatTokens(Number(value)), name === 'input' ? 'Input tokens' : 'Output tokens']}
+                      formatter={(value, name) => {
+                        const labels: Record<string, string> = { input: 'Input', output: 'Output' };
+                        return [formatTokens(Number(value)), labels[String(name)] ?? String(name)];
+                      }}
                       contentStyle={TOOLTIP_STYLE}
                     />
-                    <Legend formatter={(v) => (v === 'input' ? 'Input' : 'Output')} iconType="circle" />
-                    <Bar dataKey="input" fill="#6366f1" name="input" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="output" fill="#a855f7" name="output" radius={[3, 3, 0, 0]} />
-                  </BarChart>
+                    <Legend formatter={(v) => ({ input: 'Input', output: 'Output' }[v as 'input' | 'output'] ?? v)} iconType="circle" />
+                    <Area type="monotone" dataKey="input"  stackId="1" stroke="#6366f1" fill="#6366f1" fillOpacity={0.6} />
+                    <Area type="monotone" dataKey="output" stackId="1" stroke="#a855f7" fill="#a855f7" fillOpacity={0.6} />
+                  </AreaChart>
                 </ResponsiveContainer>
               )}
             </div>
