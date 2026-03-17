@@ -423,34 +423,36 @@ impl AnalyticsRepository {
 
     /// Get token efficiency metrics (tokens per line written, tokens per project LOC)
     #[instrument(skip(self))]
-    pub async fn token_efficiency(&self) -> Result<Vec<EfficiencyRow>> {
+    pub async fn token_efficiency(&self, task_id: Option<&str>) -> Result<Vec<EfficiencyRow>> {
         debug!("Fetching token efficiency");
 
-        let rows = sqlx::query(
+        let task_filter = if task_id.is_some() { " AND te.task_id = ?" } else { "" };
+        let sql = format!(
             r#"
-            SELECT
-                te.task_id,
-                COALESCE(t.title, 'Unknown Task') as task_title,
-                SUM(te.input_tokens) + SUM(te.output_tokens) as total_tokens,
-                -- Net LOC growth: current project size minus earliest recorded size.
-                -- Uses project_loc snapshots taken at session start (reliable).
-                -- lines_written column is never populated so we derive it this way.
-                CAST(
-                    COALESCE(MAX(sm.project_loc), 0)
-                    - COALESCE(MIN(CASE WHEN sm.project_loc > 0 THEN sm.project_loc END), 0)
-                AS REAL) as lines_written,
-                CAST(COALESCE(MAX(sm.project_loc), 0) AS INTEGER) as project_loc
-            FROM token_events te
-            LEFT JOIN tasks t ON te.task_id = t.id
-            LEFT JOIN session_metrics sm ON te.session_id = sm.session_id
-            WHERE te.event_type = 'assistant' AND te.task_id IS NOT NULL
-            GROUP BY te.task_id, t.title
-            HAVING total_tokens > 0
-            ORDER BY total_tokens DESC
-            "#
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        SELECT
+            te.task_id,
+            COALESCE(t.title, 'Unknown Task') as task_title,
+            SUM(te.input_tokens) + SUM(te.output_tokens) as total_tokens,
+            CAST(
+                COALESCE(MAX(sm.project_loc), 0)
+                - COALESCE(MIN(CASE WHEN sm.project_loc > 0 THEN sm.project_loc END), 0)
+            AS REAL) as lines_written,
+            CAST(COALESCE(MAX(sm.project_loc), 0) AS INTEGER) as project_loc
+        FROM token_events te
+        LEFT JOIN tasks t ON te.task_id = t.id
+        LEFT JOIN session_metrics sm ON te.session_id = sm.session_id
+        WHERE te.event_type = 'assistant' AND te.task_id IS NOT NULL{task_filter}
+        GROUP BY te.task_id, t.title
+        HAVING total_tokens > 0
+        ORDER BY total_tokens DESC
+        "#,
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql).bind(tid).fetch_all(&self.pool).await?
+        } else {
+            sqlx::query(&sql).fetch_all(&self.pool).await?
+        };
 
         Ok(rows
             .into_iter()
@@ -964,5 +966,31 @@ impl AnalyticsRepository {
             .collect();
 
         Ok(events)
+    }
+
+    pub async fn session_loc_history(&self, task_id: &str) -> Result<Vec<crate::models::LocHistoryEntry>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                sm.session_id,
+                sm.project_loc,
+                s.started_at,
+                ROW_NUMBER() OVER (ORDER BY s.started_at ASC) as session_index
+            FROM session_metrics sm
+            JOIN sessions s ON s.id = sm.session_id
+            WHERE s.task_id = ? AND sm.project_loc > 0
+            ORDER BY s.started_at ASC
+            "#
+        )
+        .bind(task_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|row| crate::models::LocHistoryEntry {
+            session_id: row.get("session_id"),
+            session_index: row.get("session_index"),
+            project_loc: row.get("project_loc"),
+            started_at: row.get("started_at"),
+        }).collect())
     }
 }

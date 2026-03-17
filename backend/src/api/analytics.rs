@@ -316,9 +316,10 @@ async fn tokens_by_language(
 #[instrument(skip(state))]
 async fn token_efficiency(
     State(state): State<AnalyticsApiState>,
+    Query(query): Query<TaskFilterQuery>,
 ) -> impl IntoResponse {
     info!("API: Getting token efficiency");
-    match state.analytics.token_efficiency().await {
+    match state.analytics.token_efficiency(query.task_id.as_deref()).await {
         Ok(efficiency) => {
             debug!(count = efficiency.len(), "API: Token efficiency retrieved");
             Json(efficiency).into_response()
