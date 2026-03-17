@@ -84,6 +84,7 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         .route("/sessions/summary", get(session_summary))
         .route("/sessions/:id/timeline", get(session_timeline))
         .route("/tasks/:id/task-timeline", get(task_timeline))
+        .route("/tasks/:task_id/loc-history", get(loc_history))
         .route("/cost/by-task", get(cost_by_task))
         .route("/burn-rate", get(burn_rate))
         .route("/dev-activity", get(dev_activity))
@@ -472,6 +473,19 @@ async fn context_usage_handler(
             error!(error = %e, "API: Failed to get context usage");
             (StatusCode::INTERNAL_SERVER_ERROR,
              Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
+    }
+}
+
+pub async fn loc_history(
+    State(state): State<AnalyticsApiState>,
+    Path(task_id): Path<String>,
+) -> impl IntoResponse {
+    match state.analytics.session_loc_history(&task_id).await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => {
+            tracing::error!("loc_history error: {e}");
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }

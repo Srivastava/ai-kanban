@@ -203,3 +203,11 @@ pub struct ContextWindowUsage {
     pub context_limit:    i64,
     pub pct_used:         f64,
 }
+
+#[derive(Debug, serde::Serialize)]
+pub struct LocHistoryEntry {
+    pub session_id: String,
+    pub session_index: i64,
+    pub project_loc: i64,
+    pub started_at: String,
+}
