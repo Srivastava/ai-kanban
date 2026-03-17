@@ -24,7 +24,7 @@ interface Props { taskId?: string | null }
 
 export function DevActivityCharts({ taskId: externalTaskId }: Props) {
   const [internalTaskId, setInternalTaskId] = useState<string | null>(null);
-  const selectedTaskId = externalTaskId ?? internalTaskId;
+  const selectedTaskId = externalTaskId ?? internalTaskId ?? null;
   const { data: tasks = [] } = useTokensByTask();
   const { data = [], isLoading } = useDevActivity(selectedTaskId);
   const { data: locHistory = [] } = useLocHistory(selectedTaskId);
