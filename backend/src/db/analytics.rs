@@ -432,7 +432,13 @@ impl AnalyticsRepository {
                 te.task_id,
                 COALESCE(t.title, 'Unknown Task') as task_title,
                 SUM(te.input_tokens) + SUM(te.output_tokens) as total_tokens,
-                CAST(COALESCE(SUM(sm.lines_written), 0) AS REAL) as lines_written,
+                -- Net LOC growth: current project size minus earliest recorded size.
+                -- Uses project_loc snapshots taken at session start (reliable).
+                -- lines_written column is never populated so we derive it this way.
+                CAST(
+                    COALESCE(MAX(sm.project_loc), 0)
+                    - COALESCE(MIN(CASE WHEN sm.project_loc > 0 THEN sm.project_loc END), 0)
+                AS REAL) as lines_written,
                 CAST(COALESCE(MAX(sm.project_loc), 0) AS INTEGER) as project_loc
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id

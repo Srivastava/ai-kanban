@@ -121,7 +121,7 @@ impl OtelMetricsRepository {
                    CAST(SUM(cache_creation_tokens)  AS REAL) as cache_creation_tokens,
                    CAST(SUM(cache_read_tokens)      AS REAL) as cache_read_tokens
                  FROM token_events
-                 WHERE task_id IS NOT NULL
+                 WHERE event_type = 'assistant' AND task_id IS NOT NULL
                  GROUP BY task_id
                ) ta ON ta.task_id = t.id
                WHERE (? IS NULL OR t.id = ?)
