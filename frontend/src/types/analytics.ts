@@ -189,3 +189,10 @@ export interface ContextWindowUsage {
   context_limit: number;
   pct_used: number;
 }
+
+export interface LocHistoryEntry {
+  session_id: string;
+  session_index: number;
+  project_loc: number;
+  started_at: string;
+}

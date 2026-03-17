@@ -5,7 +5,7 @@ import { apiClient } from '@/lib/api-client';
 import { logger } from '@/lib/logger';
 import type {
   AnalyticsOverview, BurnRate, CostByTask, DailyTokens, DevActivityRow, EfficiencyRow, LanguageTokens,
-  MonthlyTokens, SessionDetail, SessionSummary, SessionTimelineEvent, TaskTimelineEvent, SessionTokens, TaskTokens,
+  LocHistoryEntry, MonthlyTokens, SessionDetail, SessionSummary, SessionTimelineEvent, TaskTimelineEvent, SessionTokens, TaskTokens,
   TokensByStage, ToolTokens, WeeklyTokens, UsageWindows, PlanTier, RoiMetrics, ContextWindowUsage,
 } from '@/types/analytics';
 
@@ -131,17 +131,25 @@ export function useTokensByLanguage(taskId?: string | null) {
   });
 }
 
-export function useTokenEfficiency() {
-  logger.debug('useTokenEfficiency hook called');
-
+export function useTokenEfficiency(taskId?: string | null) {
   return useQuery({
-    queryKey: ['analytics', 'efficiency'],
+    queryKey: ['analytics', 'efficiency', taskId],
     queryFn: async () => {
-      logger.debug('useTokenEfficiency: fetching token efficiency');
-      const result = await apiClient<EfficiencyRow[]>('/api/analytics/tokens/efficiency');
+      const url = taskId
+        ? `/api/analytics/tokens/efficiency?task_id=${taskId}`
+        : '/api/analytics/tokens/efficiency';
+      const result = await apiClient<EfficiencyRow[]>(url);
       logger.debug('useTokenEfficiency: fetch complete', { count: result.length });
       return result;
     },
+  });
+}
+
+export function useLocHistory(taskId: string | null) {
+  return useQuery({
+    queryKey: ['analytics', 'loc-history', taskId],
+    queryFn: () => apiClient<LocHistoryEntry[]>(`/api/analytics/tasks/${taskId!}/loc-history`),
+    enabled: !!taskId,
   });
 }
 
