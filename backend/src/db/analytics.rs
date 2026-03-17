@@ -61,6 +61,7 @@ impl AnalyticsRepository {
                 COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens,
                 COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
             FROM token_events
+            WHERE event_type = 'assistant'
             "#
         )
         .fetch_one(&self.pool)
@@ -80,7 +81,7 @@ impl AnalyticsRepository {
 
         // Get unique sessions count
         let sessions: SqliteRow = sqlx::query(
-            "SELECT COUNT(DISTINCT session_id) as count FROM token_events"
+            "SELECT COUNT(DISTINCT session_id) as count FROM token_events WHERE event_type = 'assistant'"
         )
         .fetch_one(&self.pool)
         .await?;
@@ -89,7 +90,7 @@ impl AnalyticsRepository {
 
         // Get unique tasks count
         let tasks: SqliteRow = sqlx::query(
-            "SELECT COUNT(DISTINCT task_id) as count FROM token_events"
+            "SELECT COUNT(DISTINCT task_id) as count FROM token_events WHERE event_type = 'assistant'"
         )
         .fetch_one(&self.pool)
         .await?;
@@ -132,7 +133,7 @@ impl AnalyticsRepository {
                 SUM(cache_creation_tokens) as cache_creation_tokens,
                 SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
-            WHERE DATE(timestamp) >= DATE('now', ?){task_filter}
+            WHERE event_type = 'assistant' AND DATE(timestamp) >= DATE('now', ?){task_filter}
             GROUP BY DATE(timestamp)
             ORDER BY date ASC
             "#,
@@ -178,7 +179,7 @@ impl AnalyticsRepository {
                 SUM(cache_creation_tokens) as cache_creation_tokens,
                 SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
-            WHERE DATE(timestamp) >= DATE('now', 'weekday 0', ?){task_filter}
+            WHERE event_type = 'assistant' AND DATE(timestamp) >= DATE('now', 'weekday 0', ?){task_filter}
             GROUP BY week_start
             ORDER BY week_start ASC
             "#,
@@ -224,7 +225,7 @@ impl AnalyticsRepository {
                 SUM(cache_creation_tokens) as cache_creation_tokens,
                 SUM(cache_read_tokens) as cache_read_tokens
             FROM token_events
-            WHERE DATE(timestamp) >= DATE('now', ?){task_filter}
+            WHERE event_type = 'assistant' AND DATE(timestamp) >= DATE('now', ?){task_filter}
             GROUP BY month
             ORDER BY month ASC
             "#,
@@ -271,6 +272,7 @@ impl AnalyticsRepository {
                 SUM(te.cache_read_tokens) as cache_read_tokens
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
+            WHERE te.event_type = 'assistant'
             GROUP BY te.task_id
             ORDER BY (SUM(te.input_tokens) + SUM(te.output_tokens)) DESC
             "#
@@ -315,6 +317,7 @@ impl AnalyticsRepository {
                 MIN(te.timestamp) as started_at
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
+            WHERE te.event_type = 'assistant'
             GROUP BY te.session_id, t.title
             ORDER BY started_at DESC
             "#
@@ -358,7 +361,7 @@ impl AnalyticsRepository {
                 SUM(output_tokens) as output_tokens,
                 COUNT(*) as call_count
             FROM token_events
-            WHERE tool_name IS NOT NULL{task_filter}
+            WHERE event_type = 'assistant' AND tool_name IS NOT NULL{task_filter}
             GROUP BY tool_name
             ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
             "#,
@@ -395,7 +398,7 @@ impl AnalyticsRepository {
                 SUM(output_tokens) as output_tokens,
                 COUNT(*) as call_count
             FROM token_events
-            WHERE file_ext IS NOT NULL{task_filter}
+            WHERE event_type = 'assistant' AND file_ext IS NOT NULL{task_filter}
             GROUP BY file_ext
             ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
             "#,
@@ -434,7 +437,7 @@ impl AnalyticsRepository {
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
             LEFT JOIN session_metrics sm ON te.session_id = sm.session_id
-            WHERE te.task_id IS NOT NULL
+            WHERE te.event_type = 'assistant' AND te.task_id IS NOT NULL
             GROUP BY te.task_id, t.title
             HAVING total_tokens > 0
             ORDER BY total_tokens DESC
@@ -488,7 +491,7 @@ impl AnalyticsRepository {
                 COALESCE(SUM(input_tokens + output_tokens), 0) as tokens,
                 MIN(timestamp) as earliest
             FROM token_events
-            WHERE timestamp >= datetime('now', '-5 hours')
+            WHERE event_type = 'assistant' AND timestamp >= datetime('now', '-5 hours')
             "#,
         )
         .fetch_one(&self.pool)
@@ -516,7 +519,7 @@ impl AnalyticsRepository {
             r#"
             SELECT COALESCE(SUM(input_tokens + output_tokens), 0) as tokens
             FROM token_events
-            WHERE DATE(timestamp) >= ?
+            WHERE event_type = 'assistant' AND DATE(timestamp) >= ?
             "#,
         )
         .bind(&week_start)
@@ -560,6 +563,7 @@ impl AnalyticsRepository {
                 SUM(te.cache_read_tokens) as cache_read_tokens
             FROM token_events te
             LEFT JOIN tasks t ON te.task_id = t.id
+            WHERE te.event_type = 'assistant'
             GROUP BY te.task_id, t.title
             LIMIT 20
             "#,
@@ -593,7 +597,7 @@ impl AnalyticsRepository {
     #[instrument(skip(self))]
     pub async fn tokens_by_stage(&self, task_id: Option<&str>) -> Result<Vec<TokensByStage>> {
         debug!("Fetching tokens by stage");
-        let task_filter = if task_id.is_some() { "WHERE te.task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() { "AND te.task_id = ?" } else { "" };
         let sql = format!(
             r#"
             SELECT
@@ -610,7 +614,7 @@ impl AnalyticsRepository {
                 SUM(te.output_tokens) as output_tokens
             FROM token_events te
             JOIN tasks t ON te.task_id = t.id
-            {task_filter}
+            WHERE te.event_type = 'assistant' {task_filter}
             GROUP BY stage
             ORDER BY stage ASC
             "#,
@@ -650,6 +654,7 @@ impl AnalyticsRepository {
                     SUM(cache_read_tokens) as cache_read_tokens,
                     SUM(input_tokens + output_tokens) as session_total
                 FROM token_events
+                WHERE event_type = 'assistant'
                 GROUP BY session_id
             )
             "#,
@@ -682,7 +687,7 @@ impl AnalyticsRepository {
                 CAST(COALESCE(SUM(input_tokens + output_tokens), 0) AS REAL) as tokens_last_hour,
                 CAST(COALESCE(SUM(input_tokens + output_tokens), 0) / 60.0 AS REAL) as tokens_per_minute
             FROM token_events
-            WHERE timestamp >= datetime('now', '-1 hour')
+            WHERE event_type = 'assistant' AND timestamp >= datetime('now', '-1 hour')
             "#,
         )
         .fetch_one(&self.pool)
@@ -708,7 +713,7 @@ impl AnalyticsRepository {
                 output_tokens,
                 timestamp
             FROM token_events
-            WHERE session_id = ?
+            WHERE event_type = 'assistant' AND session_id = ?
             ORDER BY sequence_no ASC, id ASC
             "#
         )
@@ -757,7 +762,7 @@ impl AnalyticsRepository {
                 ) AS avg_duration_secs
             FROM token_events te
             JOIN sessions s ON s.id = te.session_id
-            WHERE (? IS NULL OR te.task_id = ?)
+            WHERE te.event_type = 'assistant' AND (? IS NULL OR te.task_id = ?)
         "#)
         .bind(task_id)
         .bind(task_id)
@@ -862,7 +867,7 @@ impl AnalyticsRepository {
             let events = sqlx::query(
                 r#"SELECT input_tokens + cache_read_tokens + cache_creation_tokens AS ctx
                    FROM token_events
-                   WHERE session_id = ?
+                   WHERE event_type = 'assistant' AND session_id = ?
                    ORDER BY id ASC"#
             )
             .bind(&session_id)
@@ -922,7 +927,7 @@ impl AnalyticsRepository {
                 te.timestamp
             FROM token_events te
             LEFT JOIN sessions s ON te.session_id = s.id
-            WHERE te.task_id = ?
+            WHERE te.event_type = 'assistant' AND te.task_id = ?
             ORDER BY claude_session_id, te.sequence_no ASC, te.id ASC
             "#
         )

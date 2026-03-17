@@ -64,8 +64,16 @@ fn parse_jsonl_file(
     window_week_start: DateTime<Utc>,
     usage: &mut ClaudeUsage,
 ) {
+    use std::collections::HashMap;
+
     let Ok(file) = File::open(path) else { return };
     let reader = BufReader::new(file);
+
+    // Deduplicate by message_id (matching ccusage methodology):
+    // Claude emits multiple events per message_id (streaming-start + final).
+    // Keep the LAST entry per message_id to avoid double-counting.
+    // Key: message_id, Value: (timestamp, total_tokens)
+    let mut seen: HashMap<String, (DateTime<Utc>, i64)> = HashMap::new();
 
     for line in reader.lines().map_while(Result::ok) {
         let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else {
@@ -76,6 +84,9 @@ fn parse_jsonl_file(
         let Some(msg) = v.get("message") else { continue };
         let Some(usage_obj) = msg.get("usage") else { continue };
 
+        // Need a message ID for deduplication
+        let Some(msg_id) = msg.get("id").and_then(|id| id.as_str()) else { continue };
+
         let ts_str = match v.get("timestamp").and_then(|t| t.as_str()) {
             Some(s) => s,
             None => continue,
@@ -84,24 +95,33 @@ fn parse_jsonl_file(
             continue;
         };
 
-        // Output tokens are the primary rate-limit metric
-        let output = usage_obj
-            .get("output_tokens")
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
+        // Sum ALL token types — matches ccusage methodology
+        let input = usage_obj.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let output = usage_obj.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let cache_create = usage_obj.get("cache_creation_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let cache_read = usage_obj.get("cache_read_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let total = input + output + cache_create + cache_read;
 
-        if output == 0 {
+        if total == 0 {
             continue;
         }
 
+        // Overwrite — keep last event per message_id
+        seen.insert(msg_id.to_string(), (ts, total));
+    }
+
+    // Accumulate deduplicated events into usage windows
+    for (ts, total) in seen.values() {
+        let ts = *ts;
+        let total = *total;
         if ts >= window_5hr_start {
-            usage.tokens_5hr += output;
+            usage.tokens_5hr += total;
             if usage.earliest_5hr.map_or(true, |e| ts < e) {
                 usage.earliest_5hr = Some(ts);
             }
         }
         if ts >= window_week_start {
-            usage.tokens_week += output;
+            usage.tokens_week += total;
             if usage.earliest_week.map_or(true, |e| ts < e) {
                 usage.earliest_week = Some(ts);
             }
