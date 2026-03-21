@@ -61,10 +61,10 @@ impl LitellmClient {
     }
 
     /// Create a client from environment variables with sane defaults.
-    /// LITELLM_BASE_URL (default: http://localhost:14000), LITELLM_API_KEY, LITELLM_MODEL
+    /// LITELLM_BASE_URL (default: http://192.168.4.118:14000), LITELLM_API_KEY, LITELLM_MODEL
     pub fn from_env() -> Self {
         let base_url = std::env::var("LITELLM_BASE_URL")
-            .unwrap_or_else(|_| "http://localhost:14000".to_string());
+            .unwrap_or_else(|_| "http://192.168.4.118:14000".to_string());
         let api_key = std::env::var("LITELLM_API_KEY")
             .unwrap_or_else(|_| "litellm".to_string());
         let model = std::env::var("LITELLM_MODEL")
