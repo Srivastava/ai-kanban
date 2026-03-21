@@ -1,14 +1,9 @@
 'use client';
 
 import { useAnalyticsOverview, useBurnRate, useUsageWindows, usePlanTier } from '@/hooks/use-analytics';
+import { PRICING } from '@/lib/pricing';
 import { RateLimitGauge } from './rate-limit-gauge';
 import { ContextWindowGauges } from './context-window-gauge';
-
-// Sonnet pricing per 1M tokens
-const INPUT_PRICE = 3.0;
-const OUTPUT_PRICE = 15.0;
-const CACHE_WRITE_PRICE = 3.75;
-const CACHE_READ_PRICE = 0.30;
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -41,10 +36,10 @@ export function CommandCenter() {
     ? overview.total_input_tokens + cacheCreation + cacheRead + overview.total_output_tokens
     : 0;
 
-  const costInput      = overview ? (overview.total_input_tokens / 1_000_000) * INPUT_PRICE      : 0;
-  const costCacheWrite = overview ? (cacheCreation               / 1_000_000) * CACHE_WRITE_PRICE : 0;
-  const costCacheRead  = overview ? (cacheRead                   / 1_000_000) * CACHE_READ_PRICE  : 0;
-  const costOutput     = overview ? (overview.total_output_tokens/ 1_000_000) * OUTPUT_PRICE      : 0;
+  const costInput      = overview ? (overview.total_input_tokens / 1_000_000) * PRICING.input      : 0;
+  const costCacheWrite = overview ? (cacheCreation               / 1_000_000) * PRICING.cacheWrite : 0;
+  const costCacheRead  = overview ? (cacheRead                   / 1_000_000) * PRICING.cacheRead  : 0;
+  const costOutput     = overview ? (overview.total_output_tokens/ 1_000_000) * PRICING.output      : 0;
 
   return (
     <div className="rounded-xl border border-border bg-gradient-to-br from-card to-card/60 p-5 sm:p-6 space-y-6">

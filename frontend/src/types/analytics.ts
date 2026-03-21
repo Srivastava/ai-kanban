@@ -196,3 +196,20 @@ export interface LocHistoryEntry {
   project_loc: number;
   started_at: string;
 }
+
+export interface HeatmapEntry {
+  date: string;   // "YYYY-MM-DD"
+  tokens: number;
+}
+
+export interface HourlyEntry {
+  hour: number;   // 0–23
+  tokens: number;
+}
+
+export interface SessionToolTokens {
+  tool_name: string;
+  input_tokens: number;
+  output_tokens: number;
+  call_count: number;
+}

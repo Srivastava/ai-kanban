@@ -7,6 +7,7 @@ import type {
   AnalyticsOverview, BurnRate, CostByTask, DailyTokens, DevActivityRow, EfficiencyRow, LanguageTokens,
   LocHistoryEntry, MonthlyTokens, SessionDetail, SessionSummary, SessionTimelineEvent, TaskTimelineEvent, SessionTokens, TaskTokens,
   TokensByStage, ToolTokens, WeeklyTokens, UsageWindows, PlanTier, RoiMetrics, ContextWindowUsage,
+  HeatmapEntry, HourlyEntry, SessionToolTokens,
 } from '@/types/analytics';
 
 export function useAnalyticsOverview() {
@@ -279,5 +280,36 @@ export function useContextUsage() {
     queryKey: ['analytics', 'context-usage'],
     queryFn: () => apiClient<ContextWindowUsage[]>('/api/analytics/context-usage'),
     refetchInterval: 15_000,
+  });
+}
+
+export function useDailyHeatmap(days = 365, taskId?: string | null) {
+  return useQuery({
+    queryKey: ['analytics', 'heatmap', days, taskId],
+    queryFn: async () => {
+      const params = taskId ? `days=${days}&task_id=${taskId}` : `days=${days}`;
+      return apiClient<HeatmapEntry[]>(`/api/analytics/daily-heatmap?${params}`);
+    },
+  });
+}
+
+export function useHourlyBreakdown(taskId?: string | null) {
+  return useQuery({
+    queryKey: ['analytics', 'hourly', taskId],
+    queryFn: async () => {
+      const url = taskId
+        ? `/api/analytics/hourly-breakdown?task_id=${taskId}`
+        : '/api/analytics/hourly-breakdown';
+      return apiClient<HourlyEntry[]>(url);
+    },
+  });
+}
+
+export function useSessionTools(sessionId: string | null) {
+  return useQuery({
+    queryKey: ['analytics', 'session-tools', sessionId],
+    queryFn: async () =>
+      apiClient<SessionToolTokens[]>(`/api/analytics/sessions/${sessionId!}/tools`),
+    enabled: !!sessionId,
   });
 }
