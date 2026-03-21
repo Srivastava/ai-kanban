@@ -58,14 +58,23 @@ struct MonthsQuery {
     task_id: Option<String>,
 }
 
+fn default_months() -> i64 {
+    12
+}
+
 #[derive(Deserialize, Debug)]
 struct TaskFilterQuery {
     task_id: Option<String>,
 }
 
-fn default_months() -> i64 {
-    12
+#[derive(Deserialize, Debug)]
+struct HeatmapQuery {
+    #[serde(default = "default_heatmap_days")]
+    days: i64,
+    task_id: Option<String>,
 }
+
+fn default_heatmap_days() -> i64 { 365 }
 
 pub fn analytics_routes() -> Router<AnalyticsApiState> {
     Router::new()
@@ -91,6 +100,9 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         .route("/plan-tier", get(plan_tier_handler))
         .route("/roi", get(roi_metrics_handler))
         .route("/context-usage", get(context_usage_handler))
+        .route("/daily-heatmap", get(daily_heatmap))
+        .route("/hourly-breakdown", get(hourly_breakdown))
+        .route("/sessions/:id/tools", get(session_tools))
 }
 
 #[instrument(skip(state))]
@@ -473,6 +485,48 @@ async fn context_usage_handler(
             error!(error = %e, "API: Failed to get context usage");
             (StatusCode::INTERNAL_SERVER_ERROR,
              Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn daily_heatmap(
+    State(state): State<AnalyticsApiState>,
+    Query(q): Query<HeatmapQuery>,
+) -> impl IntoResponse {
+    match state.analytics.daily_heatmap(q.days, q.task_id.as_deref()).await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => {
+            error!(error = %e, "daily_heatmap failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn hourly_breakdown(
+    State(state): State<AnalyticsApiState>,
+    Query(q): Query<TaskFilterQuery>,
+) -> impl IntoResponse {
+    match state.analytics.hourly_breakdown(q.task_id.as_deref()).await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => {
+            error!(error = %e, "hourly_breakdown failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn session_tools(
+    State(state): State<AnalyticsApiState>,
+    Path(session_id): Path<String>,
+) -> impl IntoResponse {
+    match state.analytics.tokens_by_tool_for_session(&session_id).await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => {
+            error!(session_id = %session_id, error = %e, "session_tools failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
         }
     }
 }
