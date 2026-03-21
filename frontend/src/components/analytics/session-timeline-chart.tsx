@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useTokensByTask, useTaskSessions } from '@/hooks/use-analytics';
 import { formatDistanceToNow } from 'date-fns';
+import { SessionToolBreakdown } from './session-tool-breakdown';
 
 const STATUS_COLORS: Record<string, string> = {
   completed: '#22c55e',
@@ -38,6 +39,7 @@ interface Props { taskId?: string | null }
 export function SessionTimelineChart({ taskId: externalTaskId }: Props) {
   const { data: tasks = [] } = useTokensByTask();
   const [internalTaskId, setInternalTaskId] = useState<string | null>(null);
+  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(null);
   const selectedTaskId = externalTaskId ?? internalTaskId;
   const { data: sessions = [], isLoading } = useTaskSessions(selectedTaskId);
 
@@ -163,13 +165,35 @@ export function SessionTimelineChart({ taskId: externalTaskId }: Props) {
                 }}
                 contentStyle={TOOLTIP_STYLE}
               />
-              <Bar dataKey="total_tokens" radius={[3, 3, 0, 0]}>
-                {barData.map((d, i) => (
-                  <Cell key={i} fill={d.color} />
+              <Bar
+                dataKey="total_tokens"
+                radius={[3, 3, 0, 0]}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                onClick={(data: any) => {
+                  setExpandedSessionId((prev: string | null) =>
+                    prev === data.session_id ? null : data.session_id
+                  );
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                {barData.map((entry) => (
+                  <Cell key={entry.session_id} fill={entry.color}
+                    opacity={expandedSessionId && expandedSessionId !== entry.session_id ? 0.4 : 1} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          {expandedSessionId && (
+            <div className="transition-all duration-200">
+              <SessionToolBreakdown
+                sessionId={expandedSessionId}
+                sessionTotalTokens={
+                  sessions.find(s => s.id === expandedSessionId)?.total_tokens ?? 0
+                }
+                onClose={() => setExpandedSessionId(null)}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
