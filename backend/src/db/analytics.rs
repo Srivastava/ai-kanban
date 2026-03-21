@@ -2,7 +2,7 @@ use crate::models::{
     AnalyticsOverview, BurnRate, CostByTask, DailyTokens, WeeklyTokens, MonthlyTokens,
     SessionSummary, TaskTokens, SessionTokens, ToolTokens, LanguageTokens,
     EfficiencyRow, SessionTimelineEvent, TaskTimelineEvent, TokensByStage, UsageWindows,
-    LocHistoryEntry,
+    LocHistoryEntry, HeatmapEntry, HourlyEntry,
 };
 use anyhow::Result;
 use chrono::{Datelike, Duration, Utc};
@@ -415,6 +415,105 @@ impl AnalyticsRepository {
             .into_iter()
             .map(|row| LanguageTokens {
                 file_ext: row.get("file_ext"),
+                input_tokens: row.get("input_tokens"),
+                output_tokens: row.get("output_tokens"),
+                call_count: row.get("call_count"),
+            })
+            .collect())
+    }
+
+    /// Token activity per calendar day (UTC) for heatmap display.
+    pub async fn daily_heatmap(
+        &self,
+        days: i64,
+        task_id: Option<&str>,
+    ) -> Result<Vec<HeatmapEntry>> {
+        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let sql = format!(
+            r#"
+            SELECT
+                DATE(created_at) as date,
+                SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) as tokens
+            FROM token_events
+            WHERE DATE(created_at) >= DATE('now', '-{days} days'){task_filter}
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+            "#,
+            days = days,
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql).bind(tid).fetch_all(&self.pool).await?
+        } else {
+            sqlx::query(&sql).fetch_all(&self.pool).await?
+        };
+        Ok(rows
+            .into_iter()
+            .map(|row| HeatmapEntry {
+                date: row.get("date"),
+                tokens: row.get("tokens"),
+            })
+            .collect())
+    }
+
+    /// Token activity per hour of day (0–23 UTC).
+    pub async fn hourly_breakdown(
+        &self,
+        task_id: Option<&str>,
+    ) -> Result<Vec<HourlyEntry>> {
+        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let sql = format!(
+            r#"
+            SELECT
+                CAST(strftime('%H', created_at) AS INTEGER) as hour,
+                SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) as tokens
+            FROM token_events
+            WHERE 1=1{task_filter}
+            GROUP BY hour
+            ORDER BY hour ASC
+            "#,
+            task_filter = task_filter
+        );
+        let rows = if let Some(tid) = task_id {
+            sqlx::query(&sql).bind(tid).fetch_all(&self.pool).await?
+        } else {
+            sqlx::query(&sql).fetch_all(&self.pool).await?
+        };
+        Ok(rows
+            .into_iter()
+            .map(|row| HourlyEntry {
+                hour: row.get("hour"),
+                tokens: row.get("tokens"),
+            })
+            .collect())
+    }
+
+    /// Tool breakdown for a specific session (for drill-down).
+    pub async fn tokens_by_tool_for_session(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<ToolTokens>> {
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                COALESCE(tool_name, 'Other') as tool_name,
+                SUM(input_tokens) as input_tokens,
+                SUM(output_tokens) as output_tokens,
+                COUNT(*) as call_count
+            FROM token_events
+            WHERE session_id = ?
+            GROUP BY COALESCE(tool_name, 'Other')
+            ORDER BY (SUM(input_tokens) + SUM(output_tokens)) DESC
+            "#,
+        )
+        .bind(session_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| ToolTokens {
+                tool_name: row.get("tool_name"),
                 input_tokens: row.get("input_tokens"),
                 output_tokens: row.get("output_tokens"),
                 call_count: row.get("call_count"),

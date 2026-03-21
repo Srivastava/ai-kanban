@@ -211,3 +211,15 @@ pub struct LocHistoryEntry {
     pub project_loc: i64,
     pub started_at: String,
 }
+
+#[derive(Debug, serde::Serialize)]
+pub struct HeatmapEntry {
+    pub date: String,
+    pub tokens: i64,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct HourlyEntry {
+    pub hour: i64,
+    pub tokens: i64,
+}
