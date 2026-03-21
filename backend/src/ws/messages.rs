@@ -73,6 +73,12 @@ pub enum ServerMessage {
         preview: String,
     },
 
+    #[serde(rename = "enrichment_started")]
+    EnrichmentStarted { task_id: String },
+
+    #[serde(rename = "enrichment_completed")]
+    EnrichmentCompleted { task_id: String },
+
     #[serde(rename = "pong")]
     Pong,
 

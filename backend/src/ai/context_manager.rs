@@ -314,10 +314,20 @@ impl ContextManager {
         match self.litellm.complete(messages).await {
             Ok(result) => {
                 let enriched = result.content.trim().to_string();
+                if enriched.is_empty() {
+                    warn!(
+                        task_id = %task_id,
+                        input_tokens = result.input_tokens,
+                        output_tokens = result.output_tokens,
+                        "LiteLLM returned empty content for task enrichment — skipping (check model configuration)"
+                    );
+                    return Ok(None);
+                }
                 info!(
                     task_id = %task_id,
                     input_tokens = result.input_tokens,
                     output_tokens = result.output_tokens,
+                    content_len = enriched.len(),
                     "Task description enriched"
                 );
                 // Persist the enriched text as instructions (never overwrites user's description)
@@ -331,7 +341,7 @@ impl ContextManager {
                 Ok(Some(enriched))
             }
             Err(e) => {
-                warn!(task_id = %task_id, error = %e, "Task enrichment failed");
+                warn!(task_id = %task_id, error = %e, "Task enrichment failed — LiteLLM error, proceeding without enrichment");
                 Err(e)
             }
         }

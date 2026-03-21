@@ -225,6 +225,13 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
 
   return (
     <div className="rounded-lg border border-border overflow-hidden">
+      {status === 'pending' && lines.length === 0 && !rateLimitResetAt && (
+        <div className="px-4 py-2.5 bg-indigo-500/10 border-b border-indigo-500/20 text-indigo-400 text-sm flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-indigo-400 animate-pulse shrink-0" />
+          <span className="font-medium">Starting session...</span>
+          <span className="text-indigo-400/70 text-xs">Claude will begin shortly</span>
+        </div>
+      )}
       {rateLimitResetAt && (
         <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm flex items-center gap-2">
           <span>⏳</span>

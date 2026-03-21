@@ -186,6 +186,32 @@ function PlanProgress({ instructions }: { instructions: string }) {
 
 // ─── Plan Banner ─────────────────────────────────────────────────────────────
 
+function EnrichmentBanner({ taskId }: { taskId: string }) {
+  const { subscribe } = useWebSocket();
+  const [enriching, setEnriching] = useState(false);
+
+  useEffect(() => {
+    const unsubStart = subscribe('enrichment_started', (data: unknown) => {
+      const msg = data as { task_id?: string };
+      if (msg.task_id === taskId) setEnriching(true);
+    });
+    const unsubDone = subscribe('enrichment_completed', (data: unknown) => {
+      const msg = data as { task_id?: string };
+      if (msg.task_id === taskId) setEnriching(false);
+    });
+    return () => { unsubStart(); unsubDone(); };
+  }, [taskId, subscribe]);
+
+  if (!enriching) return null;
+
+  return (
+    <div className="mb-3 flex items-center gap-2 rounded-md border border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-3 py-2 text-sm text-indigo-800 dark:text-indigo-200">
+      <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+      <span>Enriching task description with AI — instructions will appear shortly...</span>
+    </div>
+  );
+}
+
 function PlanBanner({ taskId, sessionId }: { taskId: string; sessionId: string | null }) {
   const { subscribe } = useWebSocket();
   const [show, setShow] = useState(false);
@@ -358,6 +384,8 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
             </CardTitle>
           </CardHeader>
           <CardContent className="px-5 pb-5">
+            {/* Enrichment in-progress banner */}
+            <EnrichmentBanner taskId={task.id} />
             {/* Plan Created banner (subscribes to WS event) */}
             <PlanBanner taskId={task.id} sessionId={task.session_id ?? null} />
 

@@ -61,6 +61,14 @@ pub enum ClaudeEvent {
         task_id: String,
         preview: String,
     },
+    /// Emitted when LiteLLM task enrichment starts (async — Claude may already be running)
+    EnrichmentStarted {
+        task_id: String,
+    },
+    /// Emitted when LiteLLM task enrichment completes successfully
+    EnrichmentCompleted {
+        task_id: String,
+    },
 }
 
 struct RunningSession {
@@ -180,31 +188,42 @@ impl ClaudeManager {
            .stderr(Stdio::piped());
 
         // Task enrichment: on the very first session (no prior history), expand a terse description
-        // into structured instructions. Writes to task.instructions, never overwrites task.description.
-        // A 15-second hard timeout ensures a slow/unavailable LiteLLM never stalls session start.
+        // into structured instructions. Runs in the background so Claude spawns immediately.
+        // The enriched instructions are persisted for future sessions and pushed to the frontend via WS.
         if conversation_context.is_none() && resume_claude_session_id.is_none() && task.session_id.is_none() {
             if self.flag_enabled("litellm_task_enrichment").await {
                 if let Some(ref cm) = self.context_manager {
-                    info!(task_id = %task.id, "Enriching task description (timeout=15s)");
-                    let enrich_fut = cm.enrich_task(&task.id, &task.title, task.description.as_deref());
-                    match tokio::time::timeout(Duration::from_secs(15), enrich_fut).await {
-                        Ok(Ok(Some(enriched))) => {
-                            info!(task_id = %task.id, "Task instructions enriched by LiteLLM");
-                            task.instructions = Some(enriched);
-                            // Notify frontend that the task changed
-                            if let Ok(updated) = self.task_repo.find(&task.id).await {
-                                if let Ok(task_json) = serde_json::to_value(&updated) {
-                                    let _ = self.output_tx.send(ClaudeEvent::TaskStageChanged {
-                                        task_id: task.id.clone(),
-                                        task_json,
-                                    });
+                    let cm_bg = cm.clone();
+                    let task_id_bg = task.id.clone();
+                    let task_title_bg = task.title.clone();
+                    let task_desc_bg = task.description.clone();
+                    let tx_bg = self.output_tx.clone();
+                    let task_repo_bg = self.task_repo.clone();
+                    info!(task_id = %task.id, "Spawning async task enrichment");
+                    let _ = tx_bg.send(ClaudeEvent::EnrichmentStarted { task_id: task_id_bg.clone() });
+                    tokio::spawn(async move {
+                        match cm_bg.enrich_task(&task_id_bg, &task_title_bg, task_desc_bg.as_deref()).await {
+                            Ok(Some(_enriched)) => {
+                                info!(task_id = %task_id_bg, "Async task enrichment complete");
+                                let _ = tx_bg.send(ClaudeEvent::EnrichmentCompleted { task_id: task_id_bg.clone() });
+                                // Push updated task to frontend
+                                if let Ok(updated) = task_repo_bg.find(&task_id_bg).await {
+                                    if let Ok(task_json) = serde_json::to_value(&updated) {
+                                        let _ = tx_bg.send(ClaudeEvent::TaskStageChanged {
+                                            task_id: task_id_bg,
+                                            task_json,
+                                        });
+                                    }
                                 }
                             }
+                            Ok(None) => {
+                                info!(task_id = %task_id_bg, "Async enrichment returned no content");
+                            }
+                            Err(e) => {
+                                warn!(task_id = %task_id_bg, error = %e, "Async task enrichment failed");
+                            }
                         }
-                        Ok(Ok(None)) => {}
-                        Ok(Err(e)) => warn!(task_id = %task.id, error = %e, "Task enrichment failed, proceeding with original"),
-                        Err(_) => warn!(task_id = %task.id, "Task enrichment timed out after 15s, proceeding without enrichment"),
-                    }
+                    });
                 }
             }
         }

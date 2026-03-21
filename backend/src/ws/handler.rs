@@ -121,6 +121,12 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             preview: preview.clone(),
                         })
                     }
+                    ClaudeEvent::EnrichmentStarted { task_id } => {
+                        Some(ServerMessage::EnrichmentStarted { task_id: task_id.clone() })
+                    }
+                    ClaudeEvent::EnrichmentCompleted { task_id } => {
+                        Some(ServerMessage::EnrichmentCompleted { task_id: task_id.clone() })
+                    }
                 }
             };
 
