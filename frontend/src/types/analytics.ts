@@ -207,9 +207,5 @@ export interface HourlyEntry {
   tokens: number;
 }
 
-export interface SessionToolTokens {
-  tool_name: string;
-  input_tokens: number;
-  output_tokens: number;
-  call_count: number;
-}
+// Session-scoped tool breakdown uses the same shape as ToolTokens
+export type SessionToolTokens = ToolTokens;

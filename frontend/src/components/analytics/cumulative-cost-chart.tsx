@@ -2,20 +2,13 @@
 
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useDailyTokens } from '@/hooks/use-analytics';
-
-// Pricing (must match backend token_prices defaults)
-const PRICE = {
-  input: 3.0 / 1_000_000,
-  output: 15.0 / 1_000_000,
-  cacheWrite: 3.75 / 1_000_000,
-  cacheRead: 0.30 / 1_000_000,
-};
+import { PRICING } from '@/lib/pricing';
 
 function dayCost(d: { input_tokens: number; output_tokens: number; cache_creation_tokens: number; cache_read_tokens: number }): number {
-  return d.input_tokens * PRICE.input
-    + d.output_tokens * PRICE.output
-    + d.cache_creation_tokens * PRICE.cacheWrite
-    + d.cache_read_tokens * PRICE.cacheRead;
+  return (d.input_tokens        / 1_000_000) * PRICING.input
+    + (d.output_tokens          / 1_000_000) * PRICING.output
+    + (d.cache_creation_tokens  / 1_000_000) * PRICING.cacheWrite
+    + (d.cache_read_tokens      / 1_000_000) * PRICING.cacheRead;
 }
 
 const TOOLTIP_STYLE = {

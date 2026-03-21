@@ -1,12 +1,7 @@
 'use client';
 
 import { useAnalyticsOverview } from '@/hooks/use-analytics';
-
-// Sonnet 3.5/3.7 pricing per 1M tokens
-const INPUT_PRICE = 3.0;
-const OUTPUT_PRICE = 15.0;
-const CACHE_WRITE_PRICE = 3.75;
-const CACHE_READ_PRICE = 0.30;
+import { PRICING } from '@/lib/pricing';
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -33,10 +28,10 @@ export function OverviewCards() {
     : 0;
 
   // Cost breakdown by token type
-  const costInput        = data ? (data.total_input_tokens   / 1_000_000) * INPUT_PRICE        : 0;
-  const costCacheWrite   = data ? (cacheCreation             / 1_000_000) * CACHE_WRITE_PRICE  : 0;
-  const costCacheRead    = data ? (cacheRead                 / 1_000_000) * CACHE_READ_PRICE   : 0;
-  const costOutput       = data ? (data.total_output_tokens  / 1_000_000) * OUTPUT_PRICE       : 0;
+  const costInput        = data ? (data.total_input_tokens   / 1_000_000) * PRICING.input      : 0;
+  const costCacheWrite   = data ? (cacheCreation             / 1_000_000) * PRICING.cacheWrite : 0;
+  const costCacheRead    = data ? (cacheRead                 / 1_000_000) * PRICING.cacheRead  : 0;
+  const costOutput       = data ? (data.total_output_tokens  / 1_000_000) * PRICING.output     : 0;
 
   return (
     <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
