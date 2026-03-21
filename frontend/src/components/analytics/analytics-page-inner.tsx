@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { useWebSocket } from '@/contexts/websocket-context';
 
 const CommandCenter = dynamic(
   () => import('@/components/analytics/command-center').then(m => m.CommandCenter),
@@ -20,6 +22,9 @@ import { SessionTimelineChart } from '@/components/analytics/session-timeline-ch
 import { DevActivityCharts } from '@/components/analytics/dev-activity-charts';
 import { TokensByTaskChart } from '@/components/analytics/tokens-by-task-chart';
 import { CumulativeCostChart } from '@/components/analytics/cumulative-cost-chart';
+import { ActivityHeatmap } from '@/components/analytics/activity-heatmap';
+import { HourlyBreakdown } from '@/components/analytics/hourly-breakdown';
+import { ProjectBubbleChart } from '@/components/analytics/project-bubble-chart';
 
 export function AnalyticsPageInner() {
   const searchParams = useSearchParams();
@@ -27,6 +32,8 @@ export function AnalyticsPageInner() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(
     searchParams.get('task')
   );
+  const queryClient = useQueryClient();
+  const { subscribe } = useWebSocket();
 
   // Sync task selection to URL
   useEffect(() => {
@@ -39,6 +46,22 @@ export function AnalyticsPageInner() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
+
+  // Auto-refresh analytics queries when sessions complete
+  useEffect(() => {
+    const invalidateAll = () => {
+      queryClient.invalidateQueries({ queryKey: ['analytics'] });
+    };
+
+    const unsubCompleted = subscribe('session_completed', invalidateAll);
+    const unsubFailed = subscribe('session_failed', invalidateAll);
+    const unsubStopped = subscribe('session_stopped', invalidateAll);
+    return () => {
+      unsubCompleted();
+      unsubFailed();
+      unsubStopped();
+    };
+  }, [subscribe, queryClient]);
 
   return (
     <main className="flex-1 pb-20 md:pb-6">
@@ -64,12 +87,23 @@ export function AnalyticsPageInner() {
             <CostBreakdownTable taskId={selectedTaskId} />
             <TokensByTaskChart taskId={selectedTaskId} />
           </div>
+          <ProjectBubbleChart
+            selectedTaskId={selectedTaskId}
+            onTaskSelect={setSelectedTaskId}
+          />
           <CumulativeCostChart taskId={selectedTaskId} />
         </section>
 
         {/* Usage Trends */}
         <section className="space-y-4">
           <h2 className="text-base font-semibold">Usage Trends</h2>
+          {/* Heatmap + Hourly */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <ActivityHeatmap taskId={selectedTaskId} />
+            </div>
+            <HourlyBreakdown taskId={selectedTaskId} />
+          </div>
           <TokenTimeChart taskId={selectedTaskId} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <ToolBreakdownChart taskId={selectedTaskId} />
