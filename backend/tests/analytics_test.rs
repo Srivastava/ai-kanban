@@ -94,7 +94,7 @@ async fn test_cost_by_task_ordered_desc() {
 async fn test_tokens_by_stage_empty() {
     let pool = setup_db().await;
     let repo = AnalyticsRepository::new(pool);
-    assert!(repo.tokens_by_stage().await.unwrap().is_empty());
+    assert!(repo.tokens_by_stage(None).await.unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -104,7 +104,7 @@ async fn test_tokens_by_stage_groups_correctly() {
     seed_one_event(&pool, "backlog", None, 200, 40).await;
     seed_one_event(&pool, "done", None, 500, 100).await;
     let repo = AnalyticsRepository::new(pool);
-    let rows = repo.tokens_by_stage().await.unwrap();
+    let rows = repo.tokens_by_stage(None).await.unwrap();
     assert_eq!(rows.len(), 2);
     let backlog = rows.iter().find(|r| r.stage == "backlog").unwrap();
     assert_eq!(backlog.input_tokens, 300);

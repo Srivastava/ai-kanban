@@ -18,25 +18,25 @@ fn test_token_prices_defaults() {
     if std::env::var("CLAUDE_INPUT_PRICE_PER_MILLION").is_err()
         && std::env::var("CLAUDE_OUTPUT_PRICE_PER_MILLION").is_err()
     {
-        let (input, output) = token_prices();
+        let p = token_prices();
         assert!(
-            (input - 3.0).abs() < 0.001,
+            (p.input - 3.0).abs() < 0.001,
             "default input price should be $3.00/M, got {}",
-            input
+            p.input
         );
         assert!(
-            (output - 15.0).abs() < 0.001,
+            (p.output - 15.0).abs() < 0.001,
             "default output price should be $15.00/M, got {}",
-            output
+            p.output
         );
     }
 }
 
 #[test]
 fn test_token_prices_returns_positive_values() {
-    let (input, output) = token_prices();
-    assert!(input > 0.0, "input price must be positive");
-    assert!(output > 0.0, "output price must be positive");
+    let p = token_prices();
+    assert!(p.input > 0.0, "input price must be positive");
+    assert!(p.output > 0.0, "output price must be positive");
 }
 
 #[test]
@@ -48,19 +48,19 @@ fn test_token_prices_output_greater_than_input() {
     if std::env::var("CLAUDE_INPUT_PRICE_PER_MILLION").is_err()
         && std::env::var("CLAUDE_OUTPUT_PRICE_PER_MILLION").is_err()
     {
-        let (input, output) = token_prices();
+        let p = token_prices();
         assert!(
-            output > input,
+            p.output > p.input,
             "output price (${}/M) should exceed input price (${}/M)",
-            output,
-            input
+            p.output,
+            p.input
         );
     }
 }
 
 #[test]
 fn test_token_prices_are_finite() {
-    let (input, output) = token_prices();
-    assert!(input.is_finite(), "input price must be finite");
-    assert!(output.is_finite(), "output price must be finite");
+    let p = token_prices();
+    assert!(p.input.is_finite(), "input price must be finite");
+    assert!(p.output.is_finite(), "output price must be finite");
 }

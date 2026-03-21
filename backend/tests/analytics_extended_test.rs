@@ -109,7 +109,7 @@ async fn test_overview_with_data() {
 #[tokio::test]
 async fn test_daily_tokens_empty() {
     let repos = setup().await;
-    let rows = repos.analytics.daily_tokens(7).await.unwrap();
+    let rows = repos.analytics.daily_tokens(7, None).await.unwrap();
     assert!(rows.is_empty());
 }
 
@@ -122,7 +122,7 @@ async fn test_daily_tokens_today() {
         .create(make_event(&session_id, &task_id, 100, 50, 0))
         .await
         .unwrap();
-    let rows = repos.analytics.daily_tokens(7).await.unwrap();
+    let rows = repos.analytics.daily_tokens(7, None).await.unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].input_tokens, 100);
     assert_eq!(rows[0].output_tokens, 50);
@@ -133,7 +133,7 @@ async fn test_daily_tokens_today() {
 #[tokio::test]
 async fn test_weekly_tokens_empty() {
     let repos = setup().await;
-    let rows = repos.analytics.weekly_tokens(4).await.unwrap();
+    let rows = repos.analytics.weekly_tokens(4, None).await.unwrap();
     assert!(rows.is_empty());
 }
 
@@ -146,7 +146,7 @@ async fn test_weekly_tokens_with_data() {
         .create(make_event(&session_id, &task_id, 200, 100, 0))
         .await
         .unwrap();
-    let rows = repos.analytics.weekly_tokens(4).await.unwrap();
+    let rows = repos.analytics.weekly_tokens(4, None).await.unwrap();
     assert!(!rows.is_empty());
     assert_eq!(rows[0].input_tokens, 200);
 }
@@ -156,7 +156,7 @@ async fn test_weekly_tokens_with_data() {
 #[tokio::test]
 async fn test_monthly_tokens_empty() {
     let repos = setup().await;
-    let rows = repos.analytics.monthly_tokens(3).await.unwrap();
+    let rows = repos.analytics.monthly_tokens(3, None).await.unwrap();
     assert!(rows.is_empty());
 }
 
@@ -169,7 +169,7 @@ async fn test_monthly_tokens_with_data() {
         .create(make_event(&session_id, &task_id, 500, 250, 0))
         .await
         .unwrap();
-    let rows = repos.analytics.monthly_tokens(3).await.unwrap();
+    let rows = repos.analytics.monthly_tokens(3, None).await.unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].input_tokens, 500);
 }
@@ -300,7 +300,7 @@ async fn test_tokens_by_session_groups_by_session() {
 #[tokio::test]
 async fn test_tokens_by_tool_empty() {
     let repos = setup().await;
-    let rows = repos.analytics.tokens_by_tool().await.unwrap();
+    let rows = repos.analytics.tokens_by_tool(None).await.unwrap();
     assert!(rows.is_empty());
 }
 
@@ -328,7 +328,7 @@ async fn test_tokens_by_tool_groups_correctly() {
         .await
         .unwrap();
 
-    let rows = repos.analytics.tokens_by_tool().await.unwrap();
+    let rows = repos.analytics.tokens_by_tool(None).await.unwrap();
     assert_eq!(rows.len(), 2);
     let read = rows.iter().find(|r| r.tool_name == "Read").unwrap();
     assert_eq!(read.call_count, 2);
@@ -340,7 +340,7 @@ async fn test_tokens_by_tool_groups_correctly() {
 #[tokio::test]
 async fn test_tokens_by_language_empty() {
     let repos = setup().await;
-    let rows = repos.analytics.tokens_by_language().await.unwrap();
+    let rows = repos.analytics.tokens_by_language(None).await.unwrap();
     assert!(rows.is_empty());
 }
 
@@ -361,7 +361,7 @@ async fn test_tokens_by_language_groups_by_ext() {
     ev3.file_ext = Some(".rs".to_string());
     repos.token_repo.create(ev3).await.unwrap();
 
-    let rows = repos.analytics.tokens_by_language().await.unwrap();
+    let rows = repos.analytics.tokens_by_language(None).await.unwrap();
     assert_eq!(rows.len(), 2);
     let rs = rows.iter().find(|r| r.file_ext == ".rs").unwrap();
     assert_eq!(rs.call_count, 2);
@@ -373,7 +373,7 @@ async fn test_tokens_by_language_groups_by_ext() {
 #[tokio::test]
 async fn test_token_efficiency_empty() {
     let repos = setup().await;
-    let rows = repos.analytics.token_efficiency().await.unwrap();
+    let rows = repos.analytics.token_efficiency(None).await.unwrap();
     assert!(rows.is_empty());
 }
 
@@ -387,7 +387,7 @@ async fn test_token_efficiency_no_lines_written() {
         .await
         .unwrap();
 
-    let rows = repos.analytics.token_efficiency().await.unwrap();
+    let rows = repos.analytics.token_efficiency(None).await.unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].total_tokens, 1500);
     assert!(rows[0].tokens_per_line.is_none()); // no lines written
@@ -403,19 +403,20 @@ async fn test_token_efficiency_with_metrics() {
         .create(make_event(&session_id, &task_id, 1000, 500, 0))
         .await
         .unwrap();
-    // session_metrics FK references sessions(id), so session_id must exist
-    repos.metrics_repo.upsert(&session_id, 10, 500).await.unwrap();
-    repos
-        .metrics_repo
-        .add_lines_written(&session_id, 100)
-        .await
-        .unwrap();
+    // Efficiency computes MAX(project_loc) - MIN(project_loc) joined via token_events.
+    // Need a second session with a token event and higher project_loc to get a non-zero delta.
+    let session_b = repos.session_repo.create(
+        ai_kanban_backend::models::CreateSession { task_id: task_id.clone() }
+    ).await.unwrap();
+    repos.token_repo.create(make_event(&session_b.id, &task_id, 0, 0, 1)).await.unwrap();
+    repos.metrics_repo.upsert(&session_id, 10, 100).await.unwrap();   // starting LOC
+    repos.metrics_repo.upsert(&session_b.id, 10, 200).await.unwrap(); // ending LOC, delta=100
 
-    let rows = repos.analytics.token_efficiency().await.unwrap();
-    assert_eq!(rows.len(), 1);
-    assert!(rows[0].tokens_per_line.is_some());
-    let tpl = rows[0].tokens_per_line.unwrap();
-    // 1500 tokens / 100 lines = 15.0
+    let rows = repos.analytics.token_efficiency(None).await.unwrap();
+    let our_row = rows.iter().find(|r| r.total_tokens == 1500).unwrap();
+    assert!(our_row.tokens_per_line.is_some());
+    let tpl = our_row.tokens_per_line.unwrap();
+    // 1500 tokens / 100 LOC-delta = 15.0
     assert!(
         (tpl - 15.0).abs() < 0.01,
         "expected ~15.0, got {}",
