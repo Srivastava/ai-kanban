@@ -1,6 +1,6 @@
 use super::SessionApiState;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
@@ -28,11 +28,38 @@ struct StartSessionRequest {
 pub fn session_routes() -> Router<SessionApiState> {
     Router::new()
         .route("/", get(list_sessions))
+        .route("/all", get(list_all_sessions))
         .route("/queue", get(get_queue))
         // literal prefix route before param route to avoid "by-claude-id" matching /:id
         .route("/by-claude-id/:id", get(get_by_claude_id))
         .route("/:id/stop", post(stop_session))
         .route("/:id", get(get_session))
+}
+
+#[derive(Debug, Deserialize)]
+struct SessionListQuery {
+    status: Option<String>, // comma-separated: "pending,failed"
+    limit: Option<i64>,
+}
+
+/// GET /api/sessions/all?status=failed,pending&limit=50
+/// Returns sessions across all tasks, optionally filtered by status.
+#[instrument(skip(state))]
+async fn list_all_sessions(
+    State(state): State<SessionApiState>,
+    Query(q): Query<SessionListQuery>,
+) -> impl IntoResponse {
+    let statuses: Vec<&str> = q.status.as_deref()
+        .map(|s| s.split(',').map(|x| x.trim()).collect())
+        .unwrap_or_default();
+
+    match state.session_repo.list_recent(statuses.as_slice(), q.limit.unwrap_or(100)).await {
+        Ok(sessions) => Json(sessions).into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e.to_string() })),
+        ).into_response(),
+    }
 }
 
 #[instrument(skip(state))]

@@ -7,6 +7,7 @@ import { LogStatsBar } from '@/components/logs/log-stats-bar';
 import { RecentErrorsPanel } from '@/components/logs/recent-errors-panel';
 import { LogRateChart } from '@/components/logs/log-rate-chart';
 import { SessionLifecyclePanel } from '@/components/logs/session-lifecycle-panel';
+import { SessionDiagnosticsPanel } from '@/components/logs/session-diagnostics-panel';
 import { ActiveSessionsPanel } from '@/components/logs/active-sessions-panel';
 import { LogContextBreakdown } from '@/components/logs/log-context-breakdown';
 import { useLogs } from '@/hooks/use-logs';
@@ -240,6 +241,12 @@ export default function LogsPage() {
             onSessionClick={handleSessionClick}
             activeTaskId={serverFilter.task_id}
             activeSessionId={serverFilter.session_id}
+          />
+
+          {/* Session Diagnostics — shows failed/stuck sessions with error context */}
+          <SessionDiagnosticsPanel
+            onSessionClick={handleSessionClick}
+            onTaskClick={handleTaskClick}
           />
 
           {/* Session Lifecycle — always visible with task picker */}

@@ -142,6 +142,32 @@ impl SessionRepository {
         Ok(sessions)
     }
 
+    /// List sessions, optionally filtered by one or more statuses, newest first.
+    pub async fn list_recent(&self, statuses: &[&str], limit: i64) -> Result<Vec<Session>> {
+        if statuses.is_empty() {
+            let rows = sqlx::query_as::<_, Session>(
+                "SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?"
+            )
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
+            return Ok(rows);
+        }
+
+        // Build parameterised IN clause — sqlx doesn't support dynamic IN natively
+        let placeholders = statuses.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+        let sql = format!(
+            "SELECT * FROM sessions WHERE status IN ({}) ORDER BY started_at DESC LIMIT ?",
+            placeholders
+        );
+        let mut q = sqlx::query_as::<_, Session>(&sql);
+        for s in statuses {
+            q = q.bind(*s);
+        }
+        q = q.bind(limit);
+        Ok(q.fetch_all(&self.pool).await?)
+    }
+
     pub async fn find_by_claude_session_id(&self, claude_session_id: &str) -> Result<Option<Session>> {
         let row = sqlx::query_as::<_, Session>(
             "SELECT * FROM sessions WHERE claude_session_id = ? LIMIT 1"

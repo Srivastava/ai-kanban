@@ -181,11 +181,14 @@ impl ClaudeManager {
 
         // Task enrichment: on the very first session (no prior history), expand a terse description
         // into structured instructions. Writes to task.instructions, never overwrites task.description.
+        // A 15-second hard timeout ensures a slow/unavailable LiteLLM never stalls session start.
         if conversation_context.is_none() && resume_claude_session_id.is_none() && task.session_id.is_none() {
             if self.flag_enabled("litellm_task_enrichment").await {
                 if let Some(ref cm) = self.context_manager {
-                    match cm.enrich_task(&task.id, &task.title, task.description.as_deref()).await {
-                        Ok(Some(enriched)) => {
+                    info!(task_id = %task.id, "Enriching task description (timeout=15s)");
+                    let enrich_fut = cm.enrich_task(&task.id, &task.title, task.description.as_deref());
+                    match tokio::time::timeout(Duration::from_secs(15), enrich_fut).await {
+                        Ok(Ok(Some(enriched))) => {
                             info!(task_id = %task.id, "Task instructions enriched by LiteLLM");
                             task.instructions = Some(enriched);
                             // Notify frontend that the task changed
@@ -198,8 +201,9 @@ impl ClaudeManager {
                                 }
                             }
                         }
-                        Ok(None) => {}
-                        Err(e) => warn!(task_id = %task.id, error = %e, "Task enrichment failed, proceeding with original"),
+                        Ok(Ok(None)) => {}
+                        Ok(Err(e)) => warn!(task_id = %task.id, error = %e, "Task enrichment failed, proceeding with original"),
+                        Err(_) => warn!(task_id = %task.id, "Task enrichment timed out after 15s, proceeding without enrichment"),
                     }
                 }
             }
@@ -252,9 +256,20 @@ impl ClaudeManager {
         }
         cmd.arg(&prompt);
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| anyhow!("Failed to spawn Claude (bin={}): {}", claude_bin, e))?;
+        let mut child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => {
+                let err_msg = format!("Failed to spawn Claude (bin={}): {}", claude_bin, e);
+                tracing::error!(session_id = %session.id, task_id = %task.id, error = %e, "Claude spawn failed");
+                let _ = self.session_repo.update(&session.id, crate::models::UpdateSession {
+                    status: Some("failed".to_string()),
+                    error_message: Some(err_msg.clone()),
+                    ended_at: Some(chrono::Utc::now()),
+                    ..Default::default()
+                }).await;
+                return Err(anyhow!(err_msg));
+            }
+        };
 
         let stdout = child.stdout.take().ok_or_else(|| anyhow!("No stdout"))?;
         let stderr = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;

@@ -81,6 +81,24 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database initialized at {}", db_path);
     tracing::info!("Logging system initialized");
 
+    // Startup recovery: any session still "pending" after a restart was orphaned mid-start.
+    // Mark them failed so the UI doesn't show them as stuck indefinitely.
+    {
+        let pending = session_repo.list_by_status("pending").await.unwrap_or_default();
+        if !pending.is_empty() {
+            tracing::warn!(count = pending.len(), "Recovering orphaned pending sessions from prior run");
+            for s in &pending {
+                let _ = session_repo.update(&s.id, ai_kanban_backend::models::UpdateSession {
+                    status: Some("failed".to_string()),
+                    error_message: Some("Session was pending at startup — likely orphaned during LiteLLM enrichment or backend restart".to_string()),
+                    ended_at: Some(chrono::Utc::now()),
+                    ..Default::default()
+                }).await;
+            }
+            tracing::info!(count = pending.len(), "Orphaned sessions marked as failed");
+        }
+    }
+
     // Session-completion listener: advances the queue when a session ends naturally or fails.
     // Manual stop is handled directly in sessions.rs; rate-limit is handled below.
     {

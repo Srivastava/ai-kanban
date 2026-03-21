@@ -24,6 +24,18 @@ export function useSession(sessionId: string | null | undefined) {
   });
 }
 
+export function useAllSessions(statuses?: string[], limit = 100) {
+  const qs = [
+    statuses?.length ? `status=${statuses.join(',')}` : '',
+    `limit=${limit}`,
+  ].filter(Boolean).join('&');
+  return useQuery({
+    queryKey: ['sessions', 'all', statuses, limit],
+    queryFn: () => apiClient<Session[]>(`/api/sessions/all?${qs}`),
+    refetchInterval: 10_000,
+  });
+}
+
 export function useStopSession(taskId: string) {
   const queryClient = useQueryClient();
   return useMutation({
