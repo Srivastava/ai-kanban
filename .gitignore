@@ -9,3 +9,4 @@ logs/archive-*/
 # OS
 .DS_Store
 .worktrees/
+data/
