@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trash2, Pencil, Check, X, FolderOpen, Clock, ChevronDown, ChevronRight, Terminal } from 'lucide-react';
+import { Trash2, Pencil, Check, X, FolderOpen, Clock, ChevronDown, ChevronRight, Terminal, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './comment-thread';
@@ -16,6 +16,7 @@ import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 import { useComments } from '@/hooks/use-comments';
 import { useSession } from '@/hooks/use-sessions';
 import { useUpdateTask } from '@/hooks/use-tasks';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useWebSocket } from '@/contexts/websocket-context';
 import { apiClient } from '@/lib/api-client';
 import type { Task, Stage } from '@/types/task';
@@ -292,6 +293,73 @@ function QueueBadge({ taskId, sessionStatus }: { taskId: string; sessionStatus: 
   );
 }
 
+// ─── Context File Preview ────────────────────────────────────────────────────
+
+function ContextFilePreview({ taskId }: { taskId: string }) {
+  const queryClient = useQueryClient();
+  const { subscribe } = useWebSocket();
+  const [open, setOpen] = useState(false);
+
+  const { data, isLoading, isError } = useQuery<{ content: string; path: string }>({
+    queryKey: ['task-context-file', taskId],
+    queryFn: async () => {
+      const res = await fetch(`/api/tasks/${taskId}/context-file`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? 'Not found');
+      }
+      return res.json();
+    },
+    retry: false,
+  });
+
+  // Refetch whenever the backend writes a new version of the file
+  useEffect(() => {
+    return subscribe('context_file_updated', (raw: unknown) => {
+      const msg = raw as { task_id?: string };
+      if (msg.task_id === taskId) {
+        queryClient.invalidateQueries({ queryKey: ['task-context-file', taskId] });
+        setOpen(true); // auto-expand so user notices the update
+      }
+    });
+  }, [taskId, subscribe, queryClient]);
+
+  if (isLoading) return (
+    <div className="mt-3 rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground animate-pulse">
+      Loading context file...
+    </div>
+  );
+
+  if (isError || !data) return (
+    <div className="mt-3 rounded-lg border border-dashed border-border bg-muted/10 p-3 text-xs text-muted-foreground italic">
+      No context file yet — starts a session to generate it.
+    </div>
+  );
+
+  return (
+    <div className="mt-3 rounded-lg border border-border bg-muted/20 overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 w-full px-3 py-2.5 text-left text-xs font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+      >
+        <FileText className="h-3.5 w-3.5 shrink-0" />
+        <span className="flex-1">Context file sent to Claude</span>
+        <span className="text-[10px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded mr-1">
+          .claude/ai-kanban.md
+        </span>
+        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+      </button>
+      {open && (
+        <div className="border-t border-border px-3 py-3">
+          <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed max-h-96 overflow-y-auto">
+            {data.content}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main TaskDetail ──────────────────────────────────────────────────────────
 
 export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetailProps) {
@@ -426,6 +494,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
             taskId={task.id}
             field="context"
           />
+          <ContextFilePreview taskId={task.id} />
           {task.compressed_context && (
             <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Compressed Context</p>

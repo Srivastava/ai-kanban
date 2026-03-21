@@ -29,6 +29,7 @@ pub fn task_routes() -> Router<TaskApiState> {
         .route("/:id/sessions", post(start_session))
         .route("/:id/sessions/continue", post(continue_session))
         .route("/:id/sessions-detail", get(task_sessions_detail))
+        .route("/:id/context-file", get(get_context_file))
 }
 
 #[instrument(skip(state))]
@@ -443,6 +444,30 @@ async fn move_task(
                 Json(serde_json::json!({ "error": e.to_string() })),
             )
                 .into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn get_context_file(
+    State(state): State<TaskApiState>,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    let task = match state.repo.find(&id).await {
+        Ok(t) => t,
+        Err(e) => {
+            return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
+        }
+    };
+    let file_path = std::path::Path::new(&task.project_path).join(".claude").join("ai-kanban.md");
+    match std::fs::read_to_string(&file_path) {
+        Ok(content) => Json(serde_json::json!({ "content": content, "path": file_path.to_string_lossy() })).into_response(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Context file not found — session not yet started" }))).into_response()
+        }
+        Err(e) => {
+            error!(task_id = %id, error = %e, "Failed to read context file");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
         }
     }
 }
