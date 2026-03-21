@@ -33,9 +33,10 @@ export function ActivityHeatmap({ taskId }: Props) {
   const byDate = new Map(data.map(d => [d.date, d.tokens]));
   const max = Math.max(...data.map(d => d.tokens), 1);
 
-  // Build 52-week grid ending today
+  // Build 53-week grid (GitHub-style: ensures today is always visible)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().slice(0, 10);
   // Start from the Sunday 52 weeks ago
   const start = new Date(today);
   start.setDate(start.getDate() - 364 - start.getDay());
@@ -80,8 +81,8 @@ export function ActivityHeatmap({ taskId }: Props) {
               {/* Month labels */}
               <svg width={svgW} height={14} className="block mb-1">
                 {weeks.map((week, wi) => {
-                  const month = new Date(week[0].date).getMonth();
-                  const prevMonth = wi > 0 ? new Date(weeks[wi - 1][0].date).getMonth() : -1;
+                  const month = new Date(week[0].date).getUTCMonth();
+                  const prevMonth = wi > 0 ? new Date(weeks[wi - 1][0].date).getUTCMonth() : -1;
                   if (month !== prevMonth) {
                     return <text key={wi} x={wi * stride} y={11} fontSize={9}
                       fill="hsl(var(--muted-foreground))">{MONTHS[month]}</text>;
@@ -92,19 +93,22 @@ export function ActivityHeatmap({ taskId }: Props) {
               <svg width={svgW} height={svgH}
                 onMouseLeave={() => setTooltip(null)}>
                 {weeks.map((week, wi) =>
-                  week.map((cell, di) => (
-                    <rect
-                      key={`${wi}-${di}`}
-                      x={wi * stride} y={di * stride}
-                      width={CELL} height={CELL}
-                      rx={2}
-                      fill={tokenColor(cell.tokens, max)}
-                      onMouseEnter={(e) => {
-                        const rect = (e.target as SVGRectElement).getBoundingClientRect();
-                        setTooltip({ date: cell.date, tokens: cell.tokens, x: rect.left, y: rect.top });
-                      }}
-                    />
-                  ))
+                  week.map((cell, di) => {
+                    if (cell.date > todayStr) return null;
+                    return (
+                      <rect
+                        key={`${wi}-${di}`}
+                        x={wi * stride} y={di * stride}
+                        width={CELL} height={CELL}
+                        rx={2}
+                        fill={tokenColor(cell.tokens, max)}
+                        onMouseEnter={(e) => {
+                          const rect = (e.target as SVGRectElement).getBoundingClientRect();
+                          setTooltip({ date: cell.date, tokens: cell.tokens, x: rect.left, y: rect.top });
+                        }}
+                      />
+                    );
+                  })
                 )}
               </svg>
               {tooltip && (

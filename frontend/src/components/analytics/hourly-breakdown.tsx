@@ -49,7 +49,9 @@ export function HourlyBreakdown({ taskId }: Props) {
             <Bar dataKey="tokens" radius={[2, 2, 0, 0]}>
               {filled.map((entry) => (
                 <Cell key={entry.hour}
-                  fill={`hsl(239 84% ${30 + Math.round((entry.tokens / max) * 35)}%)`} />
+                  fill={entry.tokens === 0
+                    ? 'hsl(var(--muted))'
+                    : `hsl(239 84% ${30 + Math.round((entry.tokens / max) * 35)}%)`} />
               ))}
             </Bar>
           </BarChart>
