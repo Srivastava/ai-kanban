@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAnalyticsOverview, useBurnRate, useUsageWindows, usePlanTier } from '@/hooks/use-analytics';
 import { PRICING } from '@/lib/pricing';
 import { RateLimitGauge } from './rate-limit-gauge';
 import { ContextWindowGauges } from './context-window-gauge';
+import { useWebSocket } from '@/contexts/websocket-context';
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -13,11 +16,89 @@ function fmt(n: number) {
 
 function fmtCost(n: number) { return `$${n.toFixed(2)}`; }
 
+function BurnRateSparkline({ value }: { value: number }) {
+  const bufRef = useRef<number[]>(Array(10).fill(0));
+  const [points, setPoints] = useState<number[]>(Array(10).fill(0));
+
+  useEffect(() => {
+    if (value === 0) return;
+    bufRef.current = [...bufRef.current.slice(1), value];
+    setPoints([...bufRef.current]);
+  }, [value]);
+
+  const max = Math.max(...points, 0.001);
+  const W = 60, H = 20;
+  const pts = points.map((v, i) =>
+    `${(i / 9) * W},${H - (v / max) * H}`
+  ).join(' ');
+
+  return (
+    <svg width={W} height={H} className="inline-block opacity-70">
+      <polyline points={pts} fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function CommandCenter() {
   const { data: overview } = useAnalyticsOverview();
   const { data: burn } = useBurnRate();
   const { data: windows } = useUsageWindows();
   const { data: plan } = usePlanTier();
+
+  const queryClient = useQueryClient();
+  const { subscribe } = useWebSocket();
+  const [hasRunning, setHasRunning] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Detect running sessions on mount
+  useEffect(() => {
+    fetch('/api/sessions')
+      .then(r => r.json())
+      .then((data: { active_count?: number }) => {
+        if ((data.active_count ?? 0) > 0) setHasRunning(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Track running sessions via WS
+  useEffect(() => {
+    const onStarted = () => setHasRunning(true);
+
+    const onEnded = () => {
+      // Immediately fetch final cost before potentially clearing live indicator
+      queryClient.invalidateQueries({ queryKey: ['analytics', 'overview'] });
+      // Check if any others still running before clearing live state
+      fetch('/api/sessions')
+        .then(r => r.json())
+        .then((data: { active_count?: number }) => {
+          setHasRunning((data.active_count ?? 0) > 0);
+        })
+        .catch(() => setHasRunning(false));
+    };
+
+    const unsubStarted   = subscribe('session_started',   onStarted);
+    const unsubCompleted = subscribe('session_completed',  onEnded);
+    const unsubFailed    = subscribe('session_failed',     onEnded);
+    const unsubStopped   = subscribe('session_stopped',    onEnded);
+
+    return () => {
+      unsubStarted();
+      unsubCompleted();
+      unsubFailed();
+      unsubStopped();
+    };
+  }, [subscribe, queryClient]);
+
+  // Poll overview faster when running (10s), respecting rate limits
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (hasRunning) {
+      intervalRef.current = setInterval(() => {
+        queryClient.invalidateQueries({ queryKey: ['analytics', 'overview'] });
+      }, 10_000);
+    }
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [hasRunning, queryClient]);
 
   const limit5hr = plan?.limit_5hr ?? 350_000;
   const limitWeek = plan?.limit_week ?? 3_500_000;
@@ -43,6 +124,14 @@ export function CommandCenter() {
 
   return (
     <div className="rounded-xl border border-border bg-gradient-to-br from-card to-card/60 p-5 sm:p-6 space-y-6">
+      {/* Active session banner */}
+      {hasRunning && (
+        <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+          <span>Session running — cost updating every 10s</span>
+        </div>
+      )}
+
       {/* Rate limit gauges */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <RateLimitGauge
@@ -62,9 +151,10 @@ export function CommandCenter() {
 
       {/* Burn rate */}
       {burnLabel && (
-        <p className="text-xs text-muted-foreground">
-          Burn rate: <span className="font-medium text-foreground">{burnLabel}</span>
-        </p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>Burn rate: <span className="font-medium text-foreground">{burnLabel}</span></span>
+          <BurnRateSparkline value={burn?.tokens_per_minute ?? 0} />
+        </div>
       )}
 
       {/* Context gauges */}
@@ -79,7 +169,15 @@ export function CommandCenter() {
       <div className="grid grid-cols-3 gap-4 pt-2 border-t border-border">
         {/* Cost with breakdown */}
         <div className="space-y-0.5">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Cost</p>
+          <div className="flex items-center gap-2">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Cost</p>
+            {hasRunning && (
+              <span className="flex items-center gap-1 text-[10px] text-amber-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                live
+              </span>
+            )}
+          </div>
           <p className="text-2xl font-bold tabular-nums">{overview ? fmtCost(overview.estimated_cost_usd) : '—'}</p>
           {overview && (
             <div className="text-xs space-y-0.5 mt-1">
