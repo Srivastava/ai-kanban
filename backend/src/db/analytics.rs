@@ -423,11 +423,13 @@ impl AnalyticsRepository {
     }
 
     /// Token activity per calendar day (UTC) for heatmap display.
+    #[instrument(skip(self))]
     pub async fn daily_heatmap(
         &self,
         days: i64,
         task_id: Option<&str>,
     ) -> Result<Vec<HeatmapEntry>> {
+        debug!("Fetching daily heatmap");
         let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
         let sql = format!(
             r#"
@@ -435,17 +437,16 @@ impl AnalyticsRepository {
                 DATE(created_at) as date,
                 SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) as tokens
             FROM token_events
-            WHERE DATE(created_at) >= DATE('now', '-{days} days'){task_filter}
+            WHERE DATE(created_at) >= DATE('now', '-' || ? || ' days'){task_filter}
             GROUP BY DATE(created_at)
             ORDER BY date ASC
             "#,
-            days = days,
             task_filter = task_filter
         );
         let rows = if let Some(tid) = task_id {
-            sqlx::query(&sql).bind(tid).fetch_all(&self.pool).await?
+            sqlx::query(&sql).bind(days).bind(tid).fetch_all(&self.pool).await?
         } else {
-            sqlx::query(&sql).fetch_all(&self.pool).await?
+            sqlx::query(&sql).bind(days).fetch_all(&self.pool).await?
         };
         Ok(rows
             .into_iter()
@@ -457,10 +458,12 @@ impl AnalyticsRepository {
     }
 
     /// Token activity per hour of day (0–23 UTC).
+    #[instrument(skip(self))]
     pub async fn hourly_breakdown(
         &self,
         task_id: Option<&str>,
     ) -> Result<Vec<HourlyEntry>> {
+        debug!("Fetching hourly breakdown");
         let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
         let sql = format!(
             r#"
@@ -489,10 +492,12 @@ impl AnalyticsRepository {
     }
 
     /// Tool breakdown for a specific session (for drill-down).
+    #[instrument(skip(self))]
     pub async fn tokens_by_tool_for_session(
         &self,
         session_id: &str,
     ) -> Result<Vec<ToolTokens>> {
+        debug!("Fetching tokens by tool for session");
         let rows = sqlx::query(
             r#"
             SELECT
