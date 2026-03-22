@@ -41,6 +41,8 @@ export function useTaskSessionsDetail(taskId: string) {
   return useQuery({
     queryKey: ['task-sessions-detail', taskId],
     queryFn: () => apiClient<SessionDetail[]>(`/api/tasks/${taskId}/sessions-detail`),
+    enabled: !!taskId,
+    staleTime: 30_000,
   });
 }
 

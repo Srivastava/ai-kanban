@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 // ─── Token formatting helper ──────────────────────────────────────────────────
 
 function formatTokens(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return '0';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
   return String(n);
@@ -76,6 +77,7 @@ function CollapsibleCard({
     <Card>
       <button
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className="flex items-center gap-2 w-full px-5 py-4 text-left font-semibold text-sm hover:bg-muted/40 transition-colors rounded-t-lg"
       >
         {icon && <span className="text-muted-foreground">{icon}</span>}
@@ -395,15 +397,17 @@ function SessionStatusIcon({ status }: { status: string }) {
 }
 
 function SessionHistoryCard({ taskId }: { taskId: string }) {
-  const { data: sessions = [] } = useTaskSessionsDetail(taskId);
+  const { data: sessions = [], isError } = useTaskSessionsDetail(taskId);
   const displayed = sessions.slice(0, 50);
+
+  if (isError) return <p className="text-xs text-destructive">Failed to load session history.</p>;
 
   return (
     <CollapsibleCard title="Session History" defaultOpen={false}>
       {displayed.length === 0 ? (
         <p className="text-muted-foreground italic text-sm">No sessions yet.</p>
       ) : (
-        <div className="divide-y divide-border -mx-1">
+        <div className="divide-y divide-border -mx-1 overflow-x-auto">
           {displayed.map((s) => {
             const isAmber = s.status === 'stopped' || s.status === 'rate_limited';
             const isRed = s.status === 'failed';
@@ -450,6 +454,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pathCopied, setPathCopied] = useState(false);
   const [instructionsExpanded, setInstructionsExpanded] = useState(false);
+  const [moveError, setMoveError] = useState<string | null>(null);
   const { data: comments = [], isLoading: commentsLoading } = useComments(task.id);
   const { data: session } = useSession(task.session_id);
   const { data: taskSessions = [] } = useTaskSessionsDetail(task.id);
@@ -468,8 +473,10 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
         headers: { 'Content-Type': 'application/json' },
       }),
     onSuccess: () => {
+      setMoveError(null);
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
+    onError: () => setMoveError('Failed to move task. Please try again.'),
   });
 
   // ── Feature 1 & 2: Aggregate token/cost stats ────────────────────────────────
@@ -544,16 +551,21 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
           <div className="flex items-center gap-2 shrink-0">
             {/* Feature 4: Move to Done button */}
             {task.stage === 'review' && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => moveToDone()}
-                disabled={isMovingDone}
-                className="text-green-600 border-green-500/50 hover:bg-green-500/10 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 h-8 px-2.5 text-xs"
-              >
-                <Check className="h-3.5 w-3.5 mr-1" />
-                Move to Done
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => moveToDone()}
+                  disabled={isMovingDone}
+                  className="text-green-600 border-green-500/50 hover:bg-green-500/10 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 h-8 px-2.5 text-xs"
+                >
+                  <Check className="h-3.5 w-3.5 mr-1" />
+                  Move to Done
+                </Button>
+                {moveError && (
+                  <span className="text-xs text-destructive">{moveError}</span>
+                )}
+              </div>
             )}
             <Button
               variant="ghost"
@@ -579,13 +591,14 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
             onClick={handleCopyPath}
             className="flex items-center gap-1.5 text-muted-foreground text-xs bg-muted/60 rounded-md px-2.5 py-1 hover:bg-muted transition-colors"
             title="Click to copy path"
+            aria-label={pathCopied ? 'Copied!' : 'Copy project path'}
           >
             {pathCopied ? (
-              <span className="text-green-600 dark:text-green-400">Copied!</span>
+              <span aria-live="polite" className="text-green-600 dark:text-green-400">Copied!</span>
             ) : (
               <>
                 <FolderOpen className="h-3.5 w-3.5 shrink-0" />
-                <span className="font-mono truncate max-w-[180px] sm:max-w-xs">{task.project_path}</span>
+                <span aria-live="polite" className="font-mono truncate max-w-[180px] sm:max-w-xs">{task.project_path}</span>
                 <Copy className="h-3 w-3 shrink-0 opacity-50" />
               </>
             )}
@@ -647,7 +660,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
       </Card>
 
       {/* Instructions / Plan Viewer */}
-      {(task.instructions || true) && (
+      {true && (
         <Card>
           <CardHeader className="pb-2 px-5 pt-5">
             <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
