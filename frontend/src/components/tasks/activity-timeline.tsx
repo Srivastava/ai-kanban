@@ -1,10 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useWebSocket } from '@/contexts/websocket-context';
 import { useComments } from '@/hooks/use-comments';
+import { apiClient } from '@/lib/api-client';
 import type { Task } from '@/types/task';
 import type { CommentWithReplies } from '@/types/comment';
+import type { SessionDetail } from '@/types/analytics';
 import { cn } from '@/lib/utils';
 
 interface ActivityTimelineProps {
@@ -153,7 +156,28 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
   const { subscribe } = useWebSocket();
   const [dynamicEntries, setDynamicEntries] = useState<TimelineEntry[]>([]);
 
-  // Subscribe to WS events for live timeline updates
+  const { data: taskSessions = [] } = useQuery({
+    queryKey: ['task-sessions-detail', task.id],
+    queryFn: () => apiClient<SessionDetail[]>(`/api/tasks/${task.id}/sessions_detail`),
+  });
+
+  // Always subscribe to rate_limited events for this task (no sessionId guard needed)
+  useEffect(() => {
+    const unsub = subscribe('rate_limited', (data: unknown) => {
+      const msg = data as { session_id?: string; task_id?: string; reset_at?: string };
+      if (msg.task_id !== task.id) return;
+      const resetTime = msg.reset_at ? new Date(msg.reset_at) : null;
+      const timeStr = resetTime ? resetTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      setDynamicEntries((prev) => {
+        const id = `rate_limited_${Date.now()}`;
+        if (prev.some((e) => e.id === id)) return prev;
+        return [{ id, type: 'rate_limited', description: `Rate limited${timeStr ? ` — retrying at ${timeStr}` : ''}`, timestamp: new Date() }, ...prev];
+      });
+    });
+    return unsub;
+  }, [task.id, subscribe]);
+
+  // Subscribe to session-specific WS events for live timeline updates
   useEffect(() => {
     if (!sessionId) return;
 
@@ -213,32 +237,33 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
       }
     });
 
-    const unsubRateLimit = subscribe('rate_limited', (data: unknown) => {
-      const msg = data as { session_id?: string; task_id?: string; reset_at?: string };
-      if (msg.session_id !== sessionId && msg.task_id !== task.id) return;
-      const resetTime = msg.reset_at ? new Date(msg.reset_at) : null;
-      const timeStr = resetTime ? resetTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      addEntry({
-        id: `rate_limited_${Date.now()}`,
-        type: 'rate_limited',
-        description: `Rate limited${timeStr ? ` — retrying at ${timeStr}` : ''}`,
-        timestamp: new Date(),
-      });
-    });
-
     return () => {
       unsubStageContext();
       unsubContextFile();
       unsubPlan();
       unsubStatus();
-      unsubRateLimit();
     };
   }, [sessionId, task.id, subscribe]);
 
   const staticEntries = buildStaticEntries(task, comments);
 
-  // Merge and sort all entries (dynamic first since they're real-time)
-  const allEntries = [...dynamicEntries, ...staticEntries].sort(
+  // Build historical rate limit entries from past sessions stored in DB
+  const historicalRateLimitEntries: TimelineEntry[] = taskSessions
+    .filter((s) => s.error_message?.startsWith('rate_limited:'))
+    .map((s) => {
+      const resetIso = s.error_message!.replace('rate_limited:', '');
+      const resetTime = new Date(resetIso);
+      const timeStr = resetTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return {
+        id: `rate_limited_${s.id}`,
+        type: 'rate_limited' as const,
+        description: `Rate limited — retrying at ${timeStr}`,
+        timestamp: new Date(s.ended_at ?? s.started_at),
+      };
+    });
+
+  // Merge and sort all entries
+  const allEntries = [...dynamicEntries, ...staticEntries, ...historicalRateLimitEntries].sort(
     (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
   );
 
