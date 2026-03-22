@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { format as formatDate } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trash2, Pencil, Check, X, FolderOpen, Clock, ChevronDown, ChevronRight, Terminal, FileText } from 'lucide-react';
+import { Trash2, Pencil, Check, X, FolderOpen, Clock, ChevronDown, ChevronRight, Terminal, FileText, Copy, DollarSign } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './comment-thread';
@@ -14,13 +15,35 @@ import { SessionControls } from '@/components/sessions/session-controls';
 import { LiveOutputPanel } from '@/components/sessions/live-output-panel';
 import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 import { useComments } from '@/hooks/use-comments';
-import { useSession } from '@/hooks/use-sessions';
+import { useSession, useTaskSessionsDetail } from '@/hooks/use-sessions';
 import { useUpdateTask } from '@/hooks/use-tasks';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useWebSocket } from '@/contexts/websocket-context';
 import { apiClient } from '@/lib/api-client';
 import type { Task, Stage } from '@/types/task';
 import { cn } from '@/lib/utils';
+
+// ─── Token formatting helper ──────────────────────────────────────────────────
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`;
+  return String(n);
+}
+
+function formatDuration(secs: number): string {
+  if (secs >= 3600) {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  if (secs >= 60) {
+    const m = Math.floor(secs / 60);
+    const s = Math.round(secs % 60);
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  }
+  return `${Math.round(secs)}s`;
+}
 
 const stageConfig: Record<Stage, { label: string; className: string }> = {
   backlog:     { label: 'Backlog',     className: 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/20' },
@@ -298,7 +321,7 @@ function QueueBadge({ taskId, sessionStatus }: { taskId: string; sessionStatus: 
 function ContextFilePreview({ taskId }: { taskId: string }) {
   const queryClient = useQueryClient();
   const { subscribe } = useWebSocket();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
 
   const { data, isLoading, isError } = useQuery<{ content: string; path: string }>({
     queryKey: ['task-context-file', taskId],
@@ -362,18 +385,117 @@ function ContextFilePreview({ taskId }: { taskId: string }) {
 
 // ─── Main TaskDetail ──────────────────────────────────────────────────────────
 
+// ─── Session History Card ─────────────────────────────────────────────────────
+
+function SessionStatusIcon({ status }: { status: string }) {
+  if (status === 'completed') return <span className="text-green-500 font-bold">✓</span>;
+  if (status === 'failed') return <span className="text-red-500 font-bold">✗</span>;
+  if (status === 'stopped' || status === 'rate_limited') return <span className="text-amber-500 font-bold">⏸</span>;
+  return <span className="text-blue-500 font-bold">⟳</span>;
+}
+
+function SessionHistoryCard({ taskId }: { taskId: string }) {
+  const { data: sessions = [] } = useTaskSessionsDetail(taskId);
+  const displayed = sessions.slice(0, 50);
+
+  return (
+    <CollapsibleCard title="Session History" defaultOpen={false}>
+      {displayed.length === 0 ? (
+        <p className="text-muted-foreground italic text-sm">No sessions yet.</p>
+      ) : (
+        <div className="divide-y divide-border -mx-1">
+          {displayed.map((s) => {
+            const isAmber = s.status === 'stopped' || s.status === 'rate_limited';
+            const isRed = s.status === 'failed';
+            return (
+              <div
+                key={s.id}
+                className={cn(
+                  'flex items-center gap-3 px-1 py-2 text-xs',
+                  isAmber && 'bg-amber-500/10',
+                  isRed && 'bg-red-500/10',
+                )}
+              >
+                <div className="shrink-0 w-4 text-center">
+                  <SessionStatusIcon status={s.status} />
+                </div>
+                <div className="shrink-0 text-muted-foreground min-w-[100px]">
+                  {formatDate(new Date(s.started_at), 'MMM d, h:mma')}
+                </div>
+                <div className="shrink-0 text-muted-foreground min-w-[60px]">
+                  {s.duration_secs != null && s.duration_secs > 0
+                    ? formatDuration(s.duration_secs)
+                    : '—'}
+                </div>
+                <div className="shrink-0 text-muted-foreground min-w-[50px]">
+                  {s.total_tokens > 0 ? formatTokens(s.total_tokens) : '—'}
+                </div>
+                <div className="shrink-0 font-mono text-muted-foreground">
+                  {s.cost_usd > 0
+                    ? s.cost_usd < 0.01
+                      ? '<$0.01'
+                      : `$${s.cost_usd.toFixed(2)}`
+                    : '—'}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </CollapsibleCard>
+  );
+}
+
 export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetailProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pathCopied, setPathCopied] = useState(false);
+  const [instructionsExpanded, setInstructionsExpanded] = useState(false);
   const { data: comments = [], isLoading: commentsLoading } = useComments(task.id);
   const { data: session } = useSession(task.session_id);
+  const { data: taskSessions = [] } = useTaskSessionsDetail(task.id);
+  const queryClient = useQueryClient();
   const sessionStatus = session?.status ?? null;
   // Show "Continue Session" if Claude actually ran (has a claude_session_id), regardless of comments
   const canResume = !!session?.claude_session_id;
   const stage = stageConfig[task.stage];
 
+  // ── Feature 4: Move to Done mutation ────────────────────────────────────────
+  const { mutate: moveToDone, isPending: isMovingDone } = useMutation({
+    mutationFn: () =>
+      apiClient<void>(`/api/tasks/${task.id}/move`, {
+        method: 'POST',
+        body: JSON.stringify({ stage: 'done' }),
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  // ── Feature 1 & 2: Aggregate token/cost stats ────────────────────────────────
+  const nonFailedSessions = taskSessions.filter((s) => s.status !== 'failed');
+  const totalCost = nonFailedSessions.reduce((acc, s) => acc + (s.cost_usd ?? 0), 0);
+  const totalInputTokens = taskSessions.reduce((acc, s) => acc + (s.input_tokens ?? 0), 0);
+  const totalOutputTokens = taskSessions.reduce((acc, s) => acc + (s.output_tokens ?? 0), 0);
+  const totalCacheRead = taskSessions.reduce((acc, s) => acc + (s.cache_read_tokens ?? 0), 0);
+  const totalComputeSecs = taskSessions
+    .filter((s) => s.status === 'completed' || s.status === 'stopped')
+    .reduce((acc, s) => acc + (s.duration_secs ?? 0), 0);
+  const sessionCount = nonFailedSessions.length;
+
+  // ── Feature 3: Collapsible instructions ─────────────────────────────────────
+  const instructionsRaw = task.instructions ?? null;
+  const instructionLines = instructionsRaw ? instructionsRaw.split('\n') : [];
+  const instructionLineCount = instructionLines.length;
+  const INSTRUCTIONS_CLIP = 12;
+  const instructionsClipped =
+    instructionsRaw && !instructionsExpanded && instructionLineCount > INSTRUCTIONS_CLIP
+      ? instructionLines.slice(0, INSTRUCTIONS_CLIP).join('\n')
+      : instructionsRaw;
+
   // Rendered checklist markdown
-  const instructionsForDisplay = task.instructions
-    ? renderChecklistMarkdown(task.instructions)
+  const instructionsForDisplay = instructionsClipped
+    ? renderChecklistMarkdown(instructionsClipped)
     : null;
 
   const hasCheckboxes = task.instructions ? parseChecklist(task.instructions).total > 0 : false;
@@ -382,21 +504,67 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
   const isSessionActive = sessionStatus === 'running' || sessionStatus === 'pending';
   const showPlanWriting = !task.instructions && task.stage === 'planning' && isSessionActive;
 
+  // ── Feature 5: Copy project path ─────────────────────────────────────────────
+  const handleCopyPath = () => {
+    const doCopy = () => {
+      setPathCopied(true);
+      setTimeout(() => setPathCopied(false), 1500);
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(task.project_path).then(doCopy).catch(() => {
+        try {
+          const el = document.createElement('textarea');
+          el.value = task.project_path;
+          document.body.appendChild(el);
+          el.select();
+          document.execCommand('copy');
+          document.body.removeChild(el);
+          doCopy();
+        } catch { /* silent */ }
+      });
+    } else {
+      try {
+        const el = document.createElement('textarea');
+        el.value = task.project_path;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        doCopy();
+      } catch { /* silent */ }
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Hero */}
       <div className="space-y-3 pb-2">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-2xl font-bold leading-tight">{task.title}</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label="Delete task"
-            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
-            onClick={() => setConfirmOpen(true)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Feature 4: Move to Done button */}
+            {task.stage === 'review' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => moveToDone()}
+                disabled={isMovingDone}
+                className="text-green-600 border-green-500/50 hover:bg-green-500/10 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 h-8 px-2.5 text-xs"
+              >
+                <Check className="h-3.5 w-3.5 mr-1" />
+                Move to Done
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Delete task"
+              className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              onClick={() => setConfirmOpen(true)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Metadata chips */}
@@ -405,14 +573,52 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
             {stage.label}
           </Badge>
           <QueueBadge taskId={task.id} sessionStatus={sessionStatus} />
-          <div className="flex items-center gap-1.5 text-muted-foreground text-xs bg-muted/60 rounded-md px-2.5 py-1">
-            <FolderOpen className="h-3.5 w-3.5 shrink-0" />
-            <span className="font-mono truncate max-w-[180px] sm:max-w-xs">{task.project_path}</span>
-          </div>
+
+          {/* Feature 5: Project path — copy on click */}
+          <button
+            onClick={handleCopyPath}
+            className="flex items-center gap-1.5 text-muted-foreground text-xs bg-muted/60 rounded-md px-2.5 py-1 hover:bg-muted transition-colors"
+            title="Click to copy path"
+          >
+            {pathCopied ? (
+              <span className="text-green-600 dark:text-green-400">Copied!</span>
+            ) : (
+              <>
+                <FolderOpen className="h-3.5 w-3.5 shrink-0" />
+                <span className="font-mono truncate max-w-[180px] sm:max-w-xs">{task.project_path}</span>
+                <Copy className="h-3 w-3 shrink-0 opacity-50" />
+              </>
+            )}
+          </button>
+
           <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
             <Clock className="h-3.5 w-3.5 shrink-0" />
             <UpdatedTime updatedAt={task.updated_at} />
           </div>
+
+          {/* Feature 1 & 2: Session count + cost + token chips */}
+          {sessionCount > 0 && (
+            <span className="text-xs bg-muted/60 rounded-md px-2.5 py-1 text-muted-foreground">
+              {sessionCount} session{sessionCount !== 1 ? 's' : ''}
+            </span>
+          )}
+          {totalCost > 0 && (
+            <span className="flex items-center gap-1 text-xs bg-muted/60 rounded-md px-2.5 py-1 text-muted-foreground">
+              <DollarSign className="h-3 w-3 shrink-0" />
+              {totalCost < 0.01 ? '<$0.01' : `$${totalCost.toFixed(2)}`}
+            </span>
+          )}
+          {(totalInputTokens > 0 || totalOutputTokens > 0) && (
+            <span className="text-xs bg-muted/60 rounded-md px-2.5 py-1 text-muted-foreground">
+              {formatTokens(totalInputTokens)} in · {formatTokens(totalOutputTokens)} out
+              {totalCacheRead > 0 && ` · ${formatTokens(totalCacheRead)} cached`}
+            </span>
+          )}
+          {totalComputeSecs > 0 && (
+            <span className="text-xs bg-muted/60 rounded-md px-2.5 py-1 text-muted-foreground">
+              {formatDuration(totalComputeSecs)} compute
+            </span>
+          )}
         </div>
       </div>
 
@@ -470,6 +676,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
               <PlanProgress instructions={task.instructions} />
             )}
 
+            {/* Feature 3: Collapsible instructions */}
             <InlineEditField
               label="Instructions"
               value={instructionsForDisplay}
@@ -477,6 +684,14 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
               taskId={task.id}
               field="instructions"
             />
+            {instructionLineCount > INSTRUCTIONS_CLIP && (
+              <button
+                onClick={() => setInstructionsExpanded((v) => !v)}
+                className="mt-2 text-xs text-blue-500 hover:underline"
+              >
+                {instructionsExpanded ? 'Show less ▴' : `Show full plan ▾ (${instructionLineCount} lines)`}
+              </button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -535,6 +750,9 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
           )}
         </CardContent>
       </Card>
+
+      {/* Feature 6: Session History card — above Activity */}
+      <SessionHistoryCard taskId={task.id} />
 
       {/* Activity Timeline (replaces Updates) */}
       <CollapsibleCard title="Activity" defaultOpen={true}>

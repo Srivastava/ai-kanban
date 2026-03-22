@@ -1,13 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useWebSocket } from '@/contexts/websocket-context';
 import { useComments } from '@/hooks/use-comments';
-import { apiClient } from '@/lib/api-client';
+import { useTaskSessionsDetail } from '@/hooks/use-sessions';
 import type { Task } from '@/types/task';
 import type { CommentWithReplies } from '@/types/comment';
-import type { SessionDetail } from '@/types/analytics';
 import { cn } from '@/lib/utils';
 
 interface ActivityTimelineProps {
@@ -156,10 +154,7 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
   const { subscribe } = useWebSocket();
   const [dynamicEntries, setDynamicEntries] = useState<TimelineEntry[]>([]);
 
-  const { data: taskSessions = [] } = useQuery({
-    queryKey: ['task-sessions-detail', task.id],
-    queryFn: () => apiClient<SessionDetail[]>(`/api/tasks/${task.id}/sessions-detail`),
-  });
+  const { data: taskSessions = [] } = useTaskSessionsDetail(task.id);
 
   // Always subscribe to rate_limited events for this task (no sessionId guard needed)
   useEffect(() => {

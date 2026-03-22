@@ -3,6 +3,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, ApiError } from '@/lib/api-client';
 import type { Session } from '@/types/session';
+import type { SessionDetail } from '@/types/analytics';
 
 export function useSession(sessionId: string | null | undefined) {
   return useQuery({
@@ -33,6 +34,13 @@ export function useAllSessions(statuses?: string[], limit = 100) {
     queryKey: ['sessions', 'all', statuses, limit],
     queryFn: () => apiClient<Session[]>(`/api/sessions/all?${qs}`),
     refetchInterval: 10_000,
+  });
+}
+
+export function useTaskSessionsDetail(taskId: string) {
+  return useQuery({
+    queryKey: ['task-sessions-detail', taskId],
+    queryFn: () => apiClient<SessionDetail[]>(`/api/tasks/${taskId}/sessions-detail`),
   });
 }
 
