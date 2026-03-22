@@ -173,6 +173,9 @@ pub struct SessionDetail {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cost_usd: f64,
 }
 
 #[derive(Debug, Serialize)]

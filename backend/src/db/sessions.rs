@@ -1,3 +1,4 @@
+use crate::db::analytics::token_prices;
 use crate::models::{CreateSession, Session, SessionDetail, UpdateSession};
 use anyhow::{anyhow, Result};
 use sqlx::{Row, SqlitePool};
@@ -191,7 +192,9 @@ impl SessionRepository {
                 s.error_message,
                 COALESCE(SUM(te.input_tokens), 0) as input_tokens,
                 COALESCE(SUM(te.output_tokens), 0) as output_tokens,
-                COALESCE(SUM(te.input_tokens + te.output_tokens), 0) as total_tokens
+                COALESCE(SUM(te.input_tokens + te.output_tokens), 0) as total_tokens,
+                COALESCE(SUM(te.cache_read_tokens), 0) as cache_read_tokens,
+                COALESCE(SUM(te.cache_creation_tokens), 0) as cache_creation_tokens
             FROM sessions s
             LEFT JOIN token_events te ON te.session_id = s.id
             WHERE s.task_id = ?
@@ -203,6 +206,7 @@ impl SessionRepository {
         .fetch_all(&self.pool)
         .await?;
 
+        let p = token_prices();
         let mut details = Vec::new();
         for row in &rows {
             let started_at: String = row.get("started_at");
@@ -212,6 +216,15 @@ impl SessionRepository {
                 let e = chrono::DateTime::parse_from_rfc3339(end).ok()?;
                 Some((e - s).num_seconds())
             });
+            let input_tokens: i64 = row.get("input_tokens");
+            let output_tokens: i64 = row.get("output_tokens");
+            let total_tokens: i64 = row.get("total_tokens");
+            let cache_read_tokens: i64 = row.get("cache_read_tokens");
+            let cache_creation_tokens: i64 = row.get("cache_creation_tokens");
+            let cost_usd = (input_tokens as f64 / 1_000_000.0) * p.input
+                + (output_tokens as f64 / 1_000_000.0) * p.output
+                + (cache_creation_tokens as f64 / 1_000_000.0) * p.cache_write
+                + (cache_read_tokens as f64 / 1_000_000.0) * p.cache_read;
             details.push(SessionDetail {
                 id: row.get("id"),
                 task_id: row.get("task_id"),
@@ -221,9 +234,12 @@ impl SessionRepository {
                 claude_session_id: row.get("claude_session_id"),
                 error_message: row.get("error_message"),
                 duration_secs,
-                input_tokens: row.get("input_tokens"),
-                output_tokens: row.get("output_tokens"),
-                total_tokens: row.get("total_tokens"),
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                cache_read_tokens,
+                cache_creation_tokens,
+                cost_usd,
             });
         }
         Ok(details)
