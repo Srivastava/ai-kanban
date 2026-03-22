@@ -158,7 +158,7 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
 
   const { data: taskSessions = [] } = useQuery({
     queryKey: ['task-sessions-detail', task.id],
-    queryFn: () => apiClient<SessionDetail[]>(`/api/tasks/${task.id}/sessions_detail`),
+    queryFn: () => apiClient<SessionDetail[]>(`/api/tasks/${task.id}/sessions-detail`),
   });
 
   // Always subscribe to rate_limited events for this task (no sessionId guard needed)
