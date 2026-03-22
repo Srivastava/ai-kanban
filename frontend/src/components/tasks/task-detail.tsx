@@ -465,8 +465,8 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
               </div>
             )}
 
-            {/* Progress bar for checkbox plans */}
-            {task.instructions && hasCheckboxes && (
+            {/* Progress bar for checkbox plans — only while actively building */}
+            {task.instructions && hasCheckboxes && task.stage !== 'review' && task.stage !== 'done' && (
               <PlanProgress instructions={task.instructions} />
             )}
 

@@ -459,7 +459,13 @@ async fn get_context_file(
             return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
         }
     };
-    let file_path = std::path::Path::new(&task.project_path).join(".claude").join("ai-kanban.md");
+    let expanded = if task.project_path.starts_with("~/") {
+        let home = std::env::var("HOME").unwrap_or_default();
+        format!("{}/{}", home, &task.project_path[2..])
+    } else {
+        task.project_path.clone()
+    };
+    let file_path = std::path::Path::new(&expanded).join(".claude").join("ai-kanban.md");
     match std::fs::read_to_string(&file_path) {
         Ok(content) => Json(serde_json::json!({ "content": content, "path": file_path.to_string_lossy() })).into_response(),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
