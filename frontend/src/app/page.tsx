@@ -24,11 +24,13 @@ function StatsStrip({ onNewTask }: { onNewTask: () => void }) {
     staleTime: 60_000,
   });
 
-  // Rate-limited sessions (stopped with rate_limited: prefix)
+  // Rate-limited sessions (stopped with rate_limited: prefix, reset time still in the future)
   const { data: stoppedSessions = [] } = useAllSessions(['stopped']);
-  const rateLimitedSession = stoppedSessions.find(
-    (s) => s.error_message?.startsWith('rate_limited:'),
-  );
+  const rateLimitedSession = stoppedSessions.find((s) => {
+    if (!s.error_message?.startsWith('rate_limited:')) return false;
+    const resetAt = s.error_message.replace('rate_limited:', '').trim();
+    return resetAt && new Date(resetAt) > new Date();
+  });
 
   const activeCount = activeSessions.length;
   const inReviewCount = allTasks.filter((t) => t.stage === 'review').length;
