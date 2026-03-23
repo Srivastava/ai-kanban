@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { format as formatDate } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Trash2, Pencil, Check, X, FolderOpen, Clock, ChevronDown, ChevronRight, Terminal, FileText, Copy, DollarSign } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -67,11 +67,13 @@ function CollapsibleCard({
   defaultOpen = true,
   children,
   icon,
+  contentClassName,
 }: {
-  title: string;
+  title: React.ReactNode;
   defaultOpen?: boolean;
   children: React.ReactNode;
   icon?: React.ReactNode;
+  contentClassName?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
@@ -79,7 +81,7 @@ function CollapsibleCard({
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="flex items-center gap-2 w-full px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-foreground bg-muted/30 border-b border-border hover:bg-muted/50 transition-colors rounded-t-lg"
+        className="flex items-center gap-2 w-full px-5 py-3.5 text-left text-sm font-semibold uppercase tracking-wide text-foreground bg-muted/30 border-b border-border hover:bg-muted/50 transition-colors rounded-t-lg"
       >
         {icon && <span className="text-primary/70">{icon}</span>}
         <span className="flex-1">{title}</span>
@@ -87,7 +89,7 @@ function CollapsibleCard({
           ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
       </button>
-      {open && <CardContent className="pt-0 px-5 pb-5">{children}</CardContent>}
+      {open && <CardContent className={contentClassName ?? 'pt-4 px-5 pb-5'}>{children}</CardContent>}
     </Card>
   );
 }
@@ -652,135 +654,109 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
       />
 
       {/* Description (user-owned, never modified by LiteLLM) */}
-      <Card>
-        <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
-          <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">Description</CardTitle>
-        </CardHeader>
-        <CardContent className="px-5 pb-5">
-          <InlineEditField
-            label="Description"
-            value={task.description}
-            placeholder="No description yet — click to add"
-            taskId={task.id}
-            field="description"
-          />
-        </CardContent>
-      </Card>
+      <CollapsibleCard title="Description">
+        <InlineEditField
+          label="Description"
+          value={task.description}
+          placeholder="No description yet — click to add"
+          taskId={task.id}
+          field="description"
+        />
+      </CollapsibleCard>
 
       {/* Instructions / Plan Viewer */}
-      {true && (
-        <Card>
-          <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
-            <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-              Instructions
-              {task.instructions && (
-                <span className="text-[10px] font-normal normal-case tracking-normal bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded">AI-enriched</span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-5 pb-5">
-            {/* Enrichment in-progress banner */}
-            <EnrichmentBanner taskId={task.id} />
-            {/* Plan Created banner (subscribes to WS event) */}
-            <PlanBanner taskId={task.id} sessionId={task.session_id ?? null} />
-
-            {/* Plan writing indicator */}
-            {showPlanWriting && (
-              <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                <span className="italic">Claude is writing the implementation plan...</span>
-              </div>
+      <CollapsibleCard
+        title={
+          <span className="flex items-center gap-2">
+            Instructions
+            {task.instructions && (
+              <span className="text-[10px] font-normal normal-case tracking-normal bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded">AI-enriched</span>
             )}
+          </span>
+        }
+      >
+        {/* Enrichment in-progress banner */}
+        <EnrichmentBanner taskId={task.id} />
+        {/* Plan Created banner (subscribes to WS event) */}
+        <PlanBanner taskId={task.id} sessionId={task.session_id ?? null} />
 
-            {/* Progress bar for checkbox plans — only while actively building */}
-            {task.instructions && hasCheckboxes && task.stage !== 'review' && task.stage !== 'done' && (
-              <PlanProgress instructions={task.instructions} />
-            )}
+        {/* Plan writing indicator */}
+        {showPlanWriting && (
+          <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+            <span className="italic">Claude is writing the implementation plan...</span>
+          </div>
+        )}
 
-            {/* Feature 3: Collapsible instructions */}
-            <InlineEditField
-              label="Instructions"
-              value={instructionsForDisplay}
-              placeholder="No enriched instructions yet — will be generated by LiteLLM when session starts"
-              taskId={task.id}
-              field="instructions"
-            />
-            {instructionLineCount > INSTRUCTIONS_CLIP && (
-              <button
-                onClick={() => setInstructionsExpanded((v) => !v)}
-                className="mt-2 text-xs text-blue-500 hover:underline"
-              >
-                {instructionsExpanded ? 'Show less ▴' : `Show full plan ▾ (${instructionLineCount} lines)`}
-              </button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+        {/* Progress bar for checkbox plans — only while actively building */}
+        {task.instructions && hasCheckboxes && task.stage !== 'review' && task.stage !== 'done' && (
+          <PlanProgress instructions={task.instructions} />
+        )}
+
+        {/* Feature 3: Collapsible instructions */}
+        <InlineEditField
+          label="Instructions"
+          value={instructionsForDisplay}
+          placeholder="No enriched instructions yet — will be generated by LiteLLM when session starts"
+          taskId={task.id}
+          field="instructions"
+        />
+        {instructionLineCount > INSTRUCTIONS_CLIP && (
+          <button
+            onClick={() => setInstructionsExpanded((v) => !v)}
+            className="mt-2 text-xs text-blue-500 hover:underline"
+          >
+            {instructionsExpanded ? 'Show less ▴' : `Show full plan ▾ (${instructionLineCount} lines)`}
+          </button>
+        )}
+      </CollapsibleCard>
 
       {/* Context */}
-      <Card>
-        <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
-          <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">Context</CardTitle>
-        </CardHeader>
-        <CardContent className="px-5 pb-5 space-y-3">
-          <InlineEditField
-            label="Context"
-            value={task.context}
-            placeholder="No context added yet — click to add"
-            taskId={task.id}
-            field="context"
-          />
-          <ContextFilePreview taskId={task.id} />
-          {task.compressed_context && (
-            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Compressed Context</p>
-              <div className="text-xs text-muted-foreground [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:mb-1 [&_strong]:font-semibold [&_h1]:text-xs [&_h1]:font-semibold [&_h2]:text-xs [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-medium">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.compressed_context}</ReactMarkdown>
-              </div>
+      <CollapsibleCard title="Context" contentClassName="pt-4 px-5 pb-5 space-y-3">
+        <InlineEditField
+          label="Context"
+          value={task.context}
+          placeholder="No context added yet — click to add"
+          taskId={task.id}
+          field="context"
+        />
+        <ContextFilePreview taskId={task.id} />
+        {task.compressed_context && (
+          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Compressed Context</p>
+            <div className="text-xs text-muted-foreground [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:mb-1 [&_strong]:font-semibold [&_h1]:text-xs [&_h1]:font-semibold [&_h2]:text-xs [&_h2]:font-semibold [&_h3]:text-xs [&_h3]:font-medium">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{task.compressed_context}</ReactMarkdown>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        )}
+      </CollapsibleCard>
 
       {/* Attachments */}
-      <Card>
-        <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
-          <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">Attachments</CardTitle>
-        </CardHeader>
-        <CardContent className="px-5 pb-5">
-          <AttachmentZone taskId={task.id} />
-        </CardContent>
-      </Card>
+      <CollapsibleCard title="Attachments" defaultOpen={false}>
+        <AttachmentZone taskId={task.id} />
+      </CollapsibleCard>
 
       {/* Session */}
-      <Card>
-        <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
-          <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Terminal className="h-3.5 w-3.5 text-primary/70" />
-            Session
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-5 pb-5 space-y-3">
-          <SessionControls
-            taskId={task.id}
-            sessionId={task.session_id ?? undefined}
-            status={sessionStatus}
-            hasClaudeComments={canResume}
-          />
-          {task.session_id && (
-            <>
-              <p className="text-xs text-muted-foreground font-mono break-all">
-                ID: {task.session_id}
-              </p>
-              <LiveOutputPanel
-                sessionId={task.session_id}
-                status={sessionStatus}
-                initialClaudeSessionId={session?.claude_session_id}
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
+      <CollapsibleCard title="Session" icon={<Terminal className="h-3.5 w-3.5" />} contentClassName="pt-4 px-5 pb-5 space-y-3">
+        <SessionControls
+          taskId={task.id}
+          sessionId={task.session_id ?? undefined}
+          status={sessionStatus}
+          hasClaudeComments={canResume}
+        />
+        {task.session_id && (
+          <>
+            <p className="text-xs text-muted-foreground font-mono break-all">
+              ID: {task.session_id}
+            </p>
+            <LiveOutputPanel
+              sessionId={task.session_id}
+              status={sessionStatus}
+              initialClaudeSessionId={session?.claude_session_id}
+            />
+          </>
+        )}
+      </CollapsibleCard>
 
       {/* Feature 6: Session History card — above Activity */}
       <SessionHistoryCard taskId={task.id} />
