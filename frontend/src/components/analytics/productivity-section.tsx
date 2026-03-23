@@ -48,7 +48,7 @@ export function ProductivitySection({ taskId }: Props) {
               <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
               <Tooltip
                 formatter={(v: number | undefined) => [v ?? 0, '']}
-                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 12 }}
+                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 12, color: 'hsl(var(--card-foreground))' }}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {activityData.map((entry) => (

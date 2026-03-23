@@ -18,6 +18,7 @@ const TOOLTIP_STYLE = {
   border: '1px solid hsl(var(--border))',
   borderRadius: '8px',
   fontSize: '12px',
+  color: 'hsl(var(--card-foreground))',
 };
 
 interface Props { taskId?: string | null }

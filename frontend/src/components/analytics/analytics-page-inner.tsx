@@ -25,7 +25,6 @@ import { CumulativeCostChart } from '@/components/analytics/cumulative-cost-char
 import { ActivityHeatmap } from '@/components/analytics/activity-heatmap';
 import { HourlyBreakdown } from '@/components/analytics/hourly-breakdown';
 import { ProjectBubbleChart } from '@/components/analytics/project-bubble-chart';
-import { PeriodComparison } from '@/components/analytics/period-comparison';
 
 export function AnalyticsPageInner() {
   const searchParams = useSearchParams();
@@ -75,11 +74,6 @@ export function AnalyticsPageInner() {
       <TaskFilterBar selectedTaskId={selectedTaskId} onSelect={setSelectedTaskId} />
 
       <div className="p-4 sm:p-6 space-y-10">
-        {/* Period Comparisons */}
-        <section>
-          <PeriodComparison />
-        </section>
-
         {/* ROI & Cost */}
         <section className="space-y-4">
           <div>

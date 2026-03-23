@@ -62,7 +62,7 @@ export function SessionToolBreakdown({ sessionId, sessionTotalTokens, onClose }:
                   `${fmt(Number(v))} tokens · ${props.payload.calls} calls`,
                   'Total',
                 ]}
-                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 11 }}
+                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 11, color: 'hsl(var(--card-foreground))' }}
               />
               <Bar dataKey="total" radius={[0, 3, 3, 0]}>
                 {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}

@@ -44,7 +44,7 @@ export function HourlyBreakdown({ taskId }: Props) {
             <Tooltip
               formatter={(v) => [fmt(Number(v)), 'Tokens']}
               labelFormatter={(l) => `Hour: ${l} UTC`}
-              contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 11 }}
+              contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 11, color: 'hsl(var(--card-foreground))' }}
             />
             <Bar dataKey="tokens" radius={[2, 2, 0, 0]}>
               {filled.map((entry) => (

@@ -64,6 +64,7 @@ export function LanguageChart({ taskId }: Props) {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px',
                   fontSize: '12px',
+                  color: 'hsl(var(--card-foreground))',
                 }}
               />
             </PieChart>

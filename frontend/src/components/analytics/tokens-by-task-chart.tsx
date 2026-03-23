@@ -86,9 +86,14 @@ export function TokensByTaskChart({ taskId }: Props) {
                 border: '1px solid hsl(var(--border))',
                 borderRadius: '8px',
                 fontSize: '12px',
+                color: 'hsl(var(--card-foreground))',
               }}
             />
-            <Legend formatter={(v: string) => ({ input: 'Input', output: 'Output' }[v] ?? v)} iconType="circle" />
+            <Legend
+              formatter={(v: string) => ({ input: 'Input', output: 'Output' }[v] ?? v)}
+              iconType="circle"
+              wrapperStyle={{ color: 'hsl(var(--muted-foreground))', fontSize: '11px' }}
+            />
             <Bar dataKey="input" stackId="a" fill="#6366f1" name="input" />
             <Bar dataKey="output" stackId="a" fill="#a855f7" name="output" />
           </BarChart>

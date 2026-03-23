@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { useDailyTokens, useWeeklyTokens, useMonthlyTokens } from '@/hooks/use-analytics';
+import { TokenTrendBadges } from '@/components/analytics/period-comparison';
 
 type Period = 'daily' | 'weekly' | 'monthly';
 
@@ -53,10 +54,13 @@ export function TokenTimeChart({ taskId }: Props) {
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">Token Usage Over Time</h3>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-semibold">Token Usage Over Time</h3>
+          <TokenTrendBadges />
+        </div>
         <div className="flex gap-1">
-          {(['daily', 'weekly', 'monthly'] as Period[]).map((p) => (
+          {(['daily', 'weekly', 'monthly'] as const).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -67,6 +71,7 @@ export function TokenTimeChart({ taskId }: Props) {
               {p.charAt(0).toUpperCase() + p.slice(1)}
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -111,9 +116,9 @@ export function TokenTimeChart({ taskId }: Props) {
             />
             <Tooltip
               formatter={(value, name) => [formatTokens(Number(value)), LABEL_MAP[String(name)] ?? String(name)]}
-              contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+              contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px', color: 'hsl(var(--card-foreground))' }}
             />
-            <Legend formatter={(value) => LABEL_MAP[value] ?? value} iconType="circle" />
+            <Legend formatter={(value) => LABEL_MAP[value] ?? value} iconType="circle" wrapperStyle={{ color: 'hsl(var(--muted-foreground))', fontSize: '11px' }} />
             <Area yAxisId="left" type="monotone" dataKey="input" stroke="#6366f1" fill="url(#inputGrad)" strokeWidth={2} dot={false} />
             <Area yAxisId="left" type="monotone" dataKey="output" stroke="#a855f7" fill="url(#outputGrad)" strokeWidth={2} dot={false} />
             <Area yAxisId="right" type="monotone" dataKey="cached" stroke="#f59e0b" fill="url(#cachedGrad)" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />

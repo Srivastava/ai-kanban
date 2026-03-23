@@ -3,6 +3,7 @@
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useDailyTokens } from '@/hooks/use-analytics';
 import { PRICING } from '@/lib/pricing';
+import { CostTrendBadges } from '@/components/analytics/period-comparison';
 
 function dayCost(d: { input_tokens: number; output_tokens: number; cache_creation_tokens: number; cache_read_tokens: number }): number {
   return (d.input_tokens        / 1_000_000) * PRICING.input
@@ -16,6 +17,7 @@ const TOOLTIP_STYLE = {
   border: '1px solid hsl(var(--border))',
   borderRadius: '8px',
   fontSize: '12px',
+  color: 'hsl(var(--card-foreground))',
 };
 
 interface Props { taskId?: string | null }
@@ -39,7 +41,10 @@ export function CumulativeCostChart({ taskId }: Props) {
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-semibold">Cumulative Cost (30 days)</h3>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold">Cumulative Cost (30 days)</h3>
+            <CostTrendBadges />
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             {taskId ? 'Running spend for selected task' : 'Running spend across all tasks'}
           </p>
