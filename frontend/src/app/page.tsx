@@ -24,14 +24,6 @@ function StatsStrip({ onNewTask }: { onNewTask: () => void }) {
     staleTime: 60_000,
   });
 
-  // Rate-limited sessions (stopped with rate_limited: prefix, reset time still in the future)
-  const { data: stoppedSessions = [] } = useAllSessions(['stopped']);
-  const rateLimitedSession = stoppedSessions.find((s) => {
-    if (!s.error_message?.startsWith('rate_limited:')) return false;
-    const resetAt = s.error_message.replace('rate_limited:', '').trim();
-    return resetAt && new Date(resetAt) > new Date();
-  });
-
   const activeCount = activeSessions.length;
   const inReviewCount = allTasks.filter((t) => t.stage === 'review').length;
 
@@ -43,19 +35,6 @@ function StatsStrip({ onNewTask }: { onNewTask: () => void }) {
 
   return (
     <>
-      {/* Rate limit banner */}
-      {rateLimitedSession && (
-        <div className="mb-3 flex items-center gap-2 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-4 py-2 text-sm text-amber-800 dark:text-amber-300">
-          <span>⏸</span>
-          <span>
-            Rate limited
-            {rateLimitedSession.error_message?.replace('rate_limited:', '') && (
-              <> — retrying at {rateLimitedSession.error_message.replace('rate_limited:', '').trim()}</>
-            )}
-          </span>
-        </div>
-      )}
-
       {/* Stats strip */}
       {hasStats && (
         <div className="mb-4 flex flex-wrap items-center gap-2">

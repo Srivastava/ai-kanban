@@ -5,10 +5,10 @@ import { useDailyHeatmap } from '@/hooks/use-analytics';
 
 const COLORS = [
   'hsl(var(--muted))',          // 0 tokens
-  '#c7d2fe',                    // indigo-200
-  '#818cf8',                    // indigo-400
-  '#4f46e5',                    // indigo-600
-  '#312e81',                    // indigo-900
+  '#9be9a8',                    // github green-1
+  '#40c463',                    // github green-2
+  '#30a14e',                    // github green-3
+  '#216e39',                    // github green-4
 ];
 
 function tokenColor(tokens: number, max: number): string {

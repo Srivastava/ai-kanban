@@ -434,11 +434,11 @@ impl AnalyticsRepository {
         let sql = format!(
             r#"
             SELECT
-                DATE(created_at) as date,
+                DATE(timestamp) as date,
                 SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) as tokens
             FROM token_events
-            WHERE DATE(created_at) >= DATE('now', '-' || ? || ' days'){task_filter}
-            GROUP BY DATE(created_at)
+            WHERE DATE(timestamp) >= DATE('now', '-' || ? || ' days'){task_filter}
+            GROUP BY DATE(timestamp)
             ORDER BY date ASC
             "#,
             task_filter = task_filter
@@ -468,7 +468,7 @@ impl AnalyticsRepository {
         let sql = format!(
             r#"
             SELECT
-                CAST(strftime('%H', created_at) AS INTEGER) as hour,
+                CAST(strftime('%H', timestamp) AS INTEGER) as hour,
                 SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) as tokens
             FROM token_events
             WHERE 1=1{task_filter}

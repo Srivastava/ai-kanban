@@ -95,9 +95,22 @@ export function KanbanBoard({ tasks, isLoading, onCreateTask }: KanbanBoardProps
     if (!over) return;
 
     const taskId = active.id as string;
-    const newStage = over.id as Stage;
     const task = tasks.find((t) => t.id === taskId);
-    if (!task || task.stage === newStage) return;
+    if (!task) return;
+
+    // over.id can be a stage name (dropped on column) or a task id (dropped on card)
+    const validStages = new Set<string>(stages);
+    let newStage: Stage;
+    if (validStages.has(over.id as string)) {
+      newStage = over.id as Stage;
+    } else {
+      // dropped over another task — use that task's stage
+      const overTask = tasks.find((t) => t.id === over.id);
+      if (!overTask) return;
+      newStage = overTask.stage;
+    }
+
+    if (task.stage === newStage) return;
 
     const fromStage = task.stage;
     updateTask.mutate({ id: taskId, data: { stage: newStage } });
