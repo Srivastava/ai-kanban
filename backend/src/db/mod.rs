@@ -1,4 +1,5 @@
 mod analytics;
+mod attachments;
 mod comments;
 mod logs;
 pub mod otel_logs;
@@ -11,6 +12,7 @@ pub mod tasks;
 mod token_events;
 
 pub use analytics::{AnalyticsRepository, token_prices};
+pub use attachments::AttachmentRepository;
 pub use comments::CommentRepository;
 pub use logs::LogRepository;
 pub use otel_logs::OtelLogsRepository;
