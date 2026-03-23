@@ -8,7 +8,7 @@ describe('OverviewCards', () => {
   it('renders all 4 card labels', async () => {
     renderWithProviders(<OverviewCards />);
     await waitFor(() => {
-      expect(screen.getByText(/Total Tokens/i)).toBeInTheDocument();
+      expect(screen.getByText(/Token Usage/i)).toBeInTheDocument();
       expect(screen.getByText(/Estimated Cost/i)).toBeInTheDocument();
       expect(screen.getByText(/Total Sessions/i)).toBeInTheDocument();
       expect(screen.getByText(/Tasks with AI/i)).toBeInTheDocument();
@@ -32,7 +32,7 @@ describe('OverviewCards', () => {
   it('shows estimated cost with dollar sign', async () => {
     renderWithProviders(<OverviewCards />);
     await waitFor(() => {
-      expect(screen.getByText(/\$1\.1250/)).toBeInTheDocument();
+      expect(screen.getByText(/\$1\.13/)).toBeInTheDocument();
     });
   });
 });

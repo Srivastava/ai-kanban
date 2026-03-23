@@ -17,7 +17,7 @@ const warnLog: LogEntry = {
 describe('Logs page integration', () => {
   it('renders log table with data from API', async () => {
     server.use(
-      http.get('http://localhost:3001/api/logs', () =>
+      http.get('/api/logs', () =>
         HttpResponse.json([mockLog, warnLog])
       )
     );
@@ -32,10 +32,11 @@ describe('Logs page integration', () => {
 
   it('level filter hides non-matching rows', () => {
     renderWithProviders(
-      <LogTable logs={[mockLog, warnLog]} filter={{ level: 'ERROR' }} />
+      <LogTable logs={[mockLog, warnLog]} filter={{ level: 'INFO' }} />
     );
-    // Level filtering is server-side; table shows all logs passed to it
+    // INFO filter shows only INFO logs, not WARN logs
     expect(screen.getByText('Test log message')).toBeInTheDocument();
+    expect(screen.queryByText('Something suspicious')).not.toBeInTheDocument();
   });
 
   it('search filter hides non-matching rows', () => {

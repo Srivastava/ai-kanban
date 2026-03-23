@@ -15,9 +15,10 @@ describe('StageBreakdownChart', () => {
   it('renders stage labels from data', async () => {
     renderWithProviders(<StageBreakdownChart />);
     await waitFor(() => {
-      mockTokensByStage.forEach(({ stage }) => {
-        expect(screen.getByText(stage)).toBeInTheDocument();
-      });
+      // Component formats stage labels: 'in_progress' → 'In Progress', others are capitalized
+      expect(screen.getByText('Backlog')).toBeInTheDocument();
+      expect(screen.getByText('In Progress')).toBeInTheDocument();
+      expect(screen.getByText('Done')).toBeInTheDocument();
     });
   });
 

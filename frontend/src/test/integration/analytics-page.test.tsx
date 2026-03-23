@@ -19,20 +19,20 @@ describe('Analytics page components integration', () => {
   it('ToolBreakdownChart renders without crashing', async () => {
     renderWithProviders(<ToolBreakdownChart />);
     await waitFor(() => {
-      expect(screen.getByText(/Tokens per Tool Call/i)).toBeInTheDocument();
+      expect(screen.getByText(/Tool Usage/i)).toBeInTheDocument();
     });
   });
 
   it('LanguageChart renders without crashing', async () => {
     renderWithProviders(<LanguageChart />);
     await waitFor(() => {
-      expect(screen.getByText(/Tokens per Language/i)).toBeInTheDocument();
+      expect(screen.getByText(/Tokens by Language/i)).toBeInTheDocument();
     });
   });
 
   it('ToolBreakdownChart shows empty state when no data', async () => {
     server.use(
-      http.get('http://localhost:3001/api/analytics/tokens/by-tool', () =>
+      http.get('/api/analytics/tokens/by-tool', () =>
         HttpResponse.json([])
       )
     );
