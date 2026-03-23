@@ -10,12 +10,12 @@ import { Sidebar } from '@/components/layout/sidebar';
 import type { Stage } from '@/types/task';
 import { useSidebarMetrics } from '@/hooks/use-sidebar-metrics';
 
-function MobileMetricsStrip() {
+function MetricsStrip() {
   const metrics = useSidebarMetrics();
   if (!metrics) return null;
   return (
-    <div className="md:hidden -mx-4 px-4 mb-4 overflow-x-auto">
-      <div className="flex gap-3 pb-1 min-w-max">
+    <div className="-mx-4 sm:-mx-6 px-4 sm:px-6 mb-4 overflow-x-auto border-b border-border pb-4">
+      <div className="flex gap-3 min-w-max">
         {metrics.map((m) => (
           <div key={m.label} className="flex flex-col items-center bg-muted/50 rounded-lg px-3 py-1.5 min-w-[64px]">
             <span className="text-[10px] text-muted-foreground whitespace-nowrap">{m.label}</span>
@@ -65,7 +65,7 @@ export default function KanbanPage() {
           </Button>
         </div>
         <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6 overflow-x-auto">
-          <MobileMetricsStrip />
+          <MetricsStrip />
           <Suspense fallback={<div>Loading...</div>}>
             <KanbanContent onCreateTask={handleCreateTask} />
           </Suspense>

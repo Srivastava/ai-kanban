@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { KanbanCard } from './kanban-card';
 import { KanbanCardSkeleton } from './kanban-card-skeleton';
 import type { Task, Stage } from '@/types/task';
+import type { CostByTask } from '@/types/analytics';
 
 const stageLabels: Record<Stage, string> = {
   backlog: 'Backlog',
@@ -48,9 +49,10 @@ interface KanbanColumnProps {
   tasks: Task[];
   isLoading?: boolean;
   onCreateTask?: (stage: Stage) => void;
+  costByTaskId?: Map<string, CostByTask>;
 }
 
-export function KanbanColumn({ stage, tasks, isLoading, onCreateTask }: KanbanColumnProps) {
+export function KanbanColumn({ stage, tasks, isLoading, onCreateTask, costByTaskId }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
 
   const wipLimit = WIP_LIMITS[stage];
@@ -115,7 +117,7 @@ export function KanbanColumn({ stage, tasks, isLoading, onCreateTask }: KanbanCo
           <>
             <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
               {recentTasks.map((task) => (
-                <KanbanCard key={task.id} task={task} />
+                <KanbanCard key={task.id} task={task} costData={costByTaskId?.get(task.id)} />
               ))}
 
               {isDoneColumn && olderTasks.length > 0 && (
@@ -128,7 +130,7 @@ export function KanbanColumn({ stage, tasks, isLoading, onCreateTask }: KanbanCo
                     <div className="flex-1 h-px bg-border" />
                   </div>
                   {olderTasks.map((task) => (
-                    <KanbanCard key={task.id} task={task} />
+                    <KanbanCard key={task.id} task={task} costData={costByTaskId?.get(task.id)} />
                   ))}
                 </>
               )}

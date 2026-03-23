@@ -14,9 +14,12 @@ import { Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { KanbanColumn } from './kanban-column';
 import { KanbanCard } from './kanban-card';
+import { useQuery } from '@tanstack/react-query';
 import { useUpdateTask } from '@/hooks/use-tasks';
 import { useAllSessions } from '@/hooks/use-sessions';
+import { apiClient } from '@/lib/api-client';
 import type { Task, Stage } from '@/types/task';
+import type { CostByTask } from '@/types/analytics';
 
 const stages: Stage[] = ['backlog', 'planning', 'ready', 'in_progress', 'review', 'done'];
 
@@ -50,6 +53,12 @@ export function KanbanBoard({ tasks, isLoading, onCreateTask }: KanbanBoardProps
 
   const updateTask = useUpdateTask();
   const { data: activeSessions = [] } = useAllSessions(['running', 'pending']);
+  const { data: costData = [] } = useQuery<CostByTask[]>({
+    queryKey: ['cost-by-task'],
+    queryFn: () => apiClient<CostByTask[]>('/api/analytics/cost/by-task'),
+    staleTime: 60_000,
+  });
+  const costByTaskId = new Map(costData.map((c) => [c.task_id, c]));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -173,6 +182,7 @@ export function KanbanBoard({ tasks, isLoading, onCreateTask }: KanbanBoardProps
               tasks={tasksByStage[stage]}
               isLoading={isLoading}
               onCreateTask={onCreateTask}
+              costByTaskId={costByTaskId}
             />
           ))}
         </div>
@@ -182,6 +192,7 @@ export function KanbanBoard({ tasks, isLoading, onCreateTask }: KanbanBoardProps
           tasksByStage={tasksByStage}
           isLoading={isLoading}
           onCreateTask={onCreateTask}
+          costByTaskId={costByTaskId}
         />
 
         <DragOverlay>
@@ -213,9 +224,10 @@ interface MobileKanbanProps {
   tasksByStage: Record<Stage, Task[]>;
   isLoading?: boolean;
   onCreateTask?: (stage: Stage) => void;
+  costByTaskId?: Map<string, CostByTask>;
 }
 
-function MobileKanban({ tasksByStage, isLoading, onCreateTask }: MobileKanbanProps) {
+function MobileKanban({ tasksByStage, isLoading, onCreateTask, costByTaskId }: MobileKanbanProps) {
   const [activeStage, setActiveStage] = useState<Stage>('in_progress');
 
   const stageBadgeColors: Record<Stage, string> = {
@@ -257,6 +269,7 @@ function MobileKanban({ tasksByStage, isLoading, onCreateTask }: MobileKanbanPro
         tasks={tasksByStage[activeStage]}
         isLoading={isLoading}
         onCreateTask={onCreateTask}
+        costByTaskId={costByTaskId}
       />
     </div>
   );

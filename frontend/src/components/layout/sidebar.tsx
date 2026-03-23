@@ -66,7 +66,7 @@ function SidebarMetrics() {
   if (!metrics) return null;
 
   return (
-    <div className="mt-auto pt-3 border-t border-border">
+    <div className="pt-3 border-t border-border">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1 mb-2">
         Usage
       </p>
@@ -177,10 +177,10 @@ function SidebarContent() {
               ))}
             </div>
           )}
-        </nav>
 
-        {/* Metrics panel at bottom */}
-        <SidebarMetrics />
+          {/* Metrics panel below Tasks section */}
+          <SidebarMetrics />
+        </nav>
       </aside>
 
       {/* Mobile bottom nav */}

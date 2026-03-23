@@ -12,6 +12,7 @@ import { ConfirmDeleteDialog } from '@/components/tasks/confirm-delete-dialog';
 import { useDeleteTask, useMoveTask } from '@/hooks/use-tasks';
 import { useAllSessions } from '@/hooks/use-sessions';
 import type { Task, Stage } from '@/types/task';
+import type { CostByTask } from '@/types/analytics';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -57,9 +58,10 @@ const ALL_STAGES: { value: Stage; label: string }[] = [
 interface KanbanCardProps {
   task: Task;
   isOverlay?: boolean;
+  costData?: CostByTask;
 }
 
-export function KanbanCard({ task, isOverlay = false }: KanbanCardProps) {
+export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -84,6 +86,12 @@ export function KanbanCard({ task, isOverlay = false }: KanbanCardProps) {
   const folderName = getProjectFolderName(task.project_path);
   const descriptionPreview = task.description ? stripMarkdown(task.description) : null;
   const priorityInfo = task.priority > 0 ? priorityConfig[task.priority] : null;
+
+  const totalTokens = costData
+    ? (costData.input_tokens + costData.output_tokens + costData.cache_creation_tokens + costData.cache_read_tokens)
+    : 0;
+  const fmtTokens = (n: number) =>
+    n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(0)}k` : String(n);
 
   // close menu when clicking outside
   useEffect(() => {
@@ -136,6 +144,20 @@ export function KanbanCard({ task, isOverlay = false }: KanbanCardProps) {
                   <FolderOpen className="h-3 w-3" />
                   {folderName}
                 </span>
+              )}
+              {costData && (costData.cost_usd > 0 || totalTokens > 0) && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {costData.cost_usd > 0 && (
+                    <span className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400 rounded px-1.5 py-0.5 font-medium">
+                      ${costData.cost_usd < 0.01 ? '<0.01' : costData.cost_usd.toFixed(2)}
+                    </span>
+                  )}
+                  {totalTokens > 0 && (
+                    <span className="text-[10px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded px-1.5 py-0.5 font-medium">
+                      {fmtTokens(totalTokens)} tok
+                    </span>
+                  )}
+                </div>
               )}
               <div className="flex items-center justify-between pt-0.5">
                 <span className="text-[10px] text-muted-foreground" title={updatedAbsolute}>
