@@ -1,6 +1,6 @@
 use ai_kanban_backend::api::AppState;
 use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
-use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
+use ai_kanban_backend::db::{AttachmentRepository, create_pool, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use axum_test::TestServer;
 use axum_test::http::StatusCode;
 use std::sync::Arc;
@@ -16,12 +16,14 @@ async fn setup_test_server() -> TestServer {
     let session_metrics_repo = SessionMetricsRepository::new(pool.clone());
     let settings_repo = SettingsRepository::new(pool.clone());
     let otel_metrics_repo = OtelMetricsRepository::new(pool.clone());
+    let attachment_repo = AttachmentRepository::new(pool.clone());
     let manager = Arc::new(ClaudeManager::new(
         session_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone(),
         comment_repo.clone(), task_repo.clone(), otel_metrics_repo.clone(), None, None,
+        attachment_repo.clone(),
     ));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo).with_queue(queue);
+    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo).with_queue(queue);
     TestServer::new(ai_kanban_backend::api::create_router(state)).unwrap()
 }
 
