@@ -7,7 +7,7 @@ export function TaskDetailSkeleton() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <Skeleton className="h-8 w-2/3" />
         <Skeleton className="h-6 w-20 rounded-full" />
       </div>
