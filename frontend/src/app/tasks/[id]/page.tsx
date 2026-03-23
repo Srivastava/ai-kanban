@@ -33,7 +33,7 @@ export default function TaskDetailPage() {
             <h2 className="text-sm font-medium text-muted-foreground truncate">{task.title}</h2>
           )}
         </header>
-        <main className="flex-1 px-4 sm:px-6 py-6 pb-20 md:pb-10 max-w-3xl w-full">
+        <main className="flex-1 px-4 sm:px-6 py-6 pb-20 md:pb-10">
           {isLoading ? (
             <TaskDetailSkeleton />
           ) : error || !task ? (

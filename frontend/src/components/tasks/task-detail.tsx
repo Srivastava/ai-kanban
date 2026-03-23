@@ -486,10 +486,13 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
   const totalInputTokens = taskSessions.reduce((acc, s) => acc + (s.input_tokens ?? 0), 0);
   const totalOutputTokens = taskSessions.reduce((acc, s) => acc + (s.output_tokens ?? 0), 0);
   const totalCacheRead = taskSessions.reduce((acc, s) => acc + (s.cache_read_tokens ?? 0), 0);
+  const totalCacheCreation = taskSessions.reduce((acc, s) => acc + (s.cache_creation_tokens ?? 0), 0);
   const totalComputeSecs = taskSessions
     .filter((s) => s.status === 'completed' || s.status === 'stopped')
     .reduce((acc, s) => acc + (s.duration_secs ?? 0), 0);
   const sessionCount = nonFailedSessions.length;
+  const totalAllTokens = totalInputTokens + totalOutputTokens + totalCacheRead + totalCacheCreation;
+  const cacheHitPct = totalAllTokens > 0 ? Math.round((totalCacheRead / totalAllTokens) * 100) : 0;
 
   // ── Feature 3: Collapsible instructions ─────────────────────────────────────
   const instructionsRaw = task.instructions ?? null;
@@ -612,24 +615,28 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
 
           {/* Feature 1 & 2: Session count + cost + token chips */}
           {sessionCount > 0 && (
-            <span className="text-xs bg-muted/60 rounded-md px-2.5 py-1 text-muted-foreground">
+            <span className="text-xs bg-violet-500/10 rounded-md px-2.5 py-1 text-violet-600 dark:text-violet-400 font-medium">
               {sessionCount} session{sessionCount !== 1 ? 's' : ''}
             </span>
           )}
           {totalCost > 0 && (
-            <span className="flex items-center gap-1 text-xs bg-muted/60 rounded-md px-2.5 py-1 text-muted-foreground">
+            <span className="flex items-center gap-1 text-xs bg-emerald-500/10 rounded-md px-2.5 py-1 text-emerald-600 dark:text-emerald-400 font-medium">
               <DollarSign className="h-3 w-3 shrink-0" />
               {totalCost < 0.01 ? '<$0.01' : `$${totalCost.toFixed(2)}`}
             </span>
           )}
           {(totalInputTokens > 0 || totalOutputTokens > 0) && (
-            <span className="text-xs bg-muted/60 rounded-md px-2.5 py-1 text-muted-foreground">
+            <span className="text-xs bg-indigo-500/10 rounded-md px-2.5 py-1 text-indigo-600 dark:text-indigo-400 font-medium">
               {formatTokens(totalInputTokens)} in · {formatTokens(totalOutputTokens)} out
-              {totalCacheRead > 0 && ` · ${formatTokens(totalCacheRead)} cached`}
+            </span>
+          )}
+          {totalCacheRead > 0 && (
+            <span className="text-xs bg-amber-500/10 rounded-md px-2.5 py-1 text-amber-600 dark:text-amber-400 font-medium">
+              {formatTokens(totalCacheRead)} cached · {cacheHitPct}% hit
             </span>
           )}
           {totalComputeSecs > 0 && (
-            <span className="text-xs bg-muted/60 rounded-md px-2.5 py-1 text-muted-foreground">
+            <span className="text-xs bg-sky-500/10 rounded-md px-2.5 py-1 text-sky-600 dark:text-sky-400 font-medium">
               {formatDuration(totalComputeSecs)} compute
             </span>
           )}
