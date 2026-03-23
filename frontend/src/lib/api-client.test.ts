@@ -6,7 +6,7 @@ import { apiClient, ApiError } from './api-client';
 describe('apiClient', () => {
   it('returns parsed JSON on success', async () => {
     server.use(
-      http.get('http://localhost:3001/api/test', () =>
+      http.get('/api/test', () =>
         HttpResponse.json({ ok: true })
       )
     );
@@ -19,7 +19,7 @@ describe('apiClient', () => {
     let capturedContentType: string | null = null;
 
     server.use(
-      http.post('http://localhost:3001/api/test', ({ request }) => {
+      http.post('/api/test', ({ request }) => {
         capturedContentType = request.headers.get('content-type');
         return HttpResponse.json({ ok: true }, { status: 201 });
       })
@@ -31,7 +31,7 @@ describe('apiClient', () => {
 
   it('throws ApiError with status on 4xx response', async () => {
     server.use(
-      http.get('http://localhost:3001/api/notfound', () =>
+      http.get('/api/notfound', () =>
         HttpResponse.json({ error: 'Not found' }, { status: 404 })
       )
     );
@@ -42,7 +42,7 @@ describe('apiClient', () => {
 
   it('throws ApiError with status on 5xx response', async () => {
     server.use(
-      http.get('http://localhost:3001/api/broken', () =>
+      http.get('/api/broken', () =>
         HttpResponse.json({ error: 'Internal' }, { status: 500 })
       )
     );
@@ -55,7 +55,7 @@ describe('apiClient', () => {
     let capturedAuthHeader: string | null = null;
 
     server.use(
-      http.get('http://localhost:3001/api/auth', ({ request }) => {
+      http.get('/api/auth', ({ request }) => {
         capturedAuthHeader = request.headers.get('x-custom');
         return HttpResponse.json({});
       })

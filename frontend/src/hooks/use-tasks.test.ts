@@ -26,7 +26,7 @@ describe('useTasks', () => {
 
   it('filters by stage', async () => {
     server.use(
-      http.get('http://localhost:3001/api/tasks', ({ request }) => {
+      http.get('/api/tasks', ({ request }) => {
         const url = new URL(request.url);
         const stage = url.searchParams.get('stage');
         if (stage === 'backlog') return HttpResponse.json([mockTask]);
@@ -42,7 +42,7 @@ describe('useTasks', () => {
 
   it('returns error state on API failure', async () => {
     server.use(
-      http.get('http://localhost:3001/api/tasks', () =>
+      http.get('/api/tasks', () =>
         HttpResponse.json({ error: 'Server error' }, { status: 500 })
       )
     );
@@ -80,7 +80,7 @@ describe('useCreateTask', () => {
 
   it('enters error state on failure', async () => {
     server.use(
-      http.post('http://localhost:3001/api/tasks', () =>
+      http.post('/api/tasks', () =>
         HttpResponse.json({ error: 'Bad request' }, { status: 400 })
       )
     );

@@ -25,7 +25,7 @@ describe('useLogs', () => {
 
   it('deduplicates logs on subsequent fetches', async () => {
     server.use(
-      http.get('http://localhost:3001/api/logs', () =>
+      http.get('/api/logs', () =>
         HttpResponse.json([mockLog])
       )
     );
@@ -41,7 +41,7 @@ describe('useLogs', () => {
   it('passes level filter to API URL', async () => {
     let capturedUrl = '';
     server.use(
-      http.get('http://localhost:3001/api/logs', ({ request }) => {
+      http.get('/api/logs', ({ request }) => {
         capturedUrl = request.url;
         return HttpResponse.json([]);
       })
@@ -54,7 +54,7 @@ describe('useLogs', () => {
   it('passes source filter to API URL', async () => {
     let capturedUrl = '';
     server.use(
-      http.get('http://localhost:3001/api/logs', ({ request }) => {
+      http.get('/api/logs', ({ request }) => {
         capturedUrl = request.url;
         return HttpResponse.json([]);
       })

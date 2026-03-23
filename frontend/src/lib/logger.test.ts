@@ -8,7 +8,7 @@ describe('Logger', () => {
   it('buffers log entries without immediately flushing', async () => {
     let flushCount = 0;
     server.use(
-      http.post('http://localhost:3001/api/logs', () => {
+      http.post('/api/logs', () => {
         flushCount++;
         return HttpResponse.json({}, { status: 201 });
       })
@@ -29,7 +29,7 @@ describe('Logger', () => {
   it('flushes when flush() is called explicitly', async () => {
     const flushed: unknown[] = [];
     server.use(
-      http.post('http://localhost:3001/api/logs', async ({ request }) => {
+      http.post('/api/logs', async ({ request }) => {
         flushed.push(await request.json());
         return HttpResponse.json({}, { status: 201 });
       })
@@ -47,7 +47,7 @@ describe('Logger', () => {
   it('withContext creates child logger with merged context', async () => {
     const entries: unknown[] = [];
     server.use(
-      http.post('http://localhost:3001/api/logs', async ({ request }) => {
+      http.post('/api/logs', async ({ request }) => {
         entries.push(await request.json());
         return HttpResponse.json({}, { status: 201 });
       })
@@ -71,7 +71,7 @@ describe('Logger', () => {
   it('deduplicates identical consecutive messages within 1 second', async () => {
     const entries: unknown[] = [];
     server.use(
-      http.post('http://localhost:3001/api/logs', async ({ request }) => {
+      http.post('/api/logs', async ({ request }) => {
         entries.push(await request.json());
         return HttpResponse.json({}, { status: 201 });
       })
@@ -93,7 +93,7 @@ describe('Logger', () => {
 
   it('never throws even if backend is down', async () => {
     server.use(
-      http.post('http://localhost:3001/api/logs', () => {
+      http.post('/api/logs', () => {
         return HttpResponse.error();
       })
     );
