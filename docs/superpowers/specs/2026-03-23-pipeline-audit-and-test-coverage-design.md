@@ -38,16 +38,21 @@ The pipeline under audit is: user uploads attachment/image → stored on disk + 
 - Current: storage path is `{dir}/{uuid}-{safe_name}` — the UUID prefix makes collisions impossible at storage level ✓
 - No bug here
 
+**Unknown task returns 500 instead of 404**:
+- Current: `task_repo.find(&task_id)` returns `Err` for missing task; the handler maps all errors from `find` to `INTERNAL_SERVER_ERROR`
+- **Bug**: should return 404 when task is not found, not 500
+- **Fix**: distinguish "not found" from DB errors — check error message or use a typed error to return `StatusCode::NOT_FOUND`
+
 #### 2. `backend/src/claude/manager.rs` — `start_session()` Attachment Copy
 
 **Filename collision when copying to `.claude/attachments/`**:
 - Current: copies `{storage_path}` → `{project}/.claude/attachments/{att.filename}` using the *original* filename (no UUID prefix)
 - **Bug**: if two attachments have the same filename (e.g., two `screenshot.png` files uploaded at different times), the second copy silently overwrites the first
-- **Fix**: use `{att.id}-{att.filename}` as the destination filename; update context file to match
+- **Fix**: use `{att.id}-{att.filename}` as the destination filename; update context file and `--image` CLI argument to match — all three locations must be consistent
 
-**Context file attachment list**:
-- Current writes: `.claude/attachments/{att.filename}`
-- After fix, must write: `.claude/attachments/{att.id}-{att.filename}`
+**Context file attachment list + `--image` argument**:
+- Current writes: `.claude/attachments/{att.filename}` in context file; passes same path as `--image` arg to Claude CLI
+- After fix, all three locations (copy destination, context file, `--image` arg) must use: `.claude/attachments/{att.id}-{att.filename}`
 
 #### 3. `backend/src/ai/litellm.rs` — `image_to_data_url()`
 
@@ -79,8 +84,14 @@ The pipeline under audit is: user uploads attachment/image → stored on disk + 
 **Token count extraction**:
 - Current: extracts `usage.prompt_tokens` and `usage.completion_tokens` from response
 - Verify field names match LiteLLM's actual response format (OpenAI-compat uses `prompt_tokens`/`completion_tokens`) ✓
-- **Edge case**: if `choices` is empty or `message.content` is null, code should return a clear error rather than panic
-- **Fix**: add explicit error for empty choices array and null content
+
+**Empty choices silently returns empty content**:
+- Current: `choices.into_iter().next().unwrap_or_default()` — if `choices` is empty, returns `Ok("")` with empty content string; the caller cannot distinguish "LiteLLM returned empty" from "model failure"
+- **Fix**: return `Err(anyhow!("LiteLLM returned empty choices"))` when choices is empty
+
+**Null `message.content` panics during deserialization**:
+- Current: `ChoiceMessage { content: String }` — if model returns `null` for content, `serde_json` fails deserialization with a type error, surfacing as an opaque error
+- **Fix**: change `content: String` to `content: Option<String>` in `ChoiceMessage`; extract as `content.unwrap_or_default()` or return `Err` if `None`
 
 ---
 
@@ -120,8 +131,8 @@ Tests for attachment HTTP handlers via `TestServer`:
 
 #### `tests/litellm_test.rs`
 Tests for `LitellmClient` and helpers:
-- `image_to_data_url` with PNG file returns `data:image/png;base64,...`
-- `image_to_data_url` with JPEG file and explicit mime returns `data:image/jpeg;base64,...`
+- `image_to_data_url` with PNG file and `"image/png"` mime type returns `data:image/png;base64,...`
+- `image_to_data_url` with JPEG file and `"image/jpeg"` mime type returns `data:image/jpeg;base64,...`
 - `image_to_data_url` with nonexistent path returns `None`
 - `build_user_message` with no images returns `{"role":"user","content":"<text>"}`
 - `build_user_message` with images returns content array with text part + image_url parts
@@ -134,8 +145,9 @@ Tests for `ContextManager` with a mock HTTP server (using `wiremock` or `mockito
 - `summarize_session` with empty display_lines skips LiteLLM call (returns Ok)
 - `summarize_session` posts summary as "litellm" comment on task
 - `summarize_session` includes image_url parts when task has image attachments
-- `enrich_task` with empty LiteLLM response returns `Ok(None)` and logs warning
-- `enrich_task` stores enriched text in `task.instructions`
+- `enrich_task` with LiteLLM HTTP error returns `Err` (network/API failure path)
+- `enrich_task` with LiteLLM returning empty content returns `Ok(None)` and logs warning (distinct from error path)
+- `enrich_task` with valid LiteLLM response stores enriched text in `task.instructions`
 - `compress_context` stores compressed text in `task.compressed_context`
 - `generate_briefing` returns formatted string with LiteLLM content
 
@@ -162,6 +174,8 @@ Use `cargo-llvm-cov` or `cargo tarpaulin` to measure. Target: ≥90% line covera
 ```json
 "vitest": "^2.0.0",
 "@vitest/coverage-v8": "^2.0.0",
+"@vitest/ui": "^2.0.0",
+"@vitejs/plugin-react": "^4.0.0",
 "@testing-library/react": "^16.0.0",
 "@testing-library/jest-dom": "^6.0.0",
 "@testing-library/user-event": "^14.0.0",
@@ -177,6 +191,11 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
@@ -187,9 +206,6 @@ export default defineConfig({
       thresholds: { lines: 90, functions: 90, branches: 85, statements: 90 },
       include: ['src/**/*.{ts,tsx}'],
       exclude: ['src/test/**', 'src/**/*.d.ts', 'src/app/layout.tsx'],
-    },
-    alias: {
-      '@': path.resolve(__dirname, './src'),
     },
   },
 })
@@ -267,6 +283,31 @@ export default defineConfig({
 - Returns zero for zero tokens
 - Handles undefined model gracefully
 
+#### `src/test/components/kanban-board.test.tsx`
+- Renders KanbanColumn for each stage (planning, doing, review, done)
+- Fetches tasks and passes them to columns
+- Shows loading skeleton while data is loading
+
+#### `src/test/components/task-detail.test.tsx`
+- Renders task title, description fields
+- Description field enters edit mode on click
+- Paste event in edit mode adds image to pending list
+- Save uploads pending images and injects markdown into content
+
+#### `src/test/hooks/use-task-subscriptions.test.ts`
+- Subscribes to WebSocket events for a task
+- Calls onStageChange callback when TaskStageChanged event received
+- Cleans up subscription on unmount
+
+#### `src/test/contexts/websocket-context.test.tsx`
+- Provides WebSocket connection to children
+- `subscribe` adds listener to Map; `unsubscribe` removes it
+- Received WS message dispatches to matching listeners only
+
+### Note on `src/test/setup.ts`
+
+This file already exists and imports MSW server setup. The `vitest.config.ts` `setupFiles` entry points to it correctly — no changes needed.
+
 ### Coverage Target
 
 ≥90% line/function coverage measured via `vitest run --coverage`. Branches ≥85%.
@@ -276,7 +317,7 @@ export default defineConfig({
 ## Architecture Notes
 
 - **Test isolation**: every backend test uses a unique `/tmp/test-{uuid}.db` path — no shared state between tests
-- **Mock HTTP for LiteLLM**: `context_manager_test.rs` and `litellm_test.rs` use a local mock HTTP server (wiremock crate) to avoid real LiteLLM calls in CI
+- **Mock HTTP for LiteLLM**: `context_manager_test.rs` and `litellm_test.rs` use a local mock HTTP server (`wiremock = "0.3"` crate) to avoid real LiteLLM calls in CI; must be added to `[dev-dependencies]` in `Cargo.toml`
 - **Frontend MSW**: existing `src/test/msw/` infrastructure (server.ts, handlers.ts, fixtures.ts) is already wired — new tests use it for API mocking
 - **No snapshot tests**: snapshots are brittle for this codebase; prefer explicit assertions
 
@@ -287,6 +328,7 @@ export default defineConfig({
 - `backend/src/claude/manager.rs`
 - `backend/src/ai/litellm.rs`
 - `backend/src/ai/context_manager.rs`
+- `backend/Cargo.toml` (add `wiremock` to `[dev-dependencies]`)
 
 **New backend test files:**
 - `backend/tests/attachment_db_test.rs`
@@ -308,3 +350,7 @@ export default defineConfig({
 - `frontend/src/test/hooks/use-comments.test.ts`
 - `frontend/src/test/hooks/use-settings.test.ts`
 - `frontend/src/test/lib/pricing.test.ts`
+- `frontend/src/test/components/kanban-board.test.tsx`
+- `frontend/src/test/components/task-detail.test.tsx`
+- `frontend/src/test/hooks/use-task-subscriptions.test.ts`
+- `frontend/src/test/contexts/websocket-context.test.tsx`
