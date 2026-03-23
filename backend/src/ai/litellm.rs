@@ -48,6 +48,28 @@ pub struct CompletionResult {
     pub tokens_per_sec: f64,   // output_tokens / (latency_ms / 1000)
 }
 
+/// Encode an image file as a base64 data URL for the LiteLLM vision API.
+/// Returns `None` if the file cannot be read (non-fatal — caller skips that image).
+pub async fn image_to_data_url(path: &str) -> Option<String> {
+    use base64::Engine as _;
+    let data = tokio::fs::read(path).await.ok()?;
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("jpg");
+    let mime = match ext.to_lowercase().as_str() {
+        "png"  => "image/png",
+        "gif"  => "image/gif",
+        "webp" => "image/webp",
+        _      => "image/jpeg",
+    };
+    Some(format!(
+        "data:{};base64,{}",
+        mime,
+        base64::engine::general_purpose::STANDARD.encode(&data)
+    ))
+}
+
 impl LitellmClient {
     pub fn new(
         base_url: impl Into<String>,
@@ -75,7 +97,16 @@ impl LitellmClient {
     }
 
     pub async fn complete(&self, messages: Vec<ChatMessage>) -> Result<CompletionResult> {
-        // Append /v1/chat/completions — the standard OpenAI-compatible path
+        let json_messages: Vec<serde_json::Value> = messages
+            .iter()
+            .map(|m| serde_json::json!({"role": m.role, "content": m.content}))
+            .collect();
+        self.complete_json(json_messages).await
+    }
+
+    /// Send a completion request with pre-built JSON message values.
+    /// Use this when messages contain multimodal content (images).
+    pub async fn complete_json(&self, messages: Vec<serde_json::Value>) -> Result<CompletionResult> {
         let url = format!("{}/v1/chat/completions", self.base_url);
 
         let body = serde_json::json!({

@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { format as formatDate } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Trash2, Pencil, Check, X, FolderOpen, Clock, ChevronDown, ChevronRight, Terminal, FileText, Copy, DollarSign } from 'lucide-react';
+import { Trash2, Pencil, Check, X, FolderOpen, Clock, ChevronDown, ChevronRight, Terminal, FileText, Copy, DollarSign, ImageIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './comment-thread';
@@ -16,6 +16,7 @@ import { SessionControls } from '@/components/sessions/session-controls';
 import { LiveOutputPanel } from '@/components/sessions/live-output-panel';
 import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 import { useComments } from '@/hooks/use-comments';
+import { attachmentFileUrl } from '@/hooks/use-attachments';
 import { useSession, useTaskSessionsDetail } from '@/hooks/use-sessions';
 import { useUpdateTask } from '@/hooks/use-tasks';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -94,6 +95,8 @@ function CollapsibleCard({
   );
 }
 
+interface PendingImage { file: File; previewUrl: string }
+
 function InlineEditField({
   label,
   value,
@@ -111,30 +114,112 @@ function InlineEditField({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
   const { mutate: updateTask, isPending } = useUpdateTask();
 
-  const handleSave = () => {
-    updateTask({ id: taskId, data: { [field]: draft || null } }, { onSuccess: () => setEditing(false) });
+  const addImages = useCallback((files: FileList | File[]) => {
+    const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (!images.length) return;
+    setPendingImages((prev) => [
+      ...prev,
+      ...images.map((file) => ({ file, previewUrl: URL.createObjectURL(file) })),
+    ]);
+  }, []);
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageFiles = Array.from(e.clipboardData?.items ?? [])
+      .filter((i) => i.kind === 'file' && i.type.startsWith('image/'))
+      .map((i) => i.getAsFile())
+      .filter((f): f is File => f !== null);
+    if (imageFiles.length > 0) { e.preventDefault(); addImages(imageFiles); }
   };
-  const handleCancel = () => { setDraft(value ?? ''); setEditing(false); };
+
+  const removeImage = (idx: number) => {
+    setPendingImages((prev) => {
+      URL.revokeObjectURL(prev[idx].previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  const handleSave = async () => {
+    let finalDraft = draft;
+    if (pendingImages.length > 0) {
+      const parts: string[] = [];
+      for (const { file } of pendingImages) {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetch(`/api/tasks/${taskId}/attachments`, { method: 'POST', body: form });
+        if (res.ok) {
+          const att = await res.json() as { id: string; filename: string };
+          parts.push(`![${att.filename}](${attachmentFileUrl(taskId, att.id)})`);
+        }
+      }
+      if (parts.length > 0) {
+        finalDraft = finalDraft.trim()
+          ? `${finalDraft.trim()}\n\n${parts.join('\n')}`
+          : parts.join('\n');
+      }
+      pendingImages.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      setPendingImages([]);
+    }
+    updateTask({ id: taskId, data: { [field]: finalDraft || null } }, { onSuccess: () => setEditing(false) });
+  };
+
+  const handleCancel = () => { setDraft(value ?? ''); setPendingImages([]); setEditing(false); };
 
   if (editing) {
     return (
       <div className="space-y-2">
-        <textarea
-          className="w-full min-h-[120px] rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-y"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder={placeholder}
-          autoFocus
-        />
-        <div className="flex gap-2">
-          <Button size="sm" onClick={handleSave} disabled={isPending}>
-            <Check className="h-3.5 w-3.5 mr-1" /> Save
-          </Button>
-          <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isPending}>
-            <X className="h-3.5 w-3.5 mr-1" /> Cancel
-          </Button>
+        <div
+          className={`relative rounded-md transition-colors ${isDragging ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => { e.preventDefault(); setIsDragging(false); addImages(e.dataTransfer.files); }}
+        >
+          <textarea
+            className="w-full min-h-[120px] rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onPaste={handlePaste}
+            placeholder={isDragging ? 'Drop image here…' : placeholder}
+            autoFocus
+          />
+          {isDragging && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none rounded-md">
+              <span className="flex items-center gap-2 text-sm text-primary/70 font-medium">
+                <ImageIcon className="h-4 w-4" />Drop to attach
+              </span>
+            </div>
+          )}
+        </div>
+        {pendingImages.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {pendingImages.map((img, i) => (
+              <div key={i} className="relative group/img">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img.previewUrl} alt={img.file.name} className="h-16 w-16 object-cover rounded border border-border" />
+                <button
+                  type="button"
+                  onClick={() => removeImage(i)}
+                  className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-background border border-border flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity hover:bg-destructive hover:border-destructive hover:text-destructive-foreground"
+                >
+                  <X className="h-2.5 w-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] text-muted-foreground">Paste or drag images to attach</p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSave} disabled={isPending}>
+              <Check className="h-3.5 w-3.5 mr-1" /> Save
+            </Button>
+            <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isPending}>
+              <X className="h-3.5 w-3.5 mr-1" /> Cancel
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -143,7 +228,7 @@ function InlineEditField({
   return (
     <div className="group relative">
       {value ? (
-        <div className="text-sm leading-relaxed pr-8 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:mb-1 [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:mb-2 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_h1]:text-base [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:mb-1">
+        <div className="text-sm leading-relaxed pr-8 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:mb-1 [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:mb-2 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_strong]:font-semibold [&_h1]:text-base [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:mb-1 [&_img]:max-w-full [&_img]:rounded [&_img]:my-1.5 [&_img]:border [&_img]:border-border">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{value}</ReactMarkdown>
         </div>
       ) : (

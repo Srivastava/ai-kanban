@@ -1,18 +1,62 @@
-use crate::ai::litellm::{ChatMessage, LitellmClient};
-use crate::db::{CommentRepository, TaskRepository};
+use crate::ai::litellm::{ChatMessage, LitellmClient, image_to_data_url};
+use crate::db::{AttachmentRepository, CommentRepository, TaskRepository};
 use crate::models::CreateComment;
 use anyhow::Result;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 pub struct ContextManager {
     litellm: LitellmClient,
     comment_repo: CommentRepository,
     task_repo: TaskRepository,
+    attachment_repo: AttachmentRepository,
 }
 
 impl ContextManager {
-    pub fn new(litellm: LitellmClient, comment_repo: CommentRepository, task_repo: TaskRepository) -> Self {
-        Self { litellm, comment_repo, task_repo }
+    pub fn new(
+        litellm: LitellmClient,
+        comment_repo: CommentRepository,
+        task_repo: TaskRepository,
+        attachment_repo: AttachmentRepository,
+    ) -> Self {
+        Self { litellm, comment_repo, task_repo, attachment_repo }
+    }
+
+    /// Fetch image data URLs for all image attachments of a task.
+    /// Silently skips any attachment that cannot be read.
+    async fn task_image_data_urls(&self, task_id: &str) -> Vec<String> {
+        let attachments = match self.attachment_repo.list_for_task(task_id).await {
+            Ok(a) => a,
+            Err(e) => {
+                warn!(task_id = %task_id, error = %e, "Failed to fetch attachments for LiteLLM");
+                return vec![];
+            }
+        };
+        let mut urls = Vec::new();
+        for att in attachments.iter().filter(|a| a.mime_type.starts_with("image/")) {
+            match image_to_data_url(&att.storage_path).await {
+                Some(url) => {
+                    debug!(attachment_id = %att.id, "Encoded image for LiteLLM");
+                    urls.push(url);
+                }
+                None => warn!(attachment_id = %att.id, path = %att.storage_path, "Could not read attachment for LiteLLM"),
+            }
+        }
+        urls
+    }
+
+    /// Build a JSON user message that includes text and optional image_url parts.
+    fn build_user_message(text: &str, image_data_urls: &[String]) -> serde_json::Value {
+        if image_data_urls.is_empty() {
+            return serde_json::json!({"role": "user", "content": text});
+        }
+        let mut parts = vec![serde_json::json!({"type": "text", "text": text})];
+        for url in image_data_urls {
+            parts.push(serde_json::json!({
+                "type": "image_url",
+                "image_url": {"url": url}
+            }));
+        }
+        serde_json::json!({"role": "user", "content": parts})
     }
 
     /// Summarize a completed session using LiteLLM and post the result as a litellm comment.
@@ -82,29 +126,27 @@ impl ContextManager {
             result_section = result_section,
         );
 
-        let messages = vec![
-            ChatMessage {
-                role: "system".to_string(),
-                content: "You are a technical project assistant that writes structured session summaries for an AI-assisted development tool. \
+        let system_msg = serde_json::json!({
+            "role": "system",
+            "content": "You are a technical project assistant that writes structured session summaries for an AI-assisted development tool. \
 Write in clear, specific language. Use exact file names and function names when they appear in the activity log. \
 Never use vague phrases like 'various changes' or 'several files'. \
-Format output as markdown with the three sections below — fill each one thoroughly. Aim for 200-300 words total.".to_string(),
-            },
-            ChatMessage {
-                role: "user".to_string(),
-                content: user_content,
-            },
-        ];
+Format output as markdown with the three sections below — fill each one thoroughly. Aim for 200-300 words total."
+        });
+
+        let image_urls = self.task_image_data_urls(task_id).await;
+        let user_msg = Self::build_user_message(&user_content, &image_urls);
 
         info!(
             session_id = %session_id,
             task_id = %task_id,
             display_lines = display_lines.len(),
+            images = image_urls.len(),
             model = %self.litellm.model,
             "Requesting session summary from LiteLLM"
         );
 
-        match self.litellm.complete(messages).await {
+        match self.litellm.complete_json(vec![system_msg, user_msg]).await {
             Ok(result) => {
                 info!(
                     session_id = %session_id,
@@ -331,20 +373,23 @@ Format output as markdown with the three sections below — fill each one thorou
             Keep it actionable and specific. Do not add fictional specifics — only expand on what's given.",
         );
 
-        let messages = vec![
-            ChatMessage {
-                role: "system".to_string(),
-                content: "You are a technical project manager helping to write clear task descriptions for a software engineer. Be concise and practical.".to_string(),
-            },
-            ChatMessage {
-                role: "user".to_string(),
-                content: user_content,
-            },
-        ];
+        let system_msg = serde_json::json!({
+            "role": "system",
+            "content": "You are a technical project manager helping to write clear task descriptions for a software engineer. Be concise and practical."
+        });
 
-        info!(task_id = %task_id, task_title = %task_title, model = %self.litellm.model, "Enriching task description");
+        let image_urls = self.task_image_data_urls(task_id).await;
+        let user_msg = Self::build_user_message(&user_content, &image_urls);
 
-        match self.litellm.complete(messages).await {
+        info!(
+            task_id = %task_id,
+            task_title = %task_title,
+            images = image_urls.len(),
+            model = %self.litellm.model,
+            "Enriching task description"
+        );
+
+        match self.litellm.complete_json(vec![system_msg, user_msg]).await {
             Ok(result) => {
                 let enriched = result.content.trim().to_string();
                 if enriched.is_empty() {

@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         model = %litellm.model,
         "LiteLLM context manager configured"
     );
-    let context_manager = Arc::new(ContextManager::new(litellm, comment_repo.clone(), task_repo.clone()));
+    let context_manager = Arc::new(ContextManager::new(litellm, comment_repo.clone(), task_repo.clone(), attachment_repo.clone()));
 
     // Initialize Claude manager and session queue
     let claude_manager = Arc::new(ClaudeManager::new(
