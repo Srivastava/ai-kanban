@@ -48,7 +48,7 @@ function ListRow({ task }: { task: Task }) {
 
   return (
     <Link href={`/tasks/${task.id}`}>
-      <div className="flex items-center gap-3 rounded-md border border-border bg-card hover:bg-muted/40 transition-colors px-4 py-3 cursor-pointer">
+      <div className="flex items-center gap-3 rounded-md border border-border bg-card hover:bg-muted/40 transition-colors px-4 py-3 cursor-pointer min-h-[48px]">
         <div className="flex-1 min-w-0">
           <span className="text-sm font-medium truncate block">{task.title}</span>
           {folderName && (
@@ -78,7 +78,7 @@ function CompactRow({ task }: { task: Task }) {
 
   return (
     <Link href={`/tasks/${task.id}`}>
-      <div className="flex items-center gap-3 border-b border-border hover:bg-muted/30 transition-colors px-3 py-2 cursor-pointer text-sm">
+      <div className="flex items-center gap-3 border-b border-border hover:bg-muted/30 transition-colors px-3 py-2 cursor-pointer text-sm min-h-[48px]">
         <span className="flex-1 min-w-0 truncate font-medium">{task.title}</span>
         <Badge className={`${stageColors[task.stage]} text-white text-[10px] py-0 px-1.5 shrink-0`}>
           {stageLabels[task.stage]}
@@ -169,7 +169,7 @@ export function TaskList({ tasks, isLoading, stageParam, onNewTask }: TaskListPr
 
   if (isLoading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <TaskCardSkeleton key={i} />
         ))}
@@ -181,8 +181,8 @@ export function TaskList({ tasks, isLoading, stageParam, onNewTask }: TaskListPr
     <div className="space-y-4">
       {/* Controls row */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* View toggle */}
-        <div className="flex items-center rounded-md border border-border overflow-hidden">
+        {/* View toggle — hidden on mobile, always list on small screens */}
+        <div className="hidden sm:flex items-center rounded-md border border-border overflow-hidden">
           <button
             className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}
             onClick={() => setViewMode('grid')}
@@ -271,7 +271,7 @@ export function TaskList({ tasks, isLoading, stageParam, onNewTask }: TaskListPr
       {filteredSorted.length === 0 ? (
         <EmptyState stageParam={stageParam} onNewTask={onNewTask} />
       ) : viewMode === 'grid' ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredSorted.map((task) => (
             <TaskCard key={task.id} task={task} />
           ))}
