@@ -7,8 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
 import { Sidebar } from '@/components/layout/sidebar';
+import type { Stage } from '@/types/task';
 
-function KanbanContent() {
+interface KanbanContentProps {
+  onCreateTask: (stage: Stage) => void;
+}
+
+function KanbanContent({ onCreateTask }: KanbanContentProps) {
   const { data: tasks = [], isLoading, error } = useTasks();
 
   if (error) {
@@ -19,11 +24,16 @@ function KanbanContent() {
     );
   }
 
-  return <KanbanBoard tasks={tasks} isLoading={isLoading} />;
+  return <KanbanBoard tasks={tasks} isLoading={isLoading} onCreateTask={onCreateTask} />;
 }
 
 export default function KanbanPage() {
   const [createOpen, setCreateOpen] = useState(false);
+
+  const handleCreateTask = (_stage: Stage) => {
+    // Open the create dialog; tasks default to backlog and can be dragged to the target stage
+    setCreateOpen(true);
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -38,7 +48,7 @@ export default function KanbanPage() {
         </div>
         <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6 overflow-x-auto">
           <Suspense fallback={<div>Loading...</div>}>
-            <KanbanContent />
+            <KanbanContent onCreateTask={handleCreateTask} />
           </Suspense>
         </main>
       </div>
