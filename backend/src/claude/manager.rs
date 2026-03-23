@@ -599,6 +599,7 @@ impl ClaudeManager {
         let context_manager_for_completion = self.context_manager.clone();
         let settings_repo_for_completion = self.settings_repo.clone();
         let task_title_for_completion = task_title;
+        let stage_for_completion = stage.to_string();
         let project_path_for_completion = project_path.clone();
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
@@ -806,10 +807,17 @@ impl ClaudeManager {
                             None => true, // default on
                         };
                         if do_summary {
+                            let session_duration_secs = session.ended_at.map(|ended| {
+                                (ended - session.started_at).num_seconds().max(0) as u64
+                            });
                             let _ = ctx_mgr.summarize_session(
                                 &session_id_for_completion,
                                 &session.task_id,
                                 &task_title_for_completion,
+                                &stage_for_completion,
+                                session_duration_secs,
+                                peak_input_tokens,
+                                0i64,
                                 &display_lines,
                                 result_text.as_deref(),
                             ).await;

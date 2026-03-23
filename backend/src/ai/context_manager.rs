@@ -24,6 +24,10 @@ impl ContextManager {
         session_id: &str,
         task_id: &str,
         task_title: &str,
+        task_stage: &str,
+        session_duration_secs: Option<u64>,
+        input_tokens: i64,
+        output_tokens: i64,
         display_lines: &[String],
         result_text: Option<&str>,
     ) -> Result<()> {
@@ -38,23 +42,42 @@ impl ContextManager {
             .collect();
 
         let activity_lines: Vec<&str> = display_lines.iter()
-            .take(300)
+            .take(500)
             .map(|s| s.as_str())
             .collect();
         let activity = activity_lines.join("\n");
 
         let result_section = match result_text {
             Some(r) if !r.is_empty() => {
-                let preview = if r.len() > 600 { &r[..600] } else { r };
+                let preview = if r.len() > 1200 { &r[..1200] } else { r };
                 format!("\n\nFinal output (preview):\n{}", preview)
             }
             _ => String::new(),
         };
 
+        let duration_str = match session_duration_secs {
+            Some(d) if d >= 60 => format!("{}m {}s", d / 60, d % 60),
+            Some(d) => format!("{}s", d),
+            None => "unknown".to_string(),
+        };
+
         let user_content = format!(
-            "Task: {task_title}\n\nSession activity ({count} events, showing first 300):\n{activity}{result_section}\n\nWrite a concise 3-5 sentence summary covering: what was accomplished, key files changed, and any important decisions or issues.",
+            "Task: {task_title} (stage: {task_stage})\n\
+             Session stats: {duration_str} · {in_tok} input / {out_tok} output tokens\n\
+             Activity ({total} events, showing up to 500):\n{activity}{result_section}\n\n\
+             Write a summary using exactly these three sections:\n\
+             ## What Changed\n\
+             (bullet list of concrete changes — be specific about file names and what was done)\n\n\
+             ## Files Modified\n\
+             (bullet list: `filename` — one-line description of change)\n\n\
+             ## Notes\n\
+             (one to three sentences on decisions made, blockers hit, or next steps — omit if nothing notable)",
             task_title = task_title,
-            count = display_lines.len(),
+            task_stage = task_stage,
+            duration_str = duration_str,
+            in_tok = input_tokens,
+            out_tok = output_tokens,
+            total = display_lines.len(),
             activity = activity,
             result_section = result_section,
         );
@@ -62,7 +85,10 @@ impl ContextManager {
         let messages = vec![
             ChatMessage {
                 role: "system".to_string(),
-                content: "You are a concise project assistant. Summarize Claude Code session activity in plain language. Be specific about file names and what changed. Avoid vague language.".to_string(),
+                content: "You are a technical project assistant that writes structured session summaries for an AI-assisted development tool. \
+Write in clear, specific language. Use exact file names and function names when they appear in the activity log. \
+Never use vague phrases like 'various changes' or 'several files'. \
+Format output as markdown with the three sections below — fill each one thoroughly. Aim for 200-300 words total.".to_string(),
             },
             ChatMessage {
                 role: "user".to_string(),
@@ -102,12 +128,19 @@ impl ContextManager {
                     String::new()
                 };
 
-                let comment_content = format!(
-                    "**Session Summary** *(via LiteLLM · {} in / {} out tokens)*\n\n{}{}",
+                let perf_line = format!(
+                    "⚡ *LiteLLM · {}ms · {:.0} tok/s · {} in / {} out*",
+                    result.latency_ms,
+                    result.tokens_per_sec,
                     result.input_tokens,
                     result.output_tokens,
+                );
+
+                let comment_content = format!(
+                    "**Session Summary**\n\n{}{}\n\n---\n{}",
                     result.content.trim(),
                     files_section,
+                    perf_line,
                 );
 
                 match self.comment_repo.create(
