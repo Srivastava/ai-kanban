@@ -170,10 +170,16 @@ impl ClaudeManager {
             .await
             .unwrap_or_default();
 
+        // Fetch comments/discussion for context
+        let comments = self.comment_repo
+            .list_for_task(&task.id)
+            .await
+            .unwrap_or_default();
+
         // Write persistent task context to .claude/ai-kanban.md in the project directory.
         // Claude reads the entire .claude/ directory at startup and after compaction, so this
         // survives context resets without needing to re-inject via the prompt.
-        write_task_context_file(&project_path, &task, &attachments, &self.output_tx, &session.id);
+        write_task_context_file(&project_path, &task, &attachments, &comments, &self.output_tx, &session.id);
 
         let mut cmd = Command::new(&claude_bin);
         cmd.arg("--print")
@@ -201,7 +207,7 @@ impl ClaudeManager {
             let claude_attachments_dir = format!("{}/.claude/attachments", project_path);
             let _ = tokio::fs::create_dir_all(&claude_attachments_dir).await;
             for att in &attachments {
-                let dest = format!("{}/{}", claude_attachments_dir, att.filename);
+                let dest = format!("{}/{}-{}", claude_attachments_dir, att.id, att.filename);
                 if let Err(e) = tokio::fs::copy(&att.storage_path, &dest).await {
                     warn!(attachment_id = %att.id, error = %e, "Failed to copy attachment to project dir");
                     continue;
@@ -968,6 +974,7 @@ pub fn write_task_context_file(
     project_path: &str,
     task: &Task,
     attachments: &[crate::models::TaskAttachment],
+    comments: &[crate::models::CommentWithReplies],
     tx: &broadcast::Sender<ClaudeEvent>,
     session_id: &str,
 ) {
@@ -1012,11 +1019,38 @@ pub fn write_task_context_file(
         }
     }
 
+    // Include comments and replies so Claude has full conversation context
+    let user_comments: Vec<_> = comments.iter()
+        .filter(|c| c.comment.author != "litellm")
+        .collect();
+    if !user_comments.is_empty() {
+        lines.push(String::new());
+        lines.push("## Discussion".to_string());
+        lines.push("(Previous comments and replies — most recent context for this task)".to_string());
+        for thread in &user_comments {
+            let c = &thread.comment;
+            let author_label = if c.author == "claude" { "Claude" } else { "User" };
+            let ts = c.created_at.format("%Y-%m-%d %H:%M UTC").to_string();
+            lines.push(String::new());
+            lines.push(format!("**{}** [{}]:", author_label, ts));
+            lines.push(c.content.clone());
+            for reply in &thread.replies {
+                let reply_author = if reply.author == "claude" { "Claude" } else { "User" };
+                let reply_ts = reply.created_at.format("%Y-%m-%d %H:%M UTC").to_string();
+                lines.push(String::new());
+                lines.push(format!("  > **{}** [{}]:", reply_author, reply_ts));
+                for line in reply.content.lines() {
+                    lines.push(format!("  > {}", line));
+                }
+            }
+        }
+    }
+
     if !attachments.is_empty() {
         lines.push(String::new());
         lines.push("## Attached Files".to_string());
         for att in attachments {
-            lines.push(format!("- `.claude/attachments/{}` ({})", att.filename, att.mime_type));
+            lines.push(format!("- `.claude/attachments/{}-{}` ({})", att.id, att.filename, att.mime_type));
         }
         lines.push(String::new());
         lines.push("Please review the attached files as they are relevant to this task.".to_string());
