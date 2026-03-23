@@ -61,6 +61,32 @@ pub async fn image_to_data_url(path: &str, mime_type: &str) -> Option<String> {
     ))
 }
 
+/// Build a user message as a JSON value for use with `complete_json`.
+/// If `image_data_urls` is empty, the content is a plain string.
+/// Otherwise, the content is an array containing a text part followed by image_url parts.
+pub fn build_user_message(text: &str, image_data_urls: &[&str]) -> serde_json::Value {
+    if image_data_urls.is_empty() {
+        serde_json::json!({
+            "role": "user",
+            "content": text,
+        })
+    } else {
+        let mut parts: Vec<serde_json::Value> = vec![
+            serde_json::json!({"type": "text", "text": text}),
+        ];
+        for url in image_data_urls {
+            parts.push(serde_json::json!({
+                "type": "image_url",
+                "image_url": {"url": url},
+            }));
+        }
+        serde_json::json!({
+            "role": "user",
+            "content": parts,
+        })
+    }
+}
+
 impl LitellmClient {
     pub fn new(
         base_url: impl Into<String>,
