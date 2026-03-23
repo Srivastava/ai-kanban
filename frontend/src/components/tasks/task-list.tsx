@@ -1,15 +1,172 @@
 'use client';
 
+import { useState, useMemo } from 'react';
+import Link from 'next/link';
+import { LayoutGrid, List, AlignJustify, ChevronDown, FolderOpen, Plus } from 'lucide-react';
+import { formatDistanceToNow } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { TaskCard } from './task-card';
 import { TaskCardSkeleton } from './task-card-skeleton';
-import type { Task } from '@/types/task';
+import type { Task, Stage } from '@/types/task';
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function getProjectFolderName(projectPath: string): string {
+  if (!projectPath) return '';
+  const parts = projectPath.replace(/\/$/, '').split('/');
+  return parts[parts.length - 1] || projectPath;
+}
+
+const stageColors: Record<Stage, string> = {
+  backlog: 'bg-gray-500',
+  planning: 'bg-blue-500',
+  ready: 'bg-yellow-500',
+  in_progress: 'bg-orange-500',
+  review: 'bg-purple-500',
+  done: 'bg-green-500',
+};
+
+const stageLabels: Record<Stage, string> = {
+  backlog: 'Backlog',
+  planning: 'Planning',
+  ready: 'Ready',
+  in_progress: 'In Progress',
+  review: 'Review',
+  done: 'Done',
+};
+
+type ViewMode = 'grid' | 'list' | 'compact';
+type SortMode = 'newest' | 'oldest' | 'title';
+
+// ── sub-components ────────────────────────────────────────────────────────────
+
+function ListRow({ task }: { task: Task }) {
+  const updatedRelative = formatDistanceToNow(new Date(task.updated_at), { addSuffix: true });
+  const updatedAbsolute = new Date(task.updated_at).toLocaleString();
+  const folderName = getProjectFolderName(task.project_path);
+
+  return (
+    <Link href={`/tasks/${task.id}`}>
+      <div className="flex items-center gap-3 rounded-md border border-border bg-card hover:bg-muted/40 transition-colors px-4 py-3 cursor-pointer">
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium truncate block">{task.title}</span>
+          {folderName && (
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground mt-0.5">
+              <FolderOpen className="h-3 w-3" />
+              {folderName}
+            </span>
+          )}
+        </div>
+        <Badge className={`${stageColors[task.stage]} text-white shrink-0 text-xs`}>
+          {stageLabels[task.stage]}
+        </Badge>
+        <span
+          className="text-xs text-muted-foreground shrink-0 hidden sm:block"
+          title={updatedAbsolute}
+        >
+          {updatedRelative}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function CompactRow({ task }: { task: Task }) {
+  const updatedRelative = formatDistanceToNow(new Date(task.updated_at), { addSuffix: true });
+  const updatedAbsolute = new Date(task.updated_at).toLocaleString();
+
+  return (
+    <Link href={`/tasks/${task.id}`}>
+      <div className="flex items-center gap-3 border-b border-border hover:bg-muted/30 transition-colors px-3 py-2 cursor-pointer text-sm">
+        <span className="flex-1 min-w-0 truncate font-medium">{task.title}</span>
+        <Badge className={`${stageColors[task.stage]} text-white text-[10px] py-0 px-1.5 shrink-0`}>
+          {stageLabels[task.stage]}
+        </Badge>
+        <span
+          className="text-xs text-muted-foreground shrink-0 hidden sm:block"
+          title={updatedAbsolute}
+        >
+          {updatedRelative}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+// ── empty state ───────────────────────────────────────────────────────────────
+
+function EmptyState({ stageParam, onNewTask }: { stageParam?: string; onNewTask?: () => void }) {
+  const stageLabel = stageParam
+    ? stageLabels[stageParam as Stage] ?? stageParam
+    : 'this view';
+
+  return (
+    <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+      <div className="text-4xl text-muted-foreground/30">
+        <LayoutGrid className="h-12 w-12 mx-auto" />
+      </div>
+      <div>
+        <p className="text-base font-medium text-muted-foreground">No tasks in {stageLabel}</p>
+        <p className="text-sm text-muted-foreground/70 mt-1">Create your first task to get started</p>
+      </div>
+      {onNewTask && (
+        <Button size="sm" onClick={onNewTask} className="mt-1">
+          <Plus className="h-4 w-4 mr-1" />
+          New Task
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ── main component ────────────────────────────────────────────────────────────
 
 interface TaskListProps {
   tasks: Task[];
   isLoading: boolean;
+  stageParam?: string;
+  onNewTask?: () => void;
 }
 
-export function TaskList({ tasks, isLoading }: TaskListProps) {
+export function TaskList({ tasks, isLoading, stageParam, onNewTask }: TaskListProps) {
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [sortMode, setSortMode] = useState<SortMode>('newest');
+  const [projectFilter, setProjectFilter] = useState<string>('all');
+  const [sortOpen, setSortOpen] = useState(false);
+  const [projectOpen, setProjectOpen] = useState(false);
+
+  // unique project paths
+  const projectPaths = useMemo(() => {
+    const paths = Array.from(new Set(tasks.map((t) => t.project_path).filter(Boolean)));
+    return paths.sort();
+  }, [tasks]);
+
+  // filter + sort
+  const filteredSorted = useMemo(() => {
+    let list = tasks;
+
+    if (projectFilter !== 'all') {
+      list = list.filter((t) => t.project_path === projectFilter);
+    }
+
+    if (sortMode === 'newest') {
+      list = [...list].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+    } else if (sortMode === 'oldest') {
+      list = [...list].sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime());
+    } else if (sortMode === 'title') {
+      list = [...list].sort((a, b) => a.title.localeCompare(b.title));
+    }
+
+    return list;
+  }, [tasks, projectFilter, sortMode]);
+
+  const sortLabels: Record<SortMode, string> = {
+    newest: 'Newest',
+    oldest: 'Oldest',
+    title: 'Title A-Z',
+  };
+
   if (isLoading) {
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -20,19 +177,118 @@ export function TaskList({ tasks, isLoading }: TaskListProps) {
     );
   }
 
-  if (tasks.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">No tasks found. Create one to get started!</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {tasks.map((task) => (
-        <TaskCard key={task.id} task={task} />
-      ))}
+    <div className="space-y-4">
+      {/* Controls row */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* View toggle */}
+        <div className="flex items-center rounded-md border border-border overflow-hidden">
+          <button
+            className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}
+            onClick={() => setViewMode('grid')}
+            title="Grid view"
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+          <button
+            className={`p-1.5 transition-colors border-x border-border ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}
+            onClick={() => setViewMode('list')}
+            title="List view"
+          >
+            <List className="h-4 w-4" />
+          </button>
+          <button
+            className={`p-1.5 transition-colors ${viewMode === 'compact' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}
+            onClick={() => setViewMode('compact')}
+            title="Compact view"
+          >
+            <AlignJustify className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Sort dropdown */}
+        <div className="relative">
+          <button
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+            onClick={() => { setSortOpen((o) => !o); setProjectOpen(false); }}
+          >
+            Sort: {sortLabels[sortMode]}
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+          {sortOpen && (
+            <div className="absolute left-0 top-9 min-w-[140px] rounded-md border border-border bg-popover shadow-md z-50 py-1">
+              {(['newest', 'oldest', 'title'] as SortMode[]).map((s) => (
+                <button
+                  key={s}
+                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors ${sortMode === s ? 'font-semibold' : ''}`}
+                  onClick={() => { setSortMode(s); setSortOpen(false); }}
+                >
+                  {sortLabels[s]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Project filter dropdown */}
+        {projectPaths.length > 1 && (
+          <div className="relative">
+            <button
+              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
+              onClick={() => { setProjectOpen((o) => !o); setSortOpen(false); }}
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              {projectFilter === 'all' ? 'All Projects' : getProjectFolderName(projectFilter)}
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            {projectOpen && (
+              <div className="absolute left-0 top-9 min-w-[180px] rounded-md border border-border bg-popover shadow-md z-50 py-1">
+                <button
+                  className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors ${projectFilter === 'all' ? 'font-semibold' : ''}`}
+                  onClick={() => { setProjectFilter('all'); setProjectOpen(false); }}
+                >
+                  All Projects
+                </button>
+                {projectPaths.map((p) => (
+                  <button
+                    key={p}
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors truncate ${projectFilter === p ? 'font-semibold' : ''}`}
+                    onClick={() => { setProjectFilter(p); setProjectOpen(false); }}
+                    title={p}
+                  >
+                    {getProjectFolderName(p)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <span className="ml-auto text-xs text-muted-foreground">{filteredSorted.length} task{filteredSorted.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      {/* Task list */}
+      {filteredSorted.length === 0 ? (
+        <EmptyState stageParam={stageParam} onNewTask={onNewTask} />
+      ) : viewMode === 'grid' ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredSorted.map((task) => (
+            <TaskCard key={task.id} task={task} />
+          ))}
+        </div>
+      ) : viewMode === 'list' ? (
+        <div className="flex flex-col gap-2">
+          {filteredSorted.map((task) => (
+            <ListRow key={task.id} task={task} />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-md border border-border overflow-hidden">
+          {filteredSorted.map((task) => (
+            <CompactRow key={task.id} task={task} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

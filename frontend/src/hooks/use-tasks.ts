@@ -107,3 +107,12 @@ export function useDeleteTask() {
     },
   });
 }
+
+export function useMoveTask() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, stage }: { id: string; stage: string }) =>
+      apiClient<Task>(`/api/tasks/${id}/move`, { method: 'POST', body: JSON.stringify({ stage }) }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tasks'] }); },
+  });
+}

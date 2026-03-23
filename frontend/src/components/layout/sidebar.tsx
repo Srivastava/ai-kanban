@@ -49,7 +49,7 @@ function SidebarContent() {
         that happen when toggling display:none vs display:block.
       */}
       <aside className="w-0 overflow-hidden md:w-56 shrink-0 md:border-r border-border bg-sidebar md:min-h-screen md:p-4">
-        <nav className="space-y-1">
+        <nav className="space-y-1 pb-4">
           <Link
             href="/kanban"
             className={cn(
