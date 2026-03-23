@@ -63,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
         otel_repo.clone(),
         Some(context_manager),
         Some(settings_repo.clone()),
+        attachment_repo.clone(),
     ));
     let queue = Arc::new(ai_kanban_backend::claude::SessionQueue::new(
         claude_manager.clone(),

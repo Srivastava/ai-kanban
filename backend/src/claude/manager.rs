@@ -1,7 +1,7 @@
 use crate::ai::context_manager::ContextManager;
 use crate::claude::jsonl_parser::{detect_rate_limit_in_stdout, extract_claude_session_id, extract_rate_limit_reset_at, extract_result_text, parse_for_display, parse_jsonl_line};
 use crate::claude::prompts::build_prompt;
-use crate::db::{CommentRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
+use crate::db::{AttachmentRepository, CommentRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -89,6 +89,7 @@ pub struct ClaudeManager {
     otel_repo: OtelMetricsRepository,
     context_manager: Option<Arc<ContextManager>>,
     settings_repo: Option<SettingsRepository>,
+    attachment_repo: AttachmentRepository,
 }
 
 const COMPRESSION_TOKEN_THRESHOLD: i64 = 100_000;
@@ -103,6 +104,7 @@ impl ClaudeManager {
         otel_repo: OtelMetricsRepository,
         context_manager: Option<Arc<ContextManager>>,
         settings_repo: Option<SettingsRepository>,
+        attachment_repo: AttachmentRepository,
     ) -> Self {
         let (output_tx, _) = broadcast::channel(1024);
         Self {
@@ -117,6 +119,7 @@ impl ClaudeManager {
             otel_repo,
             context_manager,
             settings_repo,
+            attachment_repo,
         }
     }
 
@@ -161,10 +164,16 @@ impl ClaudeManager {
             return Err(anyhow!("Project path does not exist: {}", project_path));
         }
 
+        // Fetch task attachments
+        let attachments = self.attachment_repo
+            .list_for_task(&task.id)
+            .await
+            .unwrap_or_default();
+
         // Write persistent task context to .claude/ai-kanban.md in the project directory.
         // Claude reads the entire .claude/ directory at startup and after compaction, so this
         // survives context resets without needing to re-inject via the prompt.
-        write_task_context_file(&project_path, &task, &self.output_tx, &session.id);
+        write_task_context_file(&project_path, &task, &attachments, &self.output_tx, &session.id);
 
         let mut cmd = Command::new(&claude_bin);
         cmd.arg("--print")
@@ -186,6 +195,22 @@ impl ClaudeManager {
            .env("OTEL_LOG_USER_PROMPTS", "1")
            .stdout(Stdio::piped())
            .stderr(Stdio::piped());
+
+        // Copy image attachments into project's .claude/attachments/ and add --image args
+        {
+            let claude_attachments_dir = format!("{}/.claude/attachments", project_path);
+            let _ = tokio::fs::create_dir_all(&claude_attachments_dir).await;
+            for att in &attachments {
+                let dest = format!("{}/{}", claude_attachments_dir, att.filename);
+                if let Err(e) = tokio::fs::copy(&att.storage_path, &dest).await {
+                    warn!(attachment_id = %att.id, error = %e, "Failed to copy attachment to project dir");
+                    continue;
+                }
+                if att.mime_type.starts_with("image/") {
+                    cmd.arg("--image").arg(&dest);
+                }
+            }
+        }
 
         // Task enrichment: on the very first session (no prior history), expand a terse description
         // into structured instructions. Runs in the background so Claude spawns immediately.
@@ -942,6 +967,7 @@ impl ClaudeManager {
 pub fn write_task_context_file(
     project_path: &str,
     task: &Task,
+    attachments: &[crate::models::TaskAttachment],
     tx: &broadcast::Sender<ClaudeEvent>,
     session_id: &str,
 ) {
@@ -984,6 +1010,16 @@ pub fn write_task_context_file(
             lines.push("## Prior Session Context (compressed)".to_string());
             lines.push(ctx.clone());
         }
+    }
+
+    if !attachments.is_empty() {
+        lines.push(String::new());
+        lines.push("## Attached Files".to_string());
+        for att in attachments {
+            lines.push(format!("- `.claude/attachments/{}` ({})", att.filename, att.mime_type));
+        }
+        lines.push(String::new());
+        lines.push("Please review the attached files as they are relevant to this task.".to_string());
     }
 
     lines.push(String::new());
