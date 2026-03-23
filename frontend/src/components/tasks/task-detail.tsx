@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CommentThread } from './comment-thread';
 import { ActivityTimeline } from './activity-timeline';
+import { AttachmentZone } from './attachment-zone';
 import { SessionControls } from '@/components/sessions/session-controls';
 import { LiveOutputPanel } from '@/components/sessions/live-output-panel';
 import { ConfirmDeleteDialog } from './confirm-delete-dialog';
@@ -731,6 +732,16 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Attachments */}
+      <Card>
+        <CardHeader className="pb-2 px-5 pt-5">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attachments</CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 pb-5">
+          <AttachmentZone taskId={task.id} />
         </CardContent>
       </Card>
 
