@@ -45,6 +45,7 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
   const [currentAction, setCurrentAction] = useState<string | null>(null);
   const [lastToolBadge, setLastToolBadge] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const logContainerRef = useRef<HTMLDivElement>(null);
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
   const { subscribe, send, status: wsStatus } = useWebSocket();
@@ -196,9 +197,11 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
     return () => clearInterval(interval);
   }, [heartbeat, status]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll to bottom — use scrollTop on the container (not scrollIntoView,
+  // which propagates up through all scroll ancestors including the page body)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = logContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [lines]);
 
   if (!sessionId) return null;
@@ -288,7 +291,7 @@ export function LiveOutputPanel({ sessionId, status, initialClaudeSessionId }: P
           )}
         </div>
       </div>
-      <div className="max-h-64 overflow-y-auto bg-black/90 p-3 font-mono text-xs">
+      <div ref={logContainerRef} className="max-h-64 overflow-y-auto bg-black/90 p-3 font-mono text-xs">
         {lines.length === 0 ? (
           <p className="text-muted-foreground italic">
             {isRunning ? 'Waiting for output...' : 'No output captured.'}
