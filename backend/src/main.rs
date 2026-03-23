@@ -2,7 +2,7 @@ use ai_kanban_backend::ai::context_manager::ContextManager;
 use ai_kanban_backend::ai::litellm::LitellmClient;
 use ai_kanban_backend::api::{create_router, otlp_router, AppState, OtlpState};
 use ai_kanban_backend::claude::ClaudeManager;
-use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, OtelLogsRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
+use ai_kanban_backend::db::{AttachmentRepository, create_pool, CommentRepository, LogRepository, OtelLogsRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use ai_kanban_backend::logging::DbLayer;
 use axum::Extension;
 use std::net::SocketAddr;
@@ -26,6 +26,7 @@ async fn main() -> anyhow::Result<()> {
     let otel_repo = OtelMetricsRepository::new(pool.clone());
     let otel_logs_repo = OtelLogsRepository::new(pool.clone());
     let settings_repo = SettingsRepository::new(pool.clone());
+    let attachment_repo = AttachmentRepository::new(pool.clone());
 
     // OTLP receiver on port 4318
     let otlp_state = OtlpState {
@@ -163,6 +164,7 @@ async fn main() -> anyhow::Result<()> {
         session_metrics_repo,
         settings_repo,
         otel_repo,
+        attachment_repo,
     ).with_queue(queue);
     tracing::debug!("Application state created");
 

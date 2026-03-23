@@ -1,5 +1,6 @@
-use crate::api::{AppState, CommentApiState, LogApiState, PrometheusState, SessionApiState, SettingsApiState, TaskApiState};
+use crate::api::{AppState, AttachmentApiState, CommentApiState, LogApiState, PrometheusState, SessionApiState, SettingsApiState, TaskApiState};
 use crate::api::analytics::{analytics_routes, AnalyticsApiState};
+use crate::api::attachments::attachment_routes;
 use crate::api::comments::{comment_routes, comment_standalone_routes};
 use crate::api::logs::log_routes;
 use crate::api::prometheus::metrics_handler;
@@ -22,6 +23,15 @@ pub fn create_router(state: AppState) -> Router {
         token_events: state.token_events.clone(),
     };
 
+    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let attachments_dir = std::env::var("ATTACHMENTS_DIR")
+        .unwrap_or_else(|_| format!("{}/.ai-kanban/attachments", home));
+    let attachment_state = AttachmentApiState {
+        repo: state.attachments.clone(),
+        task_repo: state.tasks.clone(),
+        attachments_dir,
+    };
+
     Router::new()
         .route("/health", axum::routing::get(|| async { "ok" }))
         .route("/ws", axum::routing::get(ws_handler))
@@ -42,6 +52,11 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Standalone comment routes (delete by ID)
         .nest("/api/comments", comment_standalone_routes().with_state(comment_state))
+        // Attachment routes nested under tasks
+        .nest(
+            "/api/tasks/:task_id/attachments",
+            attachment_routes().with_state(attachment_state),
+        )
         // Filesystem utility routes (stateless)
         .route("/api/fs/projects", axum::routing::get(crate::api::fs::list_projects))
 }

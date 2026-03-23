@@ -1,4 +1,4 @@
-use crate::db::{CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
+use crate::db::{AttachmentRepository, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use crate::claude::SessionQueue;
 use std::sync::Arc;
 
@@ -13,6 +13,7 @@ pub struct AppState {
     pub session_metrics: SessionMetricsRepository,
     pub settings: SettingsRepository,
     pub otel_metrics: OtelMetricsRepository,
+    pub attachments: AttachmentRepository,
     pub queue: Option<Arc<SessionQueue>>,
 }
 
@@ -40,6 +41,13 @@ pub struct CommentApiState {
     pub repo: CommentRepository,
 }
 
+#[derive(Clone)]
+pub struct AttachmentApiState {
+    pub repo: AttachmentRepository,
+    pub task_repo: TaskRepository,
+    pub attachments_dir: String,
+}
+
 impl AppState {
     pub fn new(
         tasks: TaskRepository,
@@ -50,6 +58,7 @@ impl AppState {
         session_metrics: SessionMetricsRepository,
         settings: SettingsRepository,
         otel_metrics: OtelMetricsRepository,
+        attachments: AttachmentRepository,
     ) -> Self {
         Self {
             tasks,
@@ -60,6 +69,7 @@ impl AppState {
             session_metrics,
             settings,
             otel_metrics,
+            attachments,
             queue: None,
         }
     }
@@ -114,6 +124,7 @@ impl From<AppState> for SettingsApiState {
 }
 
 mod analytics;
+pub mod attachments;
 mod comments;
 pub mod fs;
 mod logs;
@@ -128,6 +139,7 @@ mod sessions;
 pub mod settings;
 mod tasks;
 
+pub use attachments::attachment_routes;
 pub use otlp::{otlp_router, OtlpState};
 pub use prometheus::PrometheusState;
 pub use routes::create_router;
