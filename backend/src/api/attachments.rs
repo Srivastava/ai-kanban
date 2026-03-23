@@ -44,6 +44,11 @@ pub async fn upload_attachment(
             }
         })?;
 
+    // Sanitize task_id before using in filesystem path
+    if task_id.contains("..") || task_id.contains('/') || task_id.contains('\\') {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
     while let Some(field) = multipart
         .next_field()
         .await
