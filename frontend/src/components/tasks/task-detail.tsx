@@ -79,13 +79,13 @@ function CollapsibleCard({
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="flex items-center gap-2 w-full px-5 py-4 text-left font-semibold text-sm hover:bg-muted/40 transition-colors rounded-t-lg"
+        className="flex items-center gap-2 w-full px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-foreground bg-muted/30 border-b border-border hover:bg-muted/50 transition-colors rounded-t-lg"
       >
-        {icon && <span className="text-muted-foreground">{icon}</span>}
+        {icon && <span className="text-primary/70">{icon}</span>}
         <span className="flex-1">{title}</span>
         {open
-          ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
       </button>
       {open && <CardContent className="pt-0 px-5 pb-5">{children}</CardContent>}
     </Card>
@@ -615,12 +615,12 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
 
           {/* Feature 1 & 2: Session count + cost + token chips */}
           {sessionCount > 0 && (
-            <span className="text-xs bg-violet-500/10 rounded-md px-2.5 py-1 text-violet-600 dark:text-violet-400 font-medium">
+            <span className="text-xs bg-blue-500/10 rounded-md px-2.5 py-1 text-blue-600 dark:text-blue-400 font-medium">
               {sessionCount} session{sessionCount !== 1 ? 's' : ''}
             </span>
           )}
           {totalCost > 0 && (
-            <span className="flex items-center gap-1 text-xs bg-emerald-500/10 rounded-md px-2.5 py-1 text-emerald-600 dark:text-emerald-400 font-medium">
+            <span className="flex items-center gap-1 text-xs bg-green-500/10 rounded-md px-2.5 py-1 text-green-600 dark:text-green-400 font-medium">
               <DollarSign className="h-3 w-3 shrink-0" />
               {totalCost < 0.01 ? '<$0.01' : `$${totalCost.toFixed(2)}`}
             </span>
@@ -636,7 +636,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
             </span>
           )}
           {totalComputeSecs > 0 && (
-            <span className="text-xs bg-sky-500/10 rounded-md px-2.5 py-1 text-sky-600 dark:text-sky-400 font-medium">
+            <span className="text-xs bg-red-500/10 rounded-md px-2.5 py-1 text-red-600 dark:text-red-400 font-medium">
               {formatDuration(totalComputeSecs)} compute
             </span>
           )}
@@ -653,8 +653,8 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
 
       {/* Description (user-owned, never modified by LiteLLM) */}
       <Card>
-        <CardHeader className="pb-2 px-5 pt-5">
-          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Description</CardTitle>
+        <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
+          <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">Description</CardTitle>
         </CardHeader>
         <CardContent className="px-5 pb-5">
           <InlineEditField
@@ -670,8 +670,8 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
       {/* Instructions / Plan Viewer */}
       {true && (
         <Card>
-          <CardHeader className="pb-2 px-5 pt-5">
-            <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
+            <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
               Instructions
               {task.instructions && (
                 <span className="text-[10px] font-normal normal-case tracking-normal bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded">AI-enriched</span>
@@ -719,8 +719,8 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
 
       {/* Context */}
       <Card>
-        <CardHeader className="pb-2 px-5 pt-5">
-          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Context</CardTitle>
+        <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
+          <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">Context</CardTitle>
         </CardHeader>
         <CardContent className="px-5 pb-5 space-y-3">
           <InlineEditField
@@ -744,8 +744,8 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
 
       {/* Attachments */}
       <Card>
-        <CardHeader className="pb-2 px-5 pt-5">
-          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Attachments</CardTitle>
+        <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
+          <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider">Attachments</CardTitle>
         </CardHeader>
         <CardContent className="px-5 pb-5">
           <AttachmentZone taskId={task.id} />
@@ -754,9 +754,9 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
 
       {/* Session */}
       <Card>
-        <CardHeader className="pb-2 px-5 pt-5">
-          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Terminal className="h-3.5 w-3.5" />
+        <CardHeader className="px-5 py-3.5 border-b border-border bg-muted/30 rounded-t-xl">
+          <CardTitle className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Terminal className="h-3.5 w-3.5 text-primary/70" />
             Session
           </CardTitle>
         </CardHeader>
