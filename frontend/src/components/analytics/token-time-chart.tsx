@@ -72,7 +72,6 @@ export function TokenTimeChart({ taskId }: Props) {
             </button>
           ))}
         </div>
-        </div>
       </div>
 
       {isLoading ? (
