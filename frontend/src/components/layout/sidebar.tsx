@@ -1,11 +1,32 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { LayoutGrid, BarChart2, FileText, Settings, List } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { useQuery } from '@tanstack/react-query';
+import {
+  LayoutGrid, BarChart2, FileText, Settings, List,
+  ChevronDown, ChevronRight, Moon, Sun,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api-client';
 import type { Stage } from '@/types/task';
+
+// ── types ─────────────────────────────────────────────────────────────────────
+
+interface AnalyticsOverview {
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cache_creation_tokens: number;
+  total_cache_read_tokens: number;
+  total_sessions: number;
+  total_tasks_with_sessions: number;
+  estimated_cost_usd: number;
+  active_sessions_today: number;
+}
+
+// ── constants ─────────────────────────────────────────────────────────────────
 
 const stages: { value: Stage | 'all'; label: string }[] = [
   { value: 'all', label: 'All Tasks' },
@@ -25,10 +46,85 @@ const mobileNavItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function fmt(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(Math.round(n));
+}
+
+// ── dark mode toggle ──────────────────────────────────────────────────────────
+
+function ThemeToggle() {
+  const { resolvedTheme, setTheme } = useTheme();
+  return (
+    <button
+      aria-label="Toggle dark mode"
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      className="rounded-md p-1.5 text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+    >
+      {resolvedTheme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
+  );
+}
+
+// ── sidebar metrics panel ─────────────────────────────────────────────────────
+
+function SidebarMetrics() {
+  const { data } = useQuery<AnalyticsOverview>({
+    queryKey: ['analytics', 'overview'],
+    queryFn: () => apiClient<AnalyticsOverview>('/api/analytics/overview'),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+
+  if (!data) return null;
+
+  const totalTokens =
+    data.total_input_tokens +
+    data.total_output_tokens +
+    data.total_cache_creation_tokens +
+    data.total_cache_read_tokens;
+
+  const metrics = [
+    { label: 'Total Cost', value: `$${data.estimated_cost_usd.toFixed(2)}` },
+    { label: 'Sessions', value: String(data.total_sessions) },
+    { label: 'Tokens', value: fmt(totalTokens) },
+    { label: 'Tasks w/ AI', value: String(data.total_tasks_with_sessions) },
+  ];
+
+  return (
+    <div className="mt-auto pt-3 border-t border-border">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-1 mb-2">
+        Usage
+      </p>
+      <div className="grid grid-cols-2 gap-1.5">
+        {metrics.map((m) => (
+          <div key={m.label} className="rounded-md bg-muted/40 px-2 py-1.5">
+            <p className="text-[10px] text-muted-foreground leading-tight">{m.label}</p>
+            <p className="text-sm font-semibold text-foreground leading-tight">{m.value}</p>
+          </div>
+        ))}
+      </div>
+      {data.active_sessions_today > 0 && (
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-green-600 dark:text-green-400 px-1">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+          {data.active_sessions_today} active today
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── sidebar content ───────────────────────────────────────────────────────────
+
 function SidebarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentStage = searchParams.get('stage') || 'all';
+  const [tasksOpen, setTasksOpen] = useState(true);
 
   const isActive = (stage: string) => {
     if (stage === 'all') return pathname === '/' && currentStage === 'all';
@@ -40,83 +136,84 @@ function SidebarContent() {
     return pathname.startsWith(href);
   };
 
+  const navLink = (href: string, icon: React.ElementType, label: string) => {
+    const Icon = icon;
+    const active = isNavActive(href);
+    return (
+      <Link
+        href={href}
+        className={cn(
+          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
+          active
+            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+        )}
+      >
+        <Icon className="h-4 w-4 shrink-0" />
+        {label}
+      </Link>
+    );
+  };
+
   return (
     <>
-      {/*
-        Desktop sidebar: w-56, visible.
-        Mobile: w-0 + overflow-hidden collapses it to zero width without
-        removing it from the flex flow — avoids SSR/hydration mismatches
-        that happen when toggling display:none vs display:block.
-      */}
-      <aside className="w-0 overflow-hidden md:w-56 shrink-0 md:border-r border-border bg-sidebar md:min-h-screen md:p-4">
-        <nav className="space-y-1 pb-4">
-          <Link
-            href="/kanban"
-            className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
-              pathname === '/kanban'
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-            )}
-          >
-            <LayoutGrid className="h-4 w-4 shrink-0" />
-            Kanban Board
-          </Link>
-          <Link
-            href="/analytics"
-            className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
-              pathname === '/analytics'
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-            )}
-          >
-            <BarChart2 className="h-4 w-4 shrink-0" />
-            Analytics
-          </Link>
-          <Link
-            href="/logs"
-            className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
-              pathname === '/logs'
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-            )}
-          >
-            <FileText className="h-4 w-4 shrink-0" />
-            Logs
-          </Link>
-          <Link
-            href="/settings"
-            className={cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
-              pathname === '/settings'
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-            )}
-          >
-            <Settings className="h-4 w-4 shrink-0" />
-            Settings
-          </Link>
+      <aside className="w-0 overflow-hidden md:w-56 shrink-0 md:border-r border-border bg-sidebar md:min-h-screen md:p-4 md:flex md:flex-col">
+        {/* Top row: app name + theme toggle */}
+        <div className="hidden md:flex items-center justify-between mb-3">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            AI Kanban
+          </span>
+          <ThemeToggle />
+        </div>
+
+        <nav className="space-y-1 flex-1 pb-4">
+          {navLink('/kanban', LayoutGrid, 'Kanban Board')}
+          {navLink('/analytics', BarChart2, 'Analytics')}
+          {navLink('/logs', FileText, 'Logs')}
+          {navLink('/settings', Settings, 'Settings')}
+
           <div className="h-px bg-border my-2" />
-          {stages.map((stage) => (
-            <Link
-              key={stage.value}
-              href={stage.value === 'all' ? '/' : `/?stage=${stage.value}`}
-              className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
-                isActive(stage.value)
-                  ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
-              )}
-            >
-              {stage.label}
-            </Link>
-          ))}
+
+          {/* Collapsible Tasks section */}
+          <button
+            onClick={() => setTasksOpen((o) => !o)}
+            className="w-full flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+          >
+            <span className="flex items-center gap-3">
+              <List className="h-4 w-4 shrink-0" />
+              Tasks
+            </span>
+            {tasksOpen
+              ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+              : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+            }
+          </button>
+
+          {tasksOpen && (
+            <div className="ml-4 space-y-0.5 border-l border-border pl-3">
+              {stages.map((stage) => (
+                <Link
+                  key={stage.value}
+                  href={stage.value === 'all' ? '/' : `/?stage=${stage.value}`}
+                  className={cn(
+                    'block rounded-md px-2 py-1.5 text-sm transition-colors whitespace-nowrap',
+                    isActive(stage.value)
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
+                      : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+                  )}
+                >
+                  {stage.label}
+                </Link>
+              ))}
+            </div>
+          )}
         </nav>
+
+        {/* Metrics panel at bottom */}
+        <SidebarMetrics />
       </aside>
 
-      {/* Mobile bottom nav — CSS position:fixed, no effect on flex layout */}
+      {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm">
         <div className="flex items-stretch h-14">
           {mobileNavItems.map(({ href, label, icon: Icon }) => (
