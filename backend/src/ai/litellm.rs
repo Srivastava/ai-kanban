@@ -30,7 +30,7 @@ struct Choice {
 
 #[derive(Debug, Deserialize)]
 struct ChoiceMessage {
-    content: String,
+    content: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -132,11 +132,12 @@ impl LitellmClient {
         let resp: CompletionResponse = response.json().await?;
         let latency_ms = t_start.elapsed().as_millis() as u64;
 
-        let content = resp.choices
+        let first = resp.choices
             .into_iter()
             .next()
-            .map(|c| c.message.content)
-            .unwrap_or_default();
+            .ok_or_else(|| anyhow::anyhow!("LiteLLM returned empty choices"))?;
+        let content = first.message.content
+            .ok_or_else(|| anyhow::anyhow!("LiteLLM returned null content"))?;
 
         let (input_tokens, output_tokens) = resp.usage
             .map(|u| (u.prompt_tokens, u.completion_tokens))
