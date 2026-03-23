@@ -1,4 +1,5 @@
 mod analytics;
+mod attachment;
 mod comment;
 mod log;
 pub mod otel_log;
@@ -9,6 +10,7 @@ mod task;
 mod token_event;
 
 pub use analytics::*;
+pub use attachment::TaskAttachment;
 pub use comment::*;
 pub use log::*;
 pub use otel_log::{CreateOtelLog, OtelLog};
