@@ -124,3 +124,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Recharts renders axis tick text via SVG presentation attributes (fill="...").
+   CSS variables don't resolve in SVG presentation attributes — only in CSS style
+   properties. These rules override the attribute with a CSS property so the
+   theme variables resolve correctly in both light and dark mode. */
+.recharts-cartesian-axis-tick-label text,
+.recharts-cartesian-axis-tick-labels text,
+.recharts-label {
+  fill: var(--muted-foreground);
+}
+
+.recharts-legend-item-text {
+  color: var(--muted-foreground) !important;
+}
