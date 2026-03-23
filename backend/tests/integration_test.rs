@@ -1,8 +1,8 @@
 use ai_kanban_backend::api::{AppState, LogApiState, SessionApiState, TaskApiState};
-use ai_kanban_backend::db::{create_pool, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
+use ai_kanban_backend::db::{create_pool, AttachmentRepository, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use ai_kanban_backend::models::{CreateLog, CreateTask, Log, LogFilter, Stage, Task, UpdateTask};
 
-async fn setup_test_db() -> (TaskRepository, LogRepository, SessionRepository, CommentRepository, TokenEventRepository, SessionMetricsRepository, SettingsRepository, OtelMetricsRepository) {
+async fn setup_test_db() -> (TaskRepository, LogRepository, SessionRepository, CommentRepository, TokenEventRepository, SessionMetricsRepository, SettingsRepository, OtelMetricsRepository, AttachmentRepository) {
     let db_path = format!("/tmp/test-{}.db", uuid::Uuid::new_v4());
     let pool = create_pool(&db_path).await.expect("Failed to create pool");
     (
@@ -13,13 +13,14 @@ async fn setup_test_db() -> (TaskRepository, LogRepository, SessionRepository, C
         TokenEventRepository::new(pool.clone()),
         SessionMetricsRepository::new(pool.clone()),
         SettingsRepository::new(pool.clone()),
-        OtelMetricsRepository::new(pool),
+        OtelMetricsRepository::new(pool.clone()),
+        AttachmentRepository::new(pool),
     )
 }
 
 #[tokio::test]
 async fn test_create_task() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let create = CreateTask {
         title: "Test Task".to_string(),
@@ -36,7 +37,7 @@ async fn test_create_task() {
 
 #[tokio::test]
 async fn test_list_tasks() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     // Create multiple tasks
     repo.create(CreateTask {
@@ -61,7 +62,7 @@ async fn test_list_tasks() {
 
 #[tokio::test]
 async fn test_filter_by_stage() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task1 = repo
         .create(CreateTask {
@@ -94,7 +95,7 @@ async fn test_filter_by_stage() {
 
 #[tokio::test]
 async fn test_update_task() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo
         .create(CreateTask {
@@ -123,7 +124,7 @@ async fn test_update_task() {
 
 #[tokio::test]
 async fn test_move_task_to_stage() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo
         .create(CreateTask {
@@ -141,7 +142,7 @@ async fn test_move_task_to_stage() {
 
 #[tokio::test]
 async fn test_delete_task() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo
         .create(CreateTask {
@@ -160,7 +161,7 @@ async fn test_delete_task() {
 
 #[tokio::test]
 async fn test_task_not_found() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let result = repo.find("nonexistent").await;
     assert!(result.is_err());
@@ -434,7 +435,7 @@ fn test_level_to_str_unknown() {
 
 #[tokio::test]
 async fn test_task_repository_update_only_title() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo.create(CreateTask {
         title: "Original".to_string(),
@@ -454,7 +455,7 @@ async fn test_task_repository_update_only_title() {
 
 #[tokio::test]
 async fn test_task_repository_update_only_priority() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo.create(CreateTask {
         title: "Test".to_string(),
@@ -473,7 +474,7 @@ async fn test_task_repository_update_only_priority() {
 
 #[tokio::test]
 async fn test_task_repository_update_only_stage() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo.create(CreateTask {
         title: "Test".to_string(),
@@ -491,7 +492,7 @@ async fn test_task_repository_update_only_stage() {
 
 #[tokio::test]
 async fn test_task_repository_update_nonexistent() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let result = repo.update("nonexistent-id", UpdateTask {
         title: Some("New Title".to_string()),
@@ -504,7 +505,7 @@ async fn test_task_repository_update_nonexistent() {
 
 #[tokio::test]
 async fn test_task_repository_delete_nonexistent() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let result = repo.delete("nonexistent-id").await;
 
@@ -513,7 +514,7 @@ async fn test_task_repository_delete_nonexistent() {
 
 #[tokio::test]
 async fn test_task_repository_list_ordering_by_priority() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     // Create tasks with different priorities (via update)
     let task1 = repo.create(CreateTask {
@@ -540,7 +541,7 @@ async fn test_task_repository_list_ordering_by_priority() {
 
 #[tokio::test]
 async fn test_task_repository_move_records_history() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo.create(CreateTask {
         title: "Test".to_string(),
@@ -559,7 +560,7 @@ async fn test_task_repository_move_records_history() {
 
 #[tokio::test]
 async fn test_task_repository_move_to_same_stage() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo.create(CreateTask {
         title: "Test".to_string(),
@@ -574,7 +575,7 @@ async fn test_task_repository_move_to_same_stage() {
 
 #[tokio::test]
 async fn test_task_repository_empty_description() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = repo.create(CreateTask {
         title: "No Description".to_string(),
@@ -588,7 +589,7 @@ async fn test_task_repository_empty_description() {
 
 #[tokio::test]
 async fn test_task_repository_context_field() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     // Create task without context
     let task = repo.create(CreateTask {
@@ -617,7 +618,7 @@ async fn test_task_repository_context_field() {
 
 #[tokio::test]
 async fn test_task_repository_long_title() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let long_title = "a".repeat(1000);
 
@@ -632,7 +633,7 @@ async fn test_task_repository_long_title() {
 
 #[tokio::test]
 async fn test_task_repository_special_characters() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let special_title = "Test with emojis and \"quotes\" and 'apostrophes'";
     let special_desc = "Line1\nLine2\tTabbed";
@@ -650,7 +651,7 @@ async fn test_task_repository_special_characters() {
 
 #[tokio::test]
 async fn test_task_repository_multiple_tasks_different_projects() {
-    let (repo, _, _, _, _, _, _, _) = setup_test_db().await;
+    let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     repo.create(CreateTask {
         title: "Project A Task".to_string(),
@@ -672,7 +673,7 @@ async fn test_task_repository_multiple_tasks_different_projects() {
 
 #[tokio::test]
 async fn test_log_repository_multiple_levels() {
-    let (_, log_repo, _, _, _, _, _, _) = setup_test_db().await;
+    let (_, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
     for level in ["DEBUG", "INFO", "WARN", "ERROR"] {
         log_repo.create(CreateLog {
@@ -698,7 +699,7 @@ async fn test_log_repository_multiple_levels() {
 
 #[tokio::test]
 async fn test_log_repository_empty_message() {
-    let (_, log_repo, _, _, _, _, _, _) = setup_test_db().await;
+    let (_, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let log = log_repo.create(CreateLog {
         level: "INFO".to_string(),
@@ -715,7 +716,7 @@ async fn test_log_repository_empty_message() {
 
 #[tokio::test]
 async fn test_log_repository_long_message() {
-    let (_, log_repo, _, _, _, _, _, _) = setup_test_db().await;
+    let (_, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let long_message = "a".repeat(10000);
 
@@ -734,7 +735,7 @@ async fn test_log_repository_long_message() {
 
 #[tokio::test]
 async fn test_log_repository_metadata_json() {
-    let (_, log_repo, _, _, _, _, _, _) = setup_test_db().await;
+    let (_, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let metadata = serde_json::json!({
         "user_id": 123,
@@ -764,7 +765,7 @@ async fn test_log_repository_metadata_json() {
 
 #[tokio::test]
 async fn test_log_repository_limit_boundary() {
-    let (_, log_repo, _, _, _, _, _, _) = setup_test_db().await;
+    let (_, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
     // Create 200 logs
     for i in 0..200 {
@@ -798,7 +799,7 @@ async fn test_log_repository_limit_boundary() {
 
 #[tokio::test]
 async fn test_log_repository_offset_pagination() {
-    let (_, log_repo, _, _, _, _, _, _) = setup_test_db().await;
+    let (_, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
     // Create 10 logs
     for i in 0..10 {
@@ -838,7 +839,7 @@ async fn test_log_repository_offset_pagination() {
 
 #[tokio::test]
 async fn test_log_repository_combined_filters() {
-    let (task_repo, log_repo, _, _, _, _, _, _) = setup_test_db().await;
+    let (task_repo, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
     let task = task_repo.create(CreateTask {
         title: "Test".to_string(),
@@ -891,9 +892,9 @@ async fn test_log_repository_combined_filters() {
 
 #[tokio::test]
 async fn test_app_state_new() {
-    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo) = setup_test_db().await;
+    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo) = setup_test_db().await;
 
-    let state = AppState::new(task_repo.clone(), log_repo.clone(), session_repo.clone(), comment_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone(), settings_repo, otel_metrics_repo);
+    let state = AppState::new(task_repo.clone(), log_repo.clone(), session_repo.clone(), comment_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone(), settings_repo, otel_metrics_repo, attachment_repo);
 
     // Verify the state is created (repositories are Clone)
     let _ = state.tasks;
@@ -904,9 +905,9 @@ async fn test_app_state_new() {
 
 #[tokio::test]
 async fn test_app_state_into_task_api_state() {
-    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo) = setup_test_db().await;
+    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo) = setup_test_db().await;
 
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo);
+    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo);
     let task_api_state: TaskApiState = state.into();
 
     // Verify we can use the task repository
@@ -921,9 +922,9 @@ async fn test_app_state_into_task_api_state() {
 
 #[tokio::test]
 async fn test_app_state_into_log_api_state() {
-    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo) = setup_test_db().await;
+    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo) = setup_test_db().await;
 
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo);
+    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo);
     let log_api_state: LogApiState = state.into();
 
     // Verify we can use the log repository
@@ -945,14 +946,15 @@ async fn test_app_state_into_session_api_state() {
     use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
     use std::sync::Arc;
 
-    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo) = setup_test_db().await;
+    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo) = setup_test_db().await;
 
     let manager = Arc::new(ClaudeManager::new(
         session_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone(),
         comment_repo.clone(), task_repo.clone(), otel_metrics_repo.clone(), None, None,
+        attachment_repo.clone(),
     ));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo).with_queue(queue);
+    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo).with_queue(queue);
     let session_api_state: SessionApiState = state.into();
 
     // Verify the queue is accessible

@@ -384,15 +384,15 @@ Current session
 Rese s 1 m (America/Los_Angeles)
 Current week (all models)
 ███████▌ 15% used
-Resets Mar 21, 11am (America/Los_Angeles)
+Resets Apr 21, 11am (America/Los_Angeles)
 ";
         let u = parse_claude_usage_output(raw);
         assert_eq!(u.pct_5hr, Some(88.0));
         assert_eq!(u.pct_week, Some(15.0));
         assert!(u.reset_week.is_some());
-        // reset_week should be March 21
+        // reset_week should be April 21
         let rw = u.reset_week.unwrap();
-        assert!(rw.contains("2026-03-21"), "got: {rw}");
+        assert!(rw.contains("2026-04-21"), "got: {rw}");
     }
 
     #[test]

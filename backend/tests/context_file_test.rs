@@ -42,7 +42,7 @@ fn test_write_task_context_file_creates_directory() {
 
     let task = make_task("My Task");
     let tx = make_broadcast();
-    write_task_context_file(&project_path, &task, &tx, "session-1");
+    write_task_context_file(&project_path, &task, &[], &[], &tx, "session-1");
 
     assert!(
         std::path::Path::new(&claude_dir).is_dir(),
@@ -59,7 +59,7 @@ fn test_write_task_context_file_contains_title() {
     let project_path = unique_tmp_dir("ctx-test-title");
     let task = make_task("Fix the login bug");
     let tx = make_broadcast();
-    write_task_context_file(&project_path, &task, &tx, "session-1");
+    write_task_context_file(&project_path, &task, &[], &[], &tx, "session-1");
 
     let content = std::fs::read_to_string(format!("{}/.claude/ai-kanban.md", project_path))
         .expect("file should exist");
@@ -78,7 +78,7 @@ fn test_write_task_context_file_contains_description() {
     let project_path = unique_tmp_dir("ctx-test-desc");
     let task = make_task_with_desc("Add dark mode", "Support a dark color theme for all pages.");
     let tx = make_broadcast();
-    write_task_context_file(&project_path, &task, &tx, "session-1");
+    write_task_context_file(&project_path, &task, &[], &[], &tx, "session-1");
 
     let content = std::fs::read_to_string(format!("{}/.claude/ai-kanban.md", project_path))
         .expect("file should exist");
@@ -100,7 +100,7 @@ fn test_write_task_context_file_contains_plan() {
     task.instructions = Some("# Plan\n- Step 1: Extract repository\n- Step 2: Add tests".to_string());
 
     let tx = make_broadcast();
-    write_task_context_file(&project_path, &task, &tx, "session-1");
+    write_task_context_file(&project_path, &task, &[], &[], &tx, "session-1");
 
     let content = std::fs::read_to_string(format!("{}/.claude/ai-kanban.md", project_path))
         .expect("file should exist");
@@ -121,7 +121,7 @@ fn test_write_task_context_file_updates_on_second_call() {
 
     // First write
     let task1 = make_task("Original Task Title");
-    write_task_context_file(&project_path, &task1, &tx, "session-1");
+    write_task_context_file(&project_path, &task1, &[], &[], &tx, "session-1");
 
     let content1 = std::fs::read_to_string(format!("{}/.claude/ai-kanban.md", project_path))
         .expect("file should exist after first write");
@@ -129,7 +129,7 @@ fn test_write_task_context_file_updates_on_second_call() {
 
     // Second write should overwrite (not append)
     let task2 = make_task("Updated Task Title");
-    write_task_context_file(&project_path, &task2, &tx, "session-2");
+    write_task_context_file(&project_path, &task2, &[], &[], &tx, "session-2");
 
     let content2 = std::fs::read_to_string(format!("{}/.claude/ai-kanban.md", project_path))
         .expect("file should exist after second write");
@@ -148,7 +148,7 @@ fn test_write_task_context_file_emits_event_on_success() {
     let project_path = unique_tmp_dir("ctx-test-event");
     let (tx, mut rx) = broadcast::channel(16);
     let task = make_task("Event Test Task");
-    write_task_context_file(&project_path, &task, &tx, "session-abc");
+    write_task_context_file(&project_path, &task, &[], &[], &tx, "session-abc");
 
     // Should have received a ContextFileUpdated event
     match rx.try_recv() {
@@ -166,7 +166,7 @@ fn test_write_task_context_file_no_event_on_invalid_path() {
     let project_path = "/proc/sys/kernel/cannot_create_here";
     let (tx, mut rx) = broadcast::channel(16);
     let task = make_task("Should Fail Task");
-    write_task_context_file(project_path, &task, &tx, "session-fail");
+    write_task_context_file(project_path, &task, &[], &[], &tx, "session-fail");
 
     // Should NOT have received a ContextFileUpdated event (write failed)
     match rx.try_recv() {

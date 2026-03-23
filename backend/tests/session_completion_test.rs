@@ -4,7 +4,7 @@
 /// They verify queue state transitions without spawning external processes.
 use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
 use ai_kanban_backend::db::{
-    create_pool, CommentRepository, OtelMetricsRepository, SessionMetricsRepository,
+    create_pool, AttachmentRepository, CommentRepository, OtelMetricsRepository, SessionMetricsRepository,
     SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository,
 };
 use ai_kanban_backend::models::CreateTask;
@@ -19,6 +19,7 @@ async fn setup() -> (Arc<ClaudeManager>, Arc<SessionQueue>, TaskRepository) {
     let comment_repo = CommentRepository::new(pool.clone());
     let task_repo = TaskRepository::new(pool.clone());
     let otel_repo = OtelMetricsRepository::new(pool.clone());
+    let attachment_repo = AttachmentRepository::new(pool.clone());
     let manager = Arc::new(ClaudeManager::new(
         session_repo,
         token_repo,
@@ -28,6 +29,7 @@ async fn setup() -> (Arc<ClaudeManager>, Arc<SessionQueue>, TaskRepository) {
         otel_repo,
         None,
         None,
+        attachment_repo,
     ));
     let queue = Arc::new(SessionQueue::new(manager.clone(), task_repo.clone()));
     (manager, queue, task_repo)
