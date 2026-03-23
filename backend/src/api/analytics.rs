@@ -103,6 +103,7 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
         .route("/daily-heatmap", get(daily_heatmap))
         .route("/hourly-breakdown", get(hourly_breakdown))
         .route("/sessions/:id/tools", get(session_tools))
+        .route("/period-comparison", get(period_comparison_handler))
 }
 
 #[instrument(skip(state))]
@@ -541,6 +542,19 @@ async fn loc_history(
             error!(error = %e, "API: Failed to get LOC history");
             (StatusCode::INTERNAL_SERVER_ERROR,
              Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+        }
+    }
+}
+
+#[instrument(skip(state))]
+async fn period_comparison_handler(
+    State(state): State<AnalyticsApiState>,
+) -> impl IntoResponse {
+    match state.analytics.period_comparison().await {
+        Ok(data) => Json(data).into_response(),
+        Err(e) => {
+            error!(error = %e, "period_comparison failed");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
         }
     }
 }

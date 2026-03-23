@@ -44,9 +44,12 @@ export function ProductivitySection({ taskId }: Props) {
           </div>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={activityData} barSize={40}>
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v: number | undefined) => [v ?? 0, '']} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+              <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+              <Tooltip
+                formatter={(v: number | undefined) => [v ?? 0, '']}
+                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 12 }}
+              />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {activityData.map((entry) => (
                   <Cell key={entry.name} fill={entry.color} />

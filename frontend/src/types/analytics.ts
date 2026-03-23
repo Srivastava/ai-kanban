@@ -212,3 +212,23 @@ export interface HourlyEntry {
 
 // Session-scoped tool breakdown uses the same shape as ToolTokens
 export type SessionToolTokens = ToolTokens;
+
+export interface PeriodStats {
+  cost_usd: number;
+  tokens: number;
+  sessions: number;
+}
+
+export interface PeriodChange {
+  current: PeriodStats;
+  previous: PeriodStats;
+  cost_pct: number | null;
+  tokens_pct: number | null;
+  sessions_pct: number | null;
+}
+
+export interface PeriodComparison {
+  day: PeriodChange;
+  week: PeriodChange;
+  month: PeriodChange;
+}

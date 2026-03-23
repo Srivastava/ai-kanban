@@ -226,3 +226,29 @@ pub struct HourlyEntry {
     pub hour: i64,
     pub tokens: i64,
 }
+
+#[derive(Debug, Serialize)]
+pub struct PeriodStats {
+    pub cost_usd: f64,
+    pub tokens: i64,
+    pub sessions: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PeriodChange {
+    pub current: PeriodStats,
+    pub previous: PeriodStats,
+    /// Percentage change for cost: None if previous was 0
+    pub cost_pct: Option<f64>,
+    /// Percentage change for tokens: None if previous was 0
+    pub tokens_pct: Option<f64>,
+    /// Percentage change for sessions: None if previous was 0
+    pub sessions_pct: Option<f64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PeriodComparison {
+    pub day: PeriodChange,
+    pub week: PeriodChange,
+    pub month: PeriodChange,
+}

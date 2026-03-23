@@ -7,7 +7,7 @@ import type {
   AnalyticsOverview, BurnRate, CostByTask, DailyTokens, DevActivityRow, EfficiencyRow, LanguageTokens,
   LocHistoryEntry, MonthlyTokens, SessionDetail, SessionSummary, SessionTimelineEvent, TaskTimelineEvent, SessionTokens, TaskTokens,
   TokensByStage, ToolTokens, WeeklyTokens, UsageWindows, PlanTier, RoiMetrics, ContextWindowUsage,
-  HeatmapEntry, HourlyEntry, SessionToolTokens,
+  HeatmapEntry, HourlyEntry, SessionToolTokens, PeriodComparison,
 } from '@/types/analytics';
 
 export function useAnalyticsOverview() {
@@ -311,5 +311,13 @@ export function useSessionTools(sessionId: string | null) {
     queryFn: async () =>
       apiClient<SessionToolTokens[]>(`/api/analytics/sessions/${sessionId!}/tools`),
     enabled: !!sessionId,
+  });
+}
+
+export function usePeriodComparison() {
+  return useQuery({
+    queryKey: ['analytics', 'period-comparison'],
+    queryFn: () => apiClient<PeriodComparison>('/api/analytics/period-comparison'),
+    staleTime: 60_000,
   });
 }

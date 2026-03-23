@@ -2,7 +2,7 @@ use crate::models::{
     AnalyticsOverview, BurnRate, CostByTask, DailyTokens, WeeklyTokens, MonthlyTokens,
     SessionSummary, TaskTokens, SessionTokens, ToolTokens, LanguageTokens,
     EfficiencyRow, SessionTimelineEvent, TaskTimelineEvent, TokensByStage, UsageWindows,
-    LocHistoryEntry, HeatmapEntry, HourlyEntry,
+    LocHistoryEntry, HeatmapEntry, HourlyEntry, PeriodStats, PeriodChange, PeriodComparison,
 };
 use anyhow::Result;
 use chrono::{Datelike, Duration, Utc};
@@ -1071,6 +1071,107 @@ impl AnalyticsRepository {
             .collect();
 
         Ok(events)
+    }
+
+    #[instrument(skip(self))]
+    pub async fn period_comparison(&self) -> Result<PeriodComparison> {
+        debug!("Fetching period comparison");
+        let p = token_prices();
+
+        // Helper closure: get stats for a date range
+        let query_period = |start: &str, end: &str| {
+            let sql = format!(
+                r#"
+                SELECT
+                    COALESCE(SUM(input_tokens), 0) as input_tokens,
+                    COALESCE(SUM(output_tokens), 0) as output_tokens,
+                    COALESCE(SUM(cache_creation_tokens), 0) as cache_creation_tokens,
+                    COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens,
+                    COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as total_tokens,
+                    COUNT(DISTINCT session_id) as sessions
+                FROM token_events
+                WHERE event_type = 'assistant'
+                  AND DATE(timestamp) >= '{}'
+                  AND DATE(timestamp) < '{}'
+                "#,
+                start, end
+            );
+            sql
+        };
+
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+        let yesterday = (Utc::now() - Duration::days(1)).format("%Y-%m-%d").to_string();
+        let day_before = (Utc::now() - Duration::days(2)).format("%Y-%m-%d").to_string();
+        let week_ago = (Utc::now() - Duration::days(7)).format("%Y-%m-%d").to_string();
+        let two_weeks_ago = (Utc::now() - Duration::days(14)).format("%Y-%m-%d").to_string();
+        let month_ago = (Utc::now() - Duration::days(30)).format("%Y-%m-%d").to_string();
+        let two_months_ago = (Utc::now() - Duration::days(60)).format("%Y-%m-%d").to_string();
+        let tomorrow = (Utc::now() + Duration::days(1)).format("%Y-%m-%d").to_string();
+
+        let parse_row = |row: SqliteRow| -> PeriodStats {
+            let input: i64 = row.get("input_tokens");
+            let output: i64 = row.get("output_tokens");
+            let cache_write: i64 = row.get("cache_creation_tokens");
+            let cache_read: i64 = row.get("cache_read_tokens");
+            let tokens: i64 = row.get("total_tokens");
+            let sessions: i64 = row.get("sessions");
+            let cost = (input as f64 / 1_000_000.0) * p.input
+                + (output as f64 / 1_000_000.0) * p.output
+                + (cache_write as f64 / 1_000_000.0) * p.cache_write
+                + (cache_read as f64 / 1_000_000.0) * p.cache_read;
+            PeriodStats { cost_usd: cost, tokens, sessions }
+        };
+
+        let pct = |cur: f64, prev: f64| -> Option<f64> {
+            if prev == 0.0 { None } else { Some((cur - prev) / prev * 100.0) }
+        };
+
+        // Day: today vs yesterday
+        let day_cur_row = sqlx::query(&query_period(&today, &tomorrow))
+            .fetch_one(&self.pool).await?;
+        let day_prev_row = sqlx::query(&query_period(&yesterday, &today))
+            .fetch_one(&self.pool).await?;
+        let day_cur = parse_row(day_cur_row);
+        let day_prev = parse_row(day_prev_row);
+        let day = PeriodChange {
+            cost_pct: pct(day_cur.cost_usd, day_prev.cost_usd),
+            tokens_pct: pct(day_cur.tokens as f64, day_prev.tokens as f64),
+            sessions_pct: pct(day_cur.sessions as f64, day_prev.sessions as f64),
+            current: day_cur,
+            previous: day_prev,
+        };
+
+        // Week: last 7 days vs prior 7 days
+        let week_cur_row = sqlx::query(&query_period(&week_ago, &tomorrow))
+            .fetch_one(&self.pool).await?;
+        let week_prev_row = sqlx::query(&query_period(&two_weeks_ago, &week_ago))
+            .fetch_one(&self.pool).await?;
+        let week_cur = parse_row(week_cur_row);
+        let week_prev = parse_row(week_prev_row);
+        let week = PeriodChange {
+            cost_pct: pct(week_cur.cost_usd, week_prev.cost_usd),
+            tokens_pct: pct(week_cur.tokens as f64, week_prev.tokens as f64),
+            sessions_pct: pct(week_cur.sessions as f64, week_prev.sessions as f64),
+            current: week_cur,
+            previous: week_prev,
+        };
+
+        // Month: last 30 days vs prior 30 days
+        let month_cur_row = sqlx::query(&query_period(&month_ago, &tomorrow))
+            .fetch_one(&self.pool).await?;
+        let month_prev_row = sqlx::query(&query_period(&two_months_ago, &month_ago))
+            .fetch_one(&self.pool).await?;
+        let month_cur = parse_row(month_cur_row);
+        let month_prev = parse_row(month_prev_row);
+        let month = PeriodChange {
+            cost_pct: pct(month_cur.cost_usd, month_prev.cost_usd),
+            tokens_pct: pct(month_cur.tokens as f64, month_prev.tokens as f64),
+            sessions_pct: pct(month_cur.sessions as f64, month_prev.sessions as f64),
+            current: month_cur,
+            previous: month_prev,
+        };
+
+        Ok(PeriodComparison { day, week, month })
     }
 
     #[instrument(skip(self))]

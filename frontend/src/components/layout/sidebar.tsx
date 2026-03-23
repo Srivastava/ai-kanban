@@ -88,11 +88,22 @@ function SidebarMetrics() {
     data.total_cache_creation_tokens +
     data.total_cache_read_tokens;
 
+  const avgCostPerSession = data.total_sessions > 0
+    ? `$${(data.estimated_cost_usd / data.total_sessions).toFixed(2)}`
+    : '—';
+
+  // Cache savings: cache_read is ~10x cheaper than input tokens
+  const cacheReadSavings = data.total_cache_read_tokens > 0
+    ? Math.round((data.total_cache_read_tokens / Math.max(totalTokens, 1)) * 100)
+    : 0;
+
   const metrics = [
     { label: 'Total Cost', value: `$${data.estimated_cost_usd.toFixed(2)}` },
     { label: 'Sessions', value: String(data.total_sessions) },
     { label: 'Tokens', value: fmt(totalTokens) },
     { label: 'Tasks w/ AI', value: String(data.total_tasks_with_sessions) },
+    { label: 'Avg / Session', value: avgCostPerSession },
+    { label: 'Cache Hit', value: `${cacheReadSavings}%` },
   ];
 
   return (
