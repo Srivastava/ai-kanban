@@ -50,22 +50,13 @@ pub struct CompletionResult {
 
 /// Encode an image file as a base64 data URL for the LiteLLM vision API.
 /// Returns `None` if the file cannot be read (non-fatal — caller skips that image).
-pub async fn image_to_data_url(path: &str) -> Option<String> {
+/// Uses the provided `mime_type` directly rather than inferring from the file extension.
+pub async fn image_to_data_url(path: &str, mime_type: &str) -> Option<String> {
     use base64::Engine as _;
     let data = tokio::fs::read(path).await.ok()?;
-    let ext = std::path::Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("jpg");
-    let mime = match ext.to_lowercase().as_str() {
-        "png"  => "image/png",
-        "gif"  => "image/gif",
-        "webp" => "image/webp",
-        _      => "image/jpeg",
-    };
     Some(format!(
         "data:{};base64,{}",
-        mime,
+        mime_type,
         base64::engine::general_purpose::STANDARD.encode(&data)
     ))
 }

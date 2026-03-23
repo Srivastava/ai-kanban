@@ -33,7 +33,7 @@ impl ContextManager {
         };
         let mut urls = Vec::new();
         for att in attachments.iter().filter(|a| a.mime_type.starts_with("image/")) {
-            match image_to_data_url(&att.storage_path).await {
+            match image_to_data_url(&att.storage_path, &att.mime_type).await {
                 Some(url) => {
                     debug!(attachment_id = %att.id, "Encoded image for LiteLLM");
                     urls.push(url);
@@ -250,25 +250,22 @@ Format output as markdown with the three sections below — fill each one thorou
             6. Any important constraints or gotchas discovered",
         );
 
-        let messages = vec![
-            ChatMessage {
-                role: "system".to_string(),
-                content: "You are compressing a Claude Code session into a context handoff for the next session. Be specific, structured, and concise. ALWAYS preserve user messages and decisions verbatim — never paraphrase or drop them. Compress Claude's outputs to save space. Recent activity is more important than older activity.".to_string(),
-            },
-            ChatMessage {
-                role: "user".to_string(),
-                content: user_content,
-            },
-        ];
+        let system_msg = serde_json::json!({
+            "role": "system",
+            "content": "You are compressing a Claude Code session into a context handoff for the next session. Be specific, structured, and concise. ALWAYS preserve user messages and decisions verbatim — never paraphrase or drop them. Compress Claude's outputs to save space. Recent activity is more important than older activity."
+        });
+        let image_urls = self.task_image_data_urls(task_id).await;
+        let user_msg = Self::build_user_message(&user_content, &image_urls);
 
         info!(
             session_id = %session_id,
             task_id = %task_id,
+            images = image_urls.len(),
             model = %self.litellm.model,
             "Compressing session context with LiteLLM"
         );
 
-        match self.litellm.complete(messages).await {
+        match self.litellm.complete_json(vec![system_msg, user_msg]).await {
             Ok(result) => {
                 let compressed = format!(
                     "*(Context compressed by LiteLLM — {} in / {} out tokens)*\n\n{}",
