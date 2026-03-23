@@ -44,6 +44,8 @@ pub struct CompletionResult {
     pub content: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
+    pub latency_ms: u64,       // wall-clock ms for the HTTP round-trip
+    pub tokens_per_sec: f64,   // output_tokens / (latency_ms / 1000)
 }
 
 impl LitellmClient {
@@ -88,6 +90,7 @@ impl LitellmClient {
             "Sending LiteLLM request"
         );
 
+        let t_start = std::time::Instant::now();
         let response = self.client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
@@ -105,6 +108,7 @@ impl LitellmClient {
         }
 
         let resp: CompletionResponse = response.json().await?;
+        let latency_ms = t_start.elapsed().as_millis() as u64;
 
         let content = resp.choices
             .into_iter()
@@ -116,14 +120,22 @@ impl LitellmClient {
             .map(|u| (u.prompt_tokens, u.completion_tokens))
             .unwrap_or((0, 0));
 
+        let tokens_per_sec = if latency_ms > 0 {
+            output_tokens as f64 / (latency_ms as f64 / 1000.0)
+        } else {
+            0.0
+        };
+
         info!(
             model = %self.model,
             input_tokens = input_tokens,
             output_tokens = output_tokens,
+            latency_ms = latency_ms,
+            tokens_per_sec = tokens_per_sec,
             content_len = content.len(),
             "LiteLLM completion received"
         );
 
-        Ok(CompletionResult { content, input_tokens, output_tokens })
+        Ok(CompletionResult { content, input_tokens, output_tokens, latency_ms, tokens_per_sec })
     }
 }
