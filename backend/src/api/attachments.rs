@@ -30,12 +30,19 @@ pub async fn upload_attachment(
     Path(task_id): Path<String>,
     mut multipart: Multipart,
 ) -> Result<Json<TaskAttachment>, StatusCode> {
-    // Verify task exists
+    // Verify task exists — return 404 for missing task, 500 for DB errors
     state
         .task_repo
         .find(&task_id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("not found") || msg.contains("no rows") {
+                StatusCode::NOT_FOUND
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        })?;
 
     while let Some(field) = multipart
         .next_field()
@@ -46,24 +53,42 @@ pub async fn upload_attachment(
             .file_name()
             .unwrap_or("upload")
             .to_string();
-        let mime_type: String = field
+
+        let raw_mime: String = field
             .content_type()
-            .unwrap_or("application/octet-stream")
+            .unwrap_or("")
             .to_string();
+
         let data: Vec<u8> = field
             .bytes()
             .await
             .map_err(|_| StatusCode::BAD_REQUEST)?
             .to_vec();
 
-        // Write to disk: <attachments_dir>/<task_id>/<uuid>-<filename>
+        // Infer MIME from extension when browser sends empty or octet-stream
+        let mime_type = if raw_mime.is_empty() || raw_mime == "application/octet-stream" {
+            infer_mime_from_filename(&filename).to_string()
+        } else {
+            raw_mime
+        };
+
+        // Strict allowlist sanitizer — keep only alphanumeric, dot, dash, underscore
+        let safe_name: String = filename
+            .chars()
+            .map(|c| if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+            .collect::<String>()
+            .chars()
+            .take(255)
+            .collect();
+        let safe_name = if safe_name.is_empty() { "upload".to_string() } else { safe_name };
+
+        // Write to disk: <attachments_dir>/<task_id>/<uuid>-<safe_name>
         let dir = format!("{}/{}", state.attachments_dir, task_id);
         fs::create_dir_all(&dir)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
         let id = Uuid::new_v4().to_string();
-        let safe_name = filename.replace(['/', '\\'], "_").replace("..", "_");
         let storage_path = format!("{}/{}-{}", dir, id, safe_name);
         fs::write(&storage_path, &data)
             .await
@@ -87,6 +112,24 @@ pub async fn upload_attachment(
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
     }
     Err(StatusCode::BAD_REQUEST)
+}
+
+fn infer_mime_from_filename(filename: &str) -> &'static str {
+    let ext = std::path::Path::new(filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "png"  => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif"  => "image/gif",
+        "webp" => "image/webp",
+        "pdf"  => "application/pdf",
+        "txt"  => "text/plain",
+        "md"   => "text/markdown",
+        _      => "application/octet-stream",
+    }
 }
 
 // DELETE /api/tasks/:task_id/attachments/:attachment_id
