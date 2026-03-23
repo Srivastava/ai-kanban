@@ -4,27 +4,16 @@ import { Suspense, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { useQuery } from '@tanstack/react-query';
 import {
   LayoutGrid, BarChart2, FileText, Settings, List,
   ChevronDown, ChevronRight, Moon, Sun,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import type { Stage } from '@/types/task';
-
-// ── types ─────────────────────────────────────────────────────────────────────
-
-interface AnalyticsOverview {
-  total_input_tokens: number;
-  total_output_tokens: number;
-  total_cache_creation_tokens: number;
-  total_cache_read_tokens: number;
-  total_sessions: number;
-  total_tasks_with_sessions: number;
-  estimated_cost_usd: number;
-  active_sessions_today: number;
-}
+import { useSidebarMetrics } from '@/hooks/use-sidebar-metrics';
+import type { AnalyticsOverview } from '@/types/analytics';
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -46,15 +35,6 @@ const mobileNavItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-function fmt(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(Math.round(n));
-}
-
 // ── dark mode toggle ──────────────────────────────────────────────────────────
 
 function ThemeToggle() {
@@ -75,6 +55,7 @@ function ThemeToggle() {
 // ── sidebar metrics panel ─────────────────────────────────────────────────────
 
 function SidebarMetrics() {
+  const metrics = useSidebarMetrics();
   const { data } = useQuery<AnalyticsOverview>({
     queryKey: ['analytics', 'overview'],
     queryFn: () => apiClient<AnalyticsOverview>('/api/analytics/overview'),
@@ -82,31 +63,7 @@ function SidebarMetrics() {
     refetchInterval: 60_000,
   });
 
-  if (!data) return null;
-
-  const totalTokens =
-    data.total_input_tokens +
-    data.total_output_tokens +
-    data.total_cache_creation_tokens +
-    data.total_cache_read_tokens;
-
-  const avgCostPerSession = data.total_sessions > 0
-    ? `$${(data.estimated_cost_usd / data.total_sessions).toFixed(2)}`
-    : '—';
-
-  // Cache savings: cache_read is ~10x cheaper than input tokens
-  const cacheReadSavings = data.total_cache_read_tokens > 0
-    ? Math.round((data.total_cache_read_tokens / Math.max(totalTokens, 1)) * 100)
-    : 0;
-
-  const metrics = [
-    { label: 'Total Cost', value: `$${data.estimated_cost_usd.toFixed(2)}` },
-    { label: 'Sessions', value: String(data.total_sessions) },
-    { label: 'Tokens', value: fmt(totalTokens) },
-    { label: 'Tasks w/ AI', value: String(data.total_tasks_with_sessions) },
-    { label: 'Avg / Session', value: avgCostPerSession },
-    { label: 'Cache Hit', value: `${cacheReadSavings}%` },
-  ];
+  if (!metrics) return null;
 
   return (
     <div className="mt-auto pt-3 border-t border-border">
@@ -121,7 +78,7 @@ function SidebarMetrics() {
           </div>
         ))}
       </div>
-      {data.active_sessions_today > 0 && (
+      {data && data.active_sessions_today > 0 && (
         <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-green-600 dark:text-green-400 px-1">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
           {data.active_sessions_today} active today

@@ -8,6 +8,24 @@ import { Plus } from 'lucide-react';
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
 import { Sidebar } from '@/components/layout/sidebar';
 import type { Stage } from '@/types/task';
+import { useSidebarMetrics } from '@/hooks/use-sidebar-metrics';
+
+function MobileMetricsStrip() {
+  const metrics = useSidebarMetrics();
+  if (!metrics) return null;
+  return (
+    <div className="md:hidden -mx-4 px-4 mb-4 overflow-x-auto">
+      <div className="flex gap-3 pb-1 min-w-max">
+        {metrics.map((m) => (
+          <div key={m.label} className="flex flex-col items-center bg-muted/50 rounded-lg px-3 py-1.5 min-w-[64px]">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{m.label}</span>
+            <span className="text-xs font-semibold tabular-nums">{m.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 interface KanbanContentProps {
   onCreateTask: (stage: Stage) => void;
@@ -47,6 +65,7 @@ export default function KanbanPage() {
           </Button>
         </div>
         <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6 overflow-x-auto">
+          <MobileMetricsStrip />
           <Suspense fallback={<div>Loading...</div>}>
             <KanbanContent onCreateTask={handleCreateTask} />
           </Suspense>

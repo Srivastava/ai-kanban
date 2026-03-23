@@ -12,6 +12,26 @@ import { useAllSessions } from '@/hooks/use-sessions';
 import { apiClient } from '@/lib/api-client';
 import type { Stage } from '@/types/task';
 import type { CostByTask } from '@/types/analytics';
+import { useSidebarMetrics } from '@/hooks/use-sidebar-metrics';
+
+// ── mobile metrics strip ──────────────────────────────────────────────────────
+
+function MobileMetricsStrip() {
+  const metrics = useSidebarMetrics();
+  if (!metrics) return null;
+  return (
+    <div className="md:hidden -mx-4 px-4 mb-4 overflow-x-auto">
+      <div className="flex gap-3 pb-1 min-w-max">
+        {metrics.map((m) => (
+          <div key={m.label} className="flex flex-col items-center bg-muted/50 rounded-lg px-3 py-1.5 min-w-[64px]">
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">{m.label}</span>
+            <span className="text-xs font-semibold tabular-nums">{m.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // ── stats strip ───────────────────────────────────────────────────────────────
 
@@ -99,6 +119,7 @@ function HomeContent() {
       <div className="flex-1 flex flex-col">
         <Header onNewTask={() => setDialogOpen(true)} />
         <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6">
+          <MobileMetricsStrip />
           <StatsStrip onNewTask={() => setDialogOpen(true)} />
           <Suspense fallback={<div className="flex items-center justify-center h-64">Loading...</div>}>
             <TaskContent onNewTask={() => setDialogOpen(true)} />
