@@ -1,50 +1,75 @@
 import type { Stage } from '@/types/task';
 
+/**
+ * Stage color tokens — all values derive from CSS custom properties
+ * defined in globals.css and registered in @theme inline.
+ * Change colors in one place: src/app/globals.css.
+ */
+
+/** Solid badge background + white text (kanban column tabs, list badges) */
 export const stageColors: Record<Stage, string> = {
-  backlog: 'bg-slate-500',
-  planning: 'bg-blue-500',
-  ready: 'bg-amber-500',
-  in_progress: 'bg-orange-500',
-  review: 'bg-purple-500',
-  done: 'bg-green-500',
+  backlog:     'bg-stage-backlog',
+  planning:    'bg-stage-planning',
+  ready:       'bg-stage-ready',
+  in_progress: 'bg-stage-in-progress',
+  review:      'bg-stage-review',
+  done:        'bg-stage-done',
 };
 
+/** Left border accent on task cards in list view */
 export const stageBorderColors: Record<Stage, string> = {
-  backlog: 'border-l-4 border-l-slate-400',
-  planning: 'border-l-4 border-l-blue-500',
-  ready: 'border-l-4 border-l-amber-500',
-  in_progress: 'border-l-4 border-l-orange-500',
-  review: 'border-l-4 border-l-purple-500',
-  done: 'border-l-4 border-l-green-500',
+  backlog:     'border-l-4 border-l-stage-backlog',
+  planning:    'border-l-4 border-l-stage-planning',
+  ready:       'border-l-4 border-l-stage-ready',
+  in_progress: 'border-l-4 border-l-stage-in-progress',
+  review:      'border-l-4 border-l-stage-review',
+  done:        'border-l-4 border-l-stage-done',
 };
 
+/** Top border accent on kanban columns */
 export const stageHeaderBorder: Record<Stage, string> = {
-  backlog: 'border-t-slate-400',
-  planning: 'border-t-blue-500',
-  ready: 'border-t-amber-500',
-  in_progress: 'border-t-orange-500',
-  review: 'border-t-purple-500',
-  done: 'border-t-green-500',
+  backlog:     'border-t-stage-backlog',
+  planning:    'border-t-stage-planning',
+  ready:       'border-t-stage-ready',
+  in_progress: 'border-t-stage-in-progress',
+  review:      'border-t-stage-review',
+  done:        'border-t-stage-done',
 };
 
+/** Text color — theme-aware (dark in light mode, light in dark mode) */
 export const stageTextColor: Record<Stage, string> = {
-  backlog: 'text-slate-500 dark:text-slate-400',
-  planning: 'text-blue-600 dark:text-blue-400',
-  ready: 'text-amber-600 dark:text-amber-400',
-  in_progress: 'text-orange-600 dark:text-orange-400',
-  review: 'text-purple-600 dark:text-purple-400',
-  done: 'text-green-600 dark:text-green-400',
+  backlog:     'text-stage-backlog-text',
+  planning:    'text-stage-planning-text',
+  ready:       'text-stage-ready-text',
+  in_progress: 'text-stage-in-progress-text',
+  review:      'text-stage-review-text',
+  done:        'text-stage-done-text',
 };
 
+/** Human-readable stage names */
 export const stageLabels: Record<Stage, string> = {
-  backlog: 'Backlog',
-  planning: 'Planning',
-  ready: 'Ready',
+  backlog:     'Backlog',
+  planning:    'Planning',
+  ready:       'Ready',
   in_progress: 'In Progress',
-  review: 'Review',
-  done: 'Done',
+  review:      'Review',
+  done:        'Done',
 };
 
+/**
+ * Subtle chip config — muted background + themed text + soft border.
+ * Uses opacity modifiers on the solid stage color for background/border.
+ */
+export const stageChipConfig: Record<Stage, { label: string; className: string }> = {
+  backlog:     { label: 'Backlog',     className: 'bg-stage-backlog/15 text-stage-backlog-text border-stage-backlog/25' },
+  planning:    { label: 'Planning',    className: 'bg-stage-planning/15 text-stage-planning-text border-stage-planning/25' },
+  ready:       { label: 'Ready',       className: 'bg-stage-ready/15 text-stage-ready-text border-stage-ready/25' },
+  in_progress: { label: 'In Progress', className: 'bg-stage-in-progress/15 text-stage-in-progress-text border-stage-in-progress/25' },
+  review:      { label: 'Review',      className: 'bg-stage-review/15 text-stage-review-text border-stage-review/25' },
+  done:        { label: 'Done',        className: 'bg-stage-done/15 text-stage-done-text border-stage-done/25' },
+};
+
+/** Priority badge config */
 export const priorityConfig: Record<number, { label: string; className: string }> = {
   1: { label: 'Low',      className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
   2: { label: 'Medium',   className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },

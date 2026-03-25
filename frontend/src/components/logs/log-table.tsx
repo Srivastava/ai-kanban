@@ -145,7 +145,7 @@ export function LogTable({ logs, filter }: Props) {
       <div className="overflow-auto max-h-[calc(100vh-300px)]">
         <table className="w-full text-xs border-collapse">
           <thead className="sticky top-0 z-10">
-            <tr className="border-b border-border bg-muted/60 backdrop-blur-sm">
+            <tr className="border-b border-border bg-muted/80">
               <th className={thClass} style={{ width: 110 }} onClick={() => handleSort('timestamp')}>
                 Time <SortIcon active={sortKey === 'timestamp'} dir={sortDir} />
               </th>

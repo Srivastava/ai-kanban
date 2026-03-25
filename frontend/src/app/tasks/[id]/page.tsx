@@ -24,7 +24,7 @@ export default function TaskDetailPage() {
     <div className="flex min-h-screen bg-background">
       <Sidebar />
       <div className="flex-1 min-w-0 overflow-x-hidden flex flex-col">
-        <header className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm px-4 sm:px-6 py-3 flex items-center gap-3">
+        <header className="sticky top-0 z-10 border-b border-border bg-background px-4 sm:px-6 py-3 flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-1">
             <ArrowLeft className="mr-1.5 h-4 w-4" />
             <span className="hidden sm:inline">Back</span>

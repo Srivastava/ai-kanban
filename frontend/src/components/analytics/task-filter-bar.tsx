@@ -23,7 +23,7 @@ export function TaskFilterBar({ selectedTaskId, onSelect }: Props) {
   });
 
   return (
-    <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur px-4 sm:px-6 py-3 flex items-center gap-3">
+    <div className="sticky top-0 z-10 border-b border-border bg-background px-4 sm:px-6 py-3 flex items-center gap-3">
       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider shrink-0">
         Filter by task
       </span>

@@ -123,11 +123,11 @@ export function CommandCenter() {
   const costOutput     = overview ? (overview.total_output_tokens/ 1_000_000) * PRICING.output      : 0;
 
   return (
-    <div className="rounded-xl border border-border bg-gradient-to-br from-card to-card/60 p-5 sm:p-6 space-y-6">
+    <div className="rounded-xl border border-border bg-card p-5 sm:p-6 space-y-6">
       {/* Active session banner */}
       {hasRunning && (
         <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-          <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+          <span className="h-2 w-2 rounded-full bg-amber-500 motion-safe:animate-pulse shrink-0" />
           <span>Session running — cost updating every 10s</span>
         </div>
       )}
@@ -173,7 +173,7 @@ export function CommandCenter() {
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Cost</p>
             {hasRunning && (
               <span className="flex items-center gap-1 text-[10px] text-amber-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse" />
                 live
               </span>
             )}

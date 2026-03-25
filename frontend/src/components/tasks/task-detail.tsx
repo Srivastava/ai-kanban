@@ -24,6 +24,7 @@ import { useWebSocket } from '@/contexts/websocket-context';
 import { apiClient } from '@/lib/api-client';
 import type { Task, Stage } from '@/types/task';
 import { cn } from '@/lib/utils';
+import { stageChipConfig } from '@/lib/task-colors';
 
 // ─── Token formatting helper ──────────────────────────────────────────────────
 
@@ -48,14 +49,7 @@ function formatDuration(secs: number): string {
   return `${Math.round(secs)}s`;
 }
 
-const stageConfig: Record<Stage, { label: string; className: string }> = {
-  backlog:     { label: 'Backlog',     className: 'bg-slate-500/15 text-slate-600 dark:text-slate-400 border-slate-500/20' },
-  planning:    { label: 'Planning',    className: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20' },
-  ready:       { label: 'Ready',       className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20' },
-  in_progress: { label: 'In Progress', className: 'bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/20' },
-  review:      { label: 'Review',      className: 'bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/20' },
-  done:        { label: 'Done',        className: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/20' },
-};
+// stageChipConfig imported from @/lib/task-colors — single source of truth
 
 interface TaskDetailProps {
   task: Task;
@@ -320,7 +314,7 @@ function EnrichmentBanner({ taskId }: { taskId: string }) {
 
   return (
     <div className="mb-3 flex items-center gap-2 rounded-md border border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-3 py-2 text-sm text-indigo-800 dark:text-indigo-200">
-      <span className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse shrink-0" />
+      <span className="h-2 w-2 rounded-full bg-indigo-500 motion-safe:animate-pulse shrink-0" />
       <span>Enriching task description with AI — instructions will appear shortly...</span>
     </div>
   );
@@ -400,7 +394,7 @@ function QueueBadge({ taskId, sessionStatus }: { taskId: string; sessionStatus: 
 
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-600">
-      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse" />
       In Queue
     </span>
   );
@@ -550,7 +544,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
   const sessionStatus = session?.status ?? null;
   // Show "Continue Session" if Claude actually ran (has a claude_session_id), regardless of comments
   const canResume = !!session?.claude_session_id;
-  const stage = stageConfig[task.stage];
+  const stage = stageChipConfig[task.stage];
 
   // ── Feature 4: Move to Done mutation ────────────────────────────────────────
   const { mutate: moveToDone, isPending: isMovingDone } = useMutation({
