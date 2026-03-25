@@ -6,13 +6,14 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import {
   LayoutGrid, BarChart2, FileText, Settings, List,
-  ChevronDown, ChevronRight, Moon, Sun,
+  ChevronDown, Moon, Sun,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
 import type { Stage } from '@/types/task';
 import { useSidebarMetrics } from '@/hooks/use-sidebar-metrics';
+import { stageColors } from '@/lib/task-colors';
 import type { AnalyticsOverview } from '@/types/analytics';
 
 // ── constants ─────────────────────────────────────────────────────────────────
@@ -80,7 +81,7 @@ function SidebarMetrics() {
       </div>
       {data && data.active_sessions_today > 0 && (
         <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-green-600 dark:text-green-400 px-1">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 motion-safe:animate-pulse" />
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 motion-safe:animate-breathe" />
           {data.active_sessions_today} active today
         </div>
       )}
@@ -112,11 +113,12 @@ function SidebarContent() {
     return (
       <Link
         href={href}
+        aria-current={active ? 'page' : undefined}
         className={cn(
-          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors whitespace-nowrap',
+          'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150 whitespace-nowrap',
           active
-            ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-            : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
+            ? 'bg-primary/10 text-primary font-semibold border-l-2 border-primary'
+            : 'text-sidebar-foreground hover:bg-sidebar-accent/50 border-l-2 border-transparent'
         )}
       >
         <Icon className="h-4 w-4 shrink-0" />
@@ -130,7 +132,7 @@ function SidebarContent() {
       <aside className="w-0 overflow-hidden md:w-56 shrink-0 md:border-r border-border bg-sidebar md:min-h-screen md:p-4 md:flex md:flex-col">
         {/* Top row: app name + theme toggle */}
         <div className="hidden md:flex items-center justify-between mb-3">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <span className="text-sm font-bold tracking-tight text-foreground">
             AI Kanban
           </span>
           <ThemeToggle />
@@ -155,30 +157,39 @@ function SidebarContent() {
               <List className="h-4 w-4 shrink-0" />
               Tasks
             </span>
-            {tasksOpen
-              ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-            }
+            <ChevronDown
+              className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ${tasksOpen ? 'rotate-0' : '-rotate-90'}`}
+            />
           </button>
 
-          {tasksOpen && (
-            <div id="sidebar-tasks-list" className="ml-4 space-y-0.5 border-l border-border pl-3">
+          <div
+            className="grid transition-[grid-template-rows] duration-200 ease-out"
+            style={{ gridTemplateRows: tasksOpen ? '1fr' : '0fr' }}
+          >
+            <div
+              id="sidebar-tasks-list"
+              inert={!tasksOpen}
+              className="overflow-hidden ml-4 space-y-0.5 border-l border-border pl-3"
+            >
               {stages.map((stage) => (
                 <Link
                   key={stage.value}
                   href={stage.value === 'all' ? '/' : `/?stage=${stage.value}`}
                   className={cn(
-                    'block rounded-md px-2 py-1.5 text-sm transition-colors whitespace-nowrap',
+                    'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors whitespace-nowrap',
                     isActive(stage.value)
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground font-medium'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                   )}
                 >
+                  {stage.value !== 'all' && (
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${stageColors[stage.value as Stage]}`} />
+                  )}
                   {stage.label}
                 </Link>
               ))}
             </div>
-          )}
+          </div>
 
           {/* Metrics panel below Tasks section */}
           <SidebarMetrics />
@@ -192,6 +203,7 @@ function SidebarContent() {
             <Link
               key={href}
               href={href}
+              aria-current={isNavActive(href) ? 'page' : undefined}
               className={cn(
                 'flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors',
                 isNavActive(href)

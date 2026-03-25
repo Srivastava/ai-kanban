@@ -57,20 +57,30 @@ function StatsStrip({ onNewTask }: { onNewTask: () => void }) {
     <>
       {/* Stats strip */}
       {hasStats && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="mb-5 flex flex-wrap items-center gap-2">
           {activeCount > 0 && (
-            <span className="text-xs bg-muted/60 rounded-md px-3 py-1.5 flex items-center gap-1.5 text-foreground">
-              ⚡ <strong>{activeCount}</strong> active
+            <span
+              className="text-xs bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-1.5 flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-medium motion-safe:animate-fade-in-up"
+              style={{ animationDelay: '0ms' }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 motion-safe:animate-breathe shrink-0" />
+              <strong className="font-black">{activeCount}</strong> running
             </span>
           )}
           {inReviewCount > 0 && (
-            <span className="text-xs bg-muted/60 rounded-md px-3 py-1.5 flex items-center gap-1.5 text-foreground">
-              👁 <strong>{inReviewCount}</strong> in review
+            <span
+              className="text-xs bg-stage-review/10 border border-stage-review/20 rounded-lg px-3 py-1.5 flex items-center gap-2 text-stage-review-text font-medium motion-safe:animate-fade-in-up"
+              style={{ animationDelay: '60ms' }}
+            >
+              <strong className="font-black">{inReviewCount}</strong> in review
             </span>
           )}
           {todayCost > 0 && (
-            <span className="text-xs bg-muted/60 rounded-md px-3 py-1.5 flex items-center gap-1.5 text-foreground">
-              💰 <strong>${todayCost.toFixed(2)}</strong> total cost
+            <span
+              className="text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5 flex items-center gap-2 text-amber-700 dark:text-amber-400 font-medium motion-safe:animate-fade-in-up"
+              style={{ animationDelay: '120ms' }}
+            >
+              <strong className="font-black">${todayCost.toFixed(2)}</strong> total cost
             </span>
           )}
         </div>
@@ -121,7 +131,7 @@ function HomeContent() {
         <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6">
           <MobileMetricsStrip />
           <StatsStrip onNewTask={() => setDialogOpen(true)} />
-          <Suspense fallback={<div className="flex items-center justify-center h-64">Loading...</div>}>
+          <Suspense fallback={<div role="status" aria-live="polite" className="flex items-center justify-center h-64 text-sm text-muted-foreground">Loading...</div>}>
             <TaskContent onNewTask={() => setDialogOpen(true)} />
           </Suspense>
         </main>
@@ -133,7 +143,7 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+    <Suspense fallback={<div role="status" aria-live="polite" className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>}>
       <HomeContent />
     </Suspense>
   );

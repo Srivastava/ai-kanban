@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { TaskCard } from './task-card';
 import { TaskCardSkeleton } from './task-card-skeleton';
 import type { Task, Stage } from '@/types/task';
-import { stageColors, stageLabels } from '@/lib/task-colors';
+import { stageLabels, stageChipConfig } from '@/lib/task-colors';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ function ListRow({ task }: { task: Task }) {
             </span>
           )}
         </div>
-        <Badge className={`${stageColors[task.stage]} text-white shrink-0 text-xs`}>
+        <Badge className={`${stageChipConfig[task.stage].className} shrink-0 text-xs border font-semibold`}>
           {stageLabels[task.stage]}
         </Badge>
         <span
@@ -63,7 +63,7 @@ function CompactRow({ task }: { task: Task }) {
     <Link href={`/tasks/${task.id}`}>
       <div className="flex items-center gap-3 border-b border-border hover:bg-muted/30 transition-colors px-3 py-2 cursor-pointer text-sm min-h-[48px]">
         <span className="flex-1 min-w-0 truncate font-medium">{task.title}</span>
-        <Badge className={`${stageColors[task.stage]} text-white text-[10px] py-0 px-1.5 shrink-0`}>
+        <Badge className={`${stageChipConfig[task.stage].className} text-[10px] py-0 px-1.5 shrink-0 border font-semibold`}>
           {stageLabels[task.stage]}
         </Badge>
         <span
@@ -213,17 +213,20 @@ export function TaskList({ tasks, isLoading, stageParam, onNewTask }: TaskListPr
         {/* Sort dropdown */}
         <div className="relative">
           <button
+            aria-expanded={sortOpen}
+            aria-haspopup="menu"
             className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
             onClick={() => { setSortOpen((o) => !o); setProjectOpen(false); }}
           >
             Sort: {sortLabels[sortMode]}
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
           {sortOpen && (
-            <div className="absolute left-0 top-9 min-w-[140px] rounded-md border border-border bg-popover shadow-md z-50 py-1">
+            <div role="menu" aria-label="Sort options" className="absolute left-0 top-9 min-w-[140px] rounded-md border border-border bg-popover shadow-md z-50 py-1">
               {(['newest', 'oldest', 'title'] as SortMode[]).map((s) => (
                 <button
                   key={s}
+                  role="menuitem"
                   className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors ${sortMode === s ? 'font-semibold' : ''}`}
                   onClick={() => { setSortMode(s); setSortOpen(false); }}
                 >
@@ -238,16 +241,19 @@ export function TaskList({ tasks, isLoading, stageParam, onNewTask }: TaskListPr
         {projectPaths.length > 1 && (
           <div className="relative">
             <button
+              aria-expanded={projectOpen}
+              aria-haspopup="menu"
               className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted transition-colors"
               onClick={() => { setProjectOpen((o) => !o); setSortOpen(false); }}
             >
-              <FolderOpen className="h-3.5 w-3.5" />
+              <FolderOpen className="h-3.5 w-3.5" aria-hidden="true" />
               {projectFilter === 'all' ? 'All Projects' : getProjectFolderName(projectFilter)}
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
             {projectOpen && (
-              <div className="absolute left-0 top-9 min-w-[180px] rounded-md border border-border bg-popover shadow-md z-50 py-1">
+              <div role="menu" aria-label="Filter by project" className="absolute left-0 top-9 min-w-[180px] rounded-md border border-border bg-popover shadow-md z-50 py-1">
                 <button
+                  role="menuitem"
                   className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors ${projectFilter === 'all' ? 'font-semibold' : ''}`}
                   onClick={() => { setProjectFilter('all'); setProjectOpen(false); }}
                 >
@@ -256,6 +262,7 @@ export function TaskList({ tasks, isLoading, stageParam, onNewTask }: TaskListPr
                 {projectPaths.map((p) => (
                   <button
                     key={p}
+                    role="menuitem"
                     className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors truncate ${projectFilter === p ? 'font-semibold' : ''}`}
                     onClick={() => { setProjectFilter(p); setProjectOpen(false); }}
                     title={p}

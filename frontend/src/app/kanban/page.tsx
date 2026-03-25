@@ -2,9 +2,10 @@
 
 import { Suspense, useState } from 'react';
 import { KanbanBoard } from '@/components/kanban/kanban-board';
+import { KanbanBoardSkeleton } from '@/components/kanban/kanban-board-skeleton';
 import { useTasks } from '@/hooks/use-tasks';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { CreateTaskDialog } from '@/components/tasks/create-task-dialog';
 import { Sidebar } from '@/components/layout/sidebar';
 import type { Stage } from '@/types/task';
@@ -32,12 +33,19 @@ interface KanbanContentProps {
 }
 
 function KanbanContent({ onCreateTask }: KanbanContentProps) {
-  const { data: tasks = [], isLoading, error } = useTasks();
+  const { data: tasks = [], isLoading, error, refetch } = useTasks();
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-destructive">Error loading tasks: {error.message}</p>
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
+        <p className="text-sm font-medium text-destructive">Couldn't load tasks.</p>
+        <p className="text-xs text-muted-foreground max-w-[240px]">
+          The board is having a moment. Check your connection and try again.
+        </p>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()}>
+          <RefreshCw className="h-3.5 w-3.5" />
+          Retry
+        </Button>
       </div>
     );
   }
@@ -58,15 +66,18 @@ export default function KanbanPage() {
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <div className="border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Kanban Board</h1>
+          <div>
+            <h1 className="text-3xl font-black tracking-tighter leading-none">Kanban</h1>
+            <p className="text-xs text-stage-in-progress-text mt-0.5 font-medium">Drag tasks across stages</p>
+          </div>
           <Button onClick={() => setCreateOpen(true)} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="mr-1.5 h-4 w-4" />
             New Task
           </Button>
         </div>
         <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6 overflow-x-auto">
           <MetricsStrip />
-          <Suspense fallback={<div>Loading...</div>}>
+          <Suspense fallback={<KanbanBoardSkeleton />}>
             <KanbanContent onCreateTask={handleCreateTask} />
           </Suspense>
         </main>

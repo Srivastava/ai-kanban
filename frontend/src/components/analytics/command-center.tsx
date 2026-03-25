@@ -34,7 +34,7 @@ function BurnRateSparkline({ value }: { value: number }) {
 
   return (
     <svg width={W} height={H} className="inline-block opacity-70">
-      <polyline points={pts} fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeLinejoin="round" />
+      <polyline points={pts} fill="none" style={{ stroke: 'var(--muted-foreground)' }} strokeWidth={1.5} strokeLinejoin="round" />
     </svg>
   );
 }
@@ -127,7 +127,7 @@ export function CommandCenter() {
       {/* Active session banner */}
       {hasRunning && (
         <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-          <span className="h-2 w-2 rounded-full bg-amber-500 motion-safe:animate-pulse shrink-0" />
+          <span className="h-2 w-2 rounded-full bg-amber-500 motion-safe:animate-breathe shrink-0" />
           <span>Session running — cost updating every 10s</span>
         </div>
       )}
@@ -165,49 +165,61 @@ export function CommandCenter() {
         <ContextWindowGauges />
       </div>
 
-      {/* Headline stats */}
-      <div className="grid grid-cols-3 gap-4 pt-2 border-t border-border">
-        {/* Cost with breakdown */}
-        <div className="space-y-0.5">
+      {/* Headline stats — intentional hierarchy: cost > tokens > sessions */}
+      <div className="grid grid-cols-3 gap-4 sm:gap-6 pt-4 border-t border-border items-start">
+        {/* Cost — primary: hero number */}
+        <div className="space-y-1 col-span-3 sm:col-span-1">
           <div className="flex items-center gap-2">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Cost</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-500">Total Cost</p>
             {hasRunning && (
-              <span className="flex items-center gap-1 text-[10px] text-amber-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse" />
+              <span className="flex items-center gap-1 text-[10px] text-amber-500 font-semibold">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-breathe" />
                 live
               </span>
             )}
           </div>
-          <p className="text-2xl font-bold tabular-nums">{overview ? fmtCost(overview.estimated_cost_usd) : '—'}</p>
+          <p className="text-5xl font-black tabular-nums leading-none tracking-tighter">
+            {overview ? fmtCost(overview.estimated_cost_usd) : '—'}
+          </p>
           {overview && (
-            <div className="text-xs space-y-0.5 mt-1">
-              <div className="flex justify-between text-muted-foreground"><span>Output</span><span>{fmtCost(costOutput)}</span></div>
-              <div className="flex justify-between text-amber-500/80"><span>Cache write</span><span>{fmtCost(costCacheWrite)}</span></div>
-              <div className="flex justify-between text-amber-400/70"><span>Cache read</span><span>{fmtCost(costCacheRead)}</span></div>
-              <div className="flex justify-between text-muted-foreground"><span>Input</span><span>{fmtCost(costInput)}</span></div>
+            <div className="text-xs space-y-0.5 mt-2 border-t border-border/50 pt-2">
+              <div className="flex justify-between text-muted-foreground"><span>Output</span><span className="tabular-nums">{fmtCost(costOutput)}</span></div>
+              <div className="flex justify-between text-amber-500/80"><span>Cache write</span><span className="tabular-nums">{fmtCost(costCacheWrite)}</span></div>
+              <div className="flex justify-between text-amber-400/70"><span>Cache read</span><span className="tabular-nums">{fmtCost(costCacheRead)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Input</span><span className="tabular-nums">{fmtCost(costInput)}</span></div>
             </div>
           )}
         </div>
 
-        {/* Tokens with breakdown */}
-        <div className="space-y-0.5">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Tokens</p>
-          <p className="text-2xl font-bold tabular-nums">{overview ? fmt(effectiveTotal) : '—'}</p>
+        {/* Tokens — secondary */}
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-primary/80">Total Tokens</p>
+          <p className="text-3xl font-black tabular-nums leading-none tracking-tighter">
+            {overview ? fmt(effectiveTotal) : '—'}
+          </p>
           {overview && (
-            <div className="text-xs space-y-0.5 mt-1">
-              <div className="flex justify-between text-muted-foreground"><span>New input</span><span>{fmt(overview.total_input_tokens)}</span></div>
-              <div className="flex justify-between text-amber-500/80"><span>Cache write</span><span>{fmt(cacheCreation)}</span></div>
-              <div className="flex justify-between text-amber-400/70"><span>Cache read</span><span>{fmt(cacheRead)}</span></div>
-              <div className="flex justify-between text-muted-foreground"><span>Output</span><span>{fmt(overview.total_output_tokens)}</span></div>
+            <div className="text-xs space-y-0.5 mt-2 border-t border-border/50 pt-2">
+              <div className="flex justify-between text-muted-foreground"><span>New input</span><span className="tabular-nums">{fmt(overview.total_input_tokens)}</span></div>
+              <div className="flex justify-between text-amber-500/80"><span>Cache write</span><span className="tabular-nums">{fmt(cacheCreation)}</span></div>
+              <div className="flex justify-between text-amber-400/70"><span>Cache read</span><span className="tabular-nums">{fmt(cacheRead)}</span></div>
+              <div className="flex justify-between text-muted-foreground"><span>Output</span><span className="tabular-nums">{fmt(overview.total_output_tokens)}</span></div>
             </div>
           )}
         </div>
 
-        {/* Sessions */}
-        <div className="space-y-0.5">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">Sessions</p>
-          <p className="text-2xl font-bold tabular-nums">{overview ? String(overview.total_sessions) : '—'}</p>
-          {overview && <p className="text-xs text-muted-foreground">{overview.active_sessions_today} today</p>}
+        {/* Sessions — tertiary */}
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500">Sessions</p>
+          <p className="text-2xl font-black tabular-nums leading-none tracking-tighter text-muted-foreground/80">
+            {overview ? String(overview.total_sessions) : '—'}
+          </p>
+          {overview && (
+            <p className="text-xs text-muted-foreground mt-2 border-t border-border/50 pt-2">
+              {overview.active_sessions_today > 0
+                ? <span className="text-emerald-500 font-semibold">{overview.active_sessions_today} active now</span>
+                : 'none active'}
+            </p>
+          )}
         </div>
       </div>
     </div>

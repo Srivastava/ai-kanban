@@ -17,6 +17,13 @@ import type { LogLevel, LogSource, LogFilter } from '@/types/log';
 import type { Session } from '@/types/session';
 
 const LEVELS: LogLevel[] = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+
+const LEVEL_ACTIVE_CLASSES: Record<LogLevel, string> = {
+  DEBUG: 'bg-slate-500/15 text-slate-700 dark:text-slate-300 border border-slate-500/30',
+  INFO:  'bg-blue-500/15  text-blue-700  dark:text-blue-400  border border-blue-500/30',
+  WARN:  'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30',
+  ERROR: 'bg-red-500/15   text-red-700   dark:text-red-400   border border-red-500/30',
+};
 const SOURCES: { value: LogSource | ''; label: string }[] = [
   { value: '', label: 'All' },
   { value: 'frontend', label: 'Frontend' },
@@ -93,10 +100,8 @@ export default function LogsPage() {
         {/* Header */}
         <div className="border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold">Logs</h1>
-            <p className="text-sm text-muted-foreground">
-              Frontend + backend logs · polls every 5s
-            </p>
+            <h1 className="text-3xl font-black tracking-tighter leading-none">Logs</h1>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-0.5 font-medium">Frontend + backend · live stream</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Live</span>
@@ -122,7 +127,9 @@ export default function LogsPage() {
             <button
               onClick={() => setLevelFilter(undefined)}
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                !levelFilter ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                !levelFilter
+                  ? 'bg-foreground/12 text-foreground border border-foreground/20'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/70'
               }`}
             >
               ALL
@@ -132,7 +139,9 @@ export default function LogsPage() {
                 key={l}
                 onClick={() => setLevelFilter(levelFilter === l ? undefined : l)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                  levelFilter === l ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'
+                  levelFilter === l
+                    ? LEVEL_ACTIVE_CLASSES[l]
+                    : 'bg-muted text-muted-foreground hover:bg-muted/70'
                 }`}
               >
                 {l}
@@ -148,7 +157,7 @@ export default function LogsPage() {
                 onClick={() => setSourceFilter(s.value === '' ? undefined : s.value as LogSource)}
                 className={`px-3 py-1 text-xs font-medium transition-colors ${
                   (sourceFilter ?? '') === s.value
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-primary/15 text-primary font-semibold'
                     : 'bg-background text-muted-foreground hover:bg-muted'
                 }`}
               >
@@ -263,7 +272,7 @@ export default function LogsPage() {
           {isLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="h-9 animate-pulse bg-muted rounded" />
+                <div key={i} className="h-9 bg-muted rounded animate-shimmer" />
               ))}
             </div>
           ) : (

@@ -6,25 +6,54 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWebSocket } from '@/contexts/websocket-context';
 
-const CommandCenter = dynamic(
-  () => import('@/components/analytics/command-center').then(m => m.CommandCenter),
-  { ssr: false }
-);
+// All chart/heavy components are dynamically imported (ssr: false) so Recharts
+// and other large deps are excluded from the server bundle and only loaded when
+// the analytics page is actually visited.
+const CommandCenter     = dynamic(() => import('@/components/analytics/command-center').then(m => m.CommandCenter), { ssr: false });
+const RoiCards          = dynamic(() => import('@/components/analytics/roi-cards').then(m => m.RoiCards), { ssr: false });
+const CostBreakdownTable= dynamic(() => import('@/components/analytics/cost-breakdown-table').then(m => m.CostBreakdownTable), { ssr: false });
+const TokensByTaskChart = dynamic(() => import('@/components/analytics/tokens-by-task-chart').then(m => m.TokensByTaskChart), { ssr: false });
+const ProjectBubbleChart= dynamic(() => import('@/components/analytics/project-bubble-chart').then(m => m.ProjectBubbleChart), { ssr: false });
+const CumulativeCostChart=dynamic(() => import('@/components/analytics/cumulative-cost-chart').then(m => m.CumulativeCostChart), { ssr: false });
+const ActivityHeatmap   = dynamic(() => import('@/components/analytics/activity-heatmap').then(m => m.ActivityHeatmap), { ssr: false });
+const HourlyBreakdown   = dynamic(() => import('@/components/analytics/hourly-breakdown').then(m => m.HourlyBreakdown), { ssr: false });
+const TokenTimeChart    = dynamic(() => import('@/components/analytics/token-time-chart').then(m => m.TokenTimeChart), { ssr: false });
+const ToolBreakdownChart= dynamic(() => import('@/components/analytics/tool-breakdown-chart').then(m => m.ToolBreakdownChart), { ssr: false });
+const LanguageChart     = dynamic(() => import('@/components/analytics/language-chart').then(m => m.LanguageChart), { ssr: false });
+const StageBreakdownChart=dynamic(() => import('@/components/analytics/stage-breakdown-chart').then(m => m.StageBreakdownChart), { ssr: false });
+const ProductivitySection=dynamic(() => import('@/components/analytics/productivity-section').then(m => m.ProductivitySection), { ssr: false });
+const SessionTimelineChart=dynamic(() => import('@/components/analytics/session-timeline-chart').then(m => m.SessionTimelineChart), { ssr: false });
+const DevActivityCharts = dynamic(() => import('@/components/analytics/dev-activity-charts').then(m => m.DevActivityCharts), { ssr: false });
+// TaskFilterBar is above the fold / interactive — keep it static
 import { TaskFilterBar } from '@/components/analytics/task-filter-bar';
-import { RoiCards } from '@/components/analytics/roi-cards';
-import { ProductivitySection } from '@/components/analytics/productivity-section';
-import { TokenTimeChart } from '@/components/analytics/token-time-chart';
-import { ToolBreakdownChart } from '@/components/analytics/tool-breakdown-chart';
-import { LanguageChart } from '@/components/analytics/language-chart';
-import { StageBreakdownChart } from '@/components/analytics/stage-breakdown-chart';
-import { CostBreakdownTable } from '@/components/analytics/cost-breakdown-table';
-import { SessionTimelineChart } from '@/components/analytics/session-timeline-chart';
-import { DevActivityCharts } from '@/components/analytics/dev-activity-charts';
-import { TokensByTaskChart } from '@/components/analytics/tokens-by-task-chart';
-import { CumulativeCostChart } from '@/components/analytics/cumulative-cost-chart';
-import { ActivityHeatmap } from '@/components/analytics/activity-heatmap';
-import { HourlyBreakdown } from '@/components/analytics/hourly-breakdown';
-import { ProjectBubbleChart } from '@/components/analytics/project-bubble-chart';
+
+// ── Section header — numbered chapter style ───────────────────────────────
+interface SectionHeaderProps {
+  num: string;
+  title: string;
+  sub?: string;
+}
+
+function SectionHeader({ num, title, sub }: SectionHeaderProps) {
+  return (
+    <div className="flex items-end gap-4 border-b-2 border-border pb-4">
+      <span
+        aria-hidden
+        className="text-[52px] sm:text-[80px] font-black leading-none tracking-tighter text-primary/[0.10] select-none -mb-2 tabular-nums shrink-0"
+      >
+        {num}
+      </span>
+      <div className="pb-1 min-w-0">
+        <h2 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none">{title}</h2>
+        {sub && (
+          <p className="text-[11px] text-muted-foreground mt-1.5 uppercase tracking-widest font-medium">
+            {sub}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function AnalyticsPageInner() {
   const searchParams = useSearchParams();
@@ -73,15 +102,14 @@ export function AnalyticsPageInner() {
       {/* Sticky task filter — sole filter for entire page */}
       <TaskFilterBar selectedTaskId={selectedTaskId} onSelect={setSelectedTaskId} />
 
-      <div className="p-4 sm:p-6 space-y-10">
+      <div className="p-4 sm:p-6 space-y-16">
         {/* ROI & Cost */}
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold">ROI & Cost</h2>
-            <p className="text-sm text-muted-foreground">
-              {selectedTaskId ? 'Filtered to selected task' : 'All tasks combined'}
-            </p>
-          </div>
+        <section className="space-y-6">
+          <SectionHeader
+            num="01"
+            title="ROI & Cost"
+            sub={selectedTaskId ? 'filtered to selected task' : 'all tasks combined'}
+          />
           <RoiCards taskId={selectedTaskId} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <CostBreakdownTable taskId={selectedTaskId} />
@@ -95,8 +123,8 @@ export function AnalyticsPageInner() {
         </section>
 
         {/* Usage Trends */}
-        <section className="space-y-4">
-          <h2 className="text-base font-semibold">Usage Trends</h2>
+        <section className="space-y-6">
+          <SectionHeader num="02" title="Usage Trends" />
           {/* Heatmap + Hourly */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-2">
@@ -113,24 +141,22 @@ export function AnalyticsPageInner() {
         </section>
 
         {/* Productivity */}
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold">Productivity</h2>
-            <p className="text-sm text-muted-foreground">
-              Commits, PRs, and lines written (requires OTel)
-            </p>
-          </div>
+        <section className="space-y-6">
+          <SectionHeader
+            num="03"
+            title="Productivity"
+            sub="commits, PRs, and lines written — requires OTel"
+          />
           <ProductivitySection taskId={selectedTaskId} />
         </section>
 
         {/* Session Deep Dive */}
-        <section className="space-y-4">
-          <div>
-            <h2 className="text-base font-semibold">Session Deep Dive</h2>
-            <p className="text-sm text-muted-foreground">
-              {selectedTaskId ? 'Sessions for selected task' : 'Select a task above to filter'}
-            </p>
-          </div>
+        <section className="space-y-6">
+          <SectionHeader
+            num="04"
+            title="Session Deep Dive"
+            sub={selectedTaskId ? 'sessions for selected task' : 'select a task above to filter'}
+          />
           <SessionTimelineChart taskId={selectedTaskId} />
           <DevActivityCharts taskId={selectedTaskId} />
         </section>

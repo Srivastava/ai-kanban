@@ -20,7 +20,7 @@ import { useAllSessions } from '@/hooks/use-sessions';
 import { apiClient } from '@/lib/api-client';
 import type { Task, Stage } from '@/types/task';
 import type { CostByTask } from '@/types/analytics';
-import { stageColors, stageLabels } from '@/lib/task-colors';
+import { stageLabels, stageChipConfig } from '@/lib/task-colors';
 
 const stages: Stage[] = ['backlog', 'planning', 'ready', 'in_progress', 'review', 'done'];
 
@@ -139,7 +139,7 @@ export function KanbanBoard({ tasks, isLoading, onCreateTask }: KanbanBoardProps
         </span>
         {activeSessionCount > 0 && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse" />
+            <span className="inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-breathe" />
             <span className="font-medium text-foreground">{activeSessionCount}</span> active
           </span>
         )}
@@ -194,7 +194,7 @@ export function KanbanBoard({ tasks, isLoading, onCreateTask }: KanbanBoardProps
 
       {/* Undo toast */}
       {undoEntry && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover px-4 py-2.5 shadow-lg text-sm max-w-[90vw]">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border border-border bg-popover px-4 py-2.5 shadow-lg text-sm max-w-[90vw] motion-safe:animate-toast-enter">
           <span className="text-muted-foreground truncate">
             Moved to {stageLabels[undoEntry.toStage]}
           </span>
@@ -232,7 +232,7 @@ function MobileKanban({ tasksByStage, isLoading, onCreateTask, costByTaskId }: M
             onClick={() => setActiveStage(stage)}
             className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium transition-colors min-h-[36px] ${
               activeStage === stage
-                ? `${stageColors[stage]} text-white`
+                ? `${stageChipConfig[stage].className} border`
                 : 'text-muted-foreground hover:bg-muted'
             }`}
           >
@@ -246,8 +246,9 @@ function MobileKanban({ tasksByStage, isLoading, onCreateTask, costByTaskId }: M
         ))}
       </div>
 
-      {/* Single active column */}
+      {/* Single active column — key remounts on stage change to trigger card stagger */}
       <KanbanColumn
+        key={activeStage}
         stage={activeStage}
         tasks={tasksByStage[activeStage]}
         isLoading={isLoading}

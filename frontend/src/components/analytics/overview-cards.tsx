@@ -14,7 +14,7 @@ function fmtCost(n: number): string {
 }
 
 function Skeleton({ className = 'w-16 h-7' }: { className?: string }) {
-  return <span className={`motion-safe:animate-pulse bg-muted rounded inline-block ${className}`} />;
+  return <span className={`bg-muted rounded inline-block animate-shimmer ${className}`} />;
 }
 
 export function OverviewCards() {
@@ -37,10 +37,10 @@ export function OverviewCards() {
       {/* Featured row: two primary metrics side by side */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Token Usage — featured */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Token Usage</p>
-          <p className="text-3xl font-bold tabular-nums leading-none mb-3">
-            {isLoading ? <Skeleton className="w-24 h-8" /> : fmt(effectiveTotal)}
+        <div className="rounded-xl border border-border bg-card p-5 border-t-2 border-t-primary/50">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-primary/70 mb-2">Token Usage</p>
+          <p className="text-5xl font-black tabular-nums leading-none tracking-tighter mb-3">
+            {isLoading ? <Skeleton className="w-24 h-12" /> : fmt(effectiveTotal)}
           </p>
           {data && !isLoading ? (
             <div className="space-y-1 border-t border-border pt-2">
@@ -67,10 +67,10 @@ export function OverviewCards() {
         </div>
 
         {/* Estimated Cost — featured */}
-        <div className="rounded-xl border border-border bg-card p-5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Estimated Cost</p>
-          <p className="text-3xl font-bold tabular-nums leading-none mb-3">
-            {isLoading ? <Skeleton className="w-24 h-8" /> : (data ? fmtCost(data.estimated_cost_usd) : '—')}
+        <div className="rounded-xl border border-border bg-card p-5 border-t-2 border-t-amber-500/60">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-500 mb-2">Estimated Cost</p>
+          <p className="text-5xl font-black tabular-nums leading-none tracking-tighter mb-3">
+            {isLoading ? <Skeleton className="w-24 h-12" /> : (data ? fmtCost(data.estimated_cost_usd) : '—')}
           </p>
           {data && !isLoading ? (
             <div className="space-y-1 border-t border-border pt-2">
@@ -99,28 +99,28 @@ export function OverviewCards() {
 
       {/* Secondary row: compact stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-border bg-card px-4 py-3 flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-card px-4 py-4 flex items-center justify-between border-t-2 border-t-emerald-500/50">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Sessions</p>
-            <p className="text-xl font-bold tabular-nums leading-tight mt-0.5">
-              {isLoading ? <Skeleton className="w-10 h-6" /> : (data ? data.total_sessions : '—')}
+            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500">Sessions</p>
+            <p className="text-3xl font-black tabular-nums tracking-tighter leading-tight mt-1">
+              {isLoading ? <Skeleton className="w-10 h-8" /> : (data ? data.total_sessions : '—')}
             </p>
           </div>
           {data && !isLoading && data.active_sessions_today > 0 && (
-            <span className="text-xs text-green-600 dark:text-green-400 font-medium bg-green-500/10 rounded-full px-2 py-1">
-              {data.active_sessions_today} today
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 rounded-lg px-2.5 py-1.5">
+              {data.active_sessions_today} live
             </span>
           )}
         </div>
 
-        <div className="rounded-lg border border-border bg-card px-4 py-3 flex items-center justify-between">
+        <div className="rounded-xl border border-border bg-card px-4 py-4 flex items-center justify-between border-t-2 border-t-stage-planning/60">
           <div>
-            <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Tasks w/ AI</p>
-            <p className="text-xl font-bold tabular-nums leading-tight mt-0.5">
-              {isLoading ? <Skeleton className="w-10 h-6" /> : (data ? data.total_tasks_with_sessions : '—')}
+            <p className="text-[10px] font-bold uppercase tracking-widest text-stage-planning-text">AI Tasks</p>
+            <p className="text-3xl font-black tabular-nums tracking-tighter leading-tight mt-1">
+              {isLoading ? <Skeleton className="w-10 h-8" /> : (data ? data.total_tasks_with_sessions : '—')}
             </p>
           </div>
-          <span className="text-xs text-muted-foreground">≥1 session</span>
+          <span className="text-[10px] text-muted-foreground font-medium">≥1 session</span>
         </div>
       </div>
     </div>

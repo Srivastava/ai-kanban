@@ -6,12 +6,11 @@ import { Trash2, FolderOpen, MoreHorizontal } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 import { useDeleteTask, useMoveTask } from '@/hooks/use-tasks';
 import { useAllSessions } from '@/hooks/use-sessions';
 import type { Task, Stage } from '@/types/task';
-import { stageColors, stageBorderColors, stageLabels, priorityConfig } from '@/lib/task-colors';
+import { stageBorderColors, stageLabels, priorityConfig, stageCardBg, stageTextColor, stageChipConfig } from '@/lib/task-colors';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -76,6 +75,7 @@ export function TaskCard({ task }: TaskCardProps) {
 
   const priorityInfo = task.priority > 0 ? priorityConfig[task.priority] : null;
   const borderClass = stageBorderColors[task.stage] ?? '';
+  const cardBg = stageCardBg[task.stage] ?? '';
 
   // close menu when clicking outside
   useEffect(() => {
@@ -97,38 +97,45 @@ export function TaskCard({ task }: TaskCardProps) {
   return (
     <div className="relative group">
       <Link href={`/tasks/${task.id}`}>
-        <Card className={`hover:shadow-md transition-shadow cursor-pointer ${borderClass} overflow-hidden`}>
-          <CardHeader className="pb-2">
+        <div className={`
+          rounded-xl border border-border/60 overflow-hidden cursor-pointer
+          hover:shadow-xl hover:shadow-black/25 hover:-translate-y-0.5
+          active:translate-y-0 active:shadow-md
+          transition-all duration-150 ease-out
+          ${cardBg} ${borderClass}
+        `}>
+          {/* Header */}
+          <div className="p-4 pb-2">
             <div className="flex items-start justify-between gap-2">
-              <CardTitle className="text-base font-medium line-clamp-2 pr-6 flex items-center gap-1.5">
+              <p className={`text-base font-semibold line-clamp-2 pr-6 flex items-center gap-1.5 leading-snug ${stageTextColor[task.stage]}`}>
                 {isSessionActive && (
                   <span
-                    className="inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse shrink-0"
+                    className="inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-breathe shrink-0"
                     aria-label="Session active"
                   />
                 )}
                 {task.title}
-              </CardTitle>
-              <Badge className={`${stageColors[task.stage]} text-white shrink-0`}>
+              </p>
+              <Badge className={`${stageChipConfig[task.stage].className} shrink-0 text-[10px] border font-semibold`}>
                 {stageLabels[task.stage]}
               </Badge>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          </div>
+
+          {/* Content */}
+          <div className="px-4 pb-4 space-y-2">
             {descriptionPreview && (
-              <p className="text-sm text-muted-foreground line-clamp-2">
+              <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
                 {descriptionPreview}
               </p>
             )}
 
             {/* project chip */}
             {folderName && (
-              <div className="flex items-center gap-1">
-                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
-                  <FolderOpen className="h-3 w-3" />
-                  {folderName}
-                </span>
-              </div>
+              <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-black/10 dark:bg-white/5 rounded px-1.5 py-0.5">
+                <FolderOpen className="h-3 w-3" />
+                {folderName}
+              </span>
             )}
 
             {/* footer */}
@@ -140,8 +147,8 @@ export function TaskCard({ task }: TaskCardProps) {
                 </span>
               )}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </Link>
 
       {/* Delete button — floats top-right on hover */}
@@ -149,7 +156,7 @@ export function TaskCard({ task }: TaskCardProps) {
         variant="ghost"
         size="icon"
         aria-label="Delete task"
-        className="absolute top-2 right-8 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
+        className="absolute top-2 right-8 h-8 w-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmOpen(true); }}
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -161,7 +168,9 @@ export function TaskCard({ task }: TaskCardProps) {
           variant="ghost"
           size="icon"
           aria-label="More options"
-          className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
+          aria-expanded={menuOpen}
+          aria-haspopup="menu"
+          className="h-8 w-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-muted"
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen((o) => !o); }}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />

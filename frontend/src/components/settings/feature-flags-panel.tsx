@@ -29,7 +29,7 @@ export function FeatureFlagsPanel() {
     return (
       <div className="space-y-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-16 animate-pulse bg-muted rounded-lg" />
+          <div key={i} className="h-16 bg-muted rounded-lg animate-shimmer" />
         ))}
       </div>
     );
@@ -42,7 +42,11 @@ export function FeatureFlagsPanel() {
         return (
           <div
             key={flag.key}
-            className="flex items-start gap-4 rounded-lg border border-border p-4"
+            className={`flex items-start gap-4 rounded-lg border p-4 transition-colors ${
+              flag.enabled
+                ? 'border-primary/35 bg-primary/[0.04]'
+                : 'border-border'
+            }`}
           >
             <button
               role="switch"
@@ -60,7 +64,7 @@ export function FeatureFlagsPanel() {
               />
             </button>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
+              <p className={`text-sm font-medium ${flag.enabled ? 'text-primary' : ''}`}>
                 {meta?.label ?? flag.key}
               </p>
               {meta?.description && (

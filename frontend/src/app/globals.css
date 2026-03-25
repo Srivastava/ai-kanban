@@ -62,41 +62,76 @@
   --color-stage-in-progress-text: var(--stage-in-progress-text);
   --color-stage-review-text:      var(--stage-review-text);
   --color-stage-done-text:        var(--stage-done-text);
+
+  /* ── Custom animations ────────────────────────────────────────────────────
+     shimmer:      skeleton loading state — gradient sweep across the element.
+     breathe:      live status dot — slow organic scale oscillation.
+     float:        empty state icon — gentle vertical bob.
+     fade-in-up:   element entrance — fade + 8px upward slide.
+     spin-slow:    slow continuous rotation for loading indicators.
+     count-bump:   number badge — quick scale pulse when value changes.
+     toast-enter:  undo toast — slide up from just below its resting position.
+     card-lift:    drag overlay — continuous subtle float while dragging. */
+  --animate-shimmer:     shimmer 1.5s ease-in-out infinite;
+  --animate-breathe:     breathe 2s ease-in-out infinite;
+  --animate-float:       float 3s ease-in-out infinite;
+  --animate-fade-in-up:  fade-in-up 0.35s cubic-bezier(0.25, 1, 0.5, 1) both;
+  --animate-spin-slow:   spin-slow 2.4s linear infinite;
+  --animate-count-bump:  count-bump 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-toast-enter: toast-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  /* ── Stage card tints ─────────────────────────────────────────────────────
+     Subtle colored backgrounds for task cards — hue-matched to each stage,
+     light in light mode, dark in dark mode. */
+  --color-card-tint-backlog:     var(--card-tint-backlog);
+  --color-card-tint-planning:    var(--card-tint-planning);
+  --color-card-tint-ready:       var(--card-tint-ready);
+  --color-card-tint-in-progress: var(--card-tint-in-progress);
+  --color-card-tint-review:      var(--card-tint-review);
+  --color-card-tint-done:        var(--card-tint-done);
 }
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --background: oklch(0.995 0.004 264);
+  --foreground: oklch(0.145 0.008 264);
+  --card: oklch(0.993 0.005 264);
+  --card-foreground: oklch(0.145 0.008 264);
+  --popover: oklch(0.993 0.005 264);
+  --popover-foreground: oklch(0.145 0.008 264);
+  --primary: oklch(0.32 0.12 264);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.966 0.006 264);
+  --secondary-foreground: oklch(0.22 0.01 264);
+  --muted: oklch(0.966 0.006 264);
+  --muted-foreground: oklch(0.52 0.018 264);
+  --accent: oklch(0.966 0.006 264);
+  --accent-foreground: oklch(0.22 0.01 264);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.912 0.008 264);
+  --input: oklch(0.912 0.008 264);
+  --ring: oklch(0.46 0.18 264);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar: oklch(0.980 0.007 264);
+  --sidebar-foreground: oklch(0.145 0.008 264);
+  --sidebar-primary: oklch(0.32 0.12 264);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(0.966 0.006 264);
+  --sidebar-accent-foreground: oklch(0.22 0.01 264);
+  --sidebar-border: oklch(0.912 0.008 264);
+  --sidebar-ring: oklch(0.46 0.18 264);
+
+  /* Stage card tints — light mode: barely-there hue on near-white surface */
+  --card-tint-backlog:     oklch(0.975 0.010 257);
+  --card-tint-planning:    oklch(0.975 0.012 263);
+  --card-tint-ready:       oklch(0.975 0.012 75);
+  --card-tint-in-progress: oklch(0.975 0.012 45);
+  --card-tint-review:      oklch(0.975 0.010 304);
+  --card-tint-done:        oklch(0.975 0.010 163);
 
   /* Stage solid colors — badge backgrounds, borders, dot indicators */
   --stage-backlog:          oklch(0.554 0.046 257);
@@ -115,34 +150,42 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
+  /* Stage card tints — dark mode: hue-tinted dark surfaces */
+  --card-tint-backlog:     oklch(0.220 0.022 257);
+  --card-tint-planning:    oklch(0.220 0.024 263);
+  --card-tint-ready:       oklch(0.220 0.022 75);
+  --card-tint-in-progress: oklch(0.220 0.022 45);
+  --card-tint-review:      oklch(0.220 0.022 304);
+  --card-tint-done:        oklch(0.220 0.022 163);
+
+  --background: oklch(0.142 0.008 264);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
+  --card: oklch(0.200 0.007 264);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
+  --popover: oklch(0.200 0.007 264);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --primary: oklch(0.60 0.22 264);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.265 0.005 264);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
+  --muted: oklch(0.265 0.005 264);
   --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --accent: oklch(0.265 0.005 264);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.60 0.22 264);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
+  --sidebar: oklch(0.192 0.012 264);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent: oklch(0.265 0.005 264);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
@@ -163,6 +206,62 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ── Keyframes ──────────────────────────────────────────────────────────── */
+
+/* Skeleton loading: a soft highlight sweeps left→right. Works on any bg-*
+   because the gradient is semi-transparent white, not a hard-coded color. */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* Live status dot: slow, organic scale oscillation — feels alive, not alarming */
+@keyframes breathe {
+  0%, 100% { transform: scale(1);   opacity: 0.8; }
+  50%       { transform: scale(1.5); opacity: 1;   }
+}
+
+/* Shimmer utility needs extra properties beyond what the animation itself sets */
+.animate-shimmer {
+  background-image: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.06) 40%,
+    rgba(255, 255, 255, 0.06) 60%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-7px); }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Task count badge: quick scale up then settle — fires when key changes */
+@keyframes count-bump {
+  0%   { transform: scale(1);    opacity: 0.6; }
+  35%  { transform: scale(1.55); opacity: 1;   }
+  65%  { transform: scale(0.92); opacity: 0.9; }
+  100% { transform: scale(1);    opacity: 0.6; }
+}
+
+/* Undo toast: slides up 12px from below and fades in */
+@keyframes toast-enter {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translate(-50%, 0);    }
 }
 
 /* Respect motion preferences — disable all animations for users who opt out */

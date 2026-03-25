@@ -7,13 +7,12 @@ import { formatDistanceToNow } from 'date-fns';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfirmDeleteDialog } from '@/components/tasks/confirm-delete-dialog';
 import { useDeleteTask, useMoveTask } from '@/hooks/use-tasks';
 import { useAllSessions } from '@/hooks/use-sessions';
 import type { Task, Stage } from '@/types/task';
 import type { CostByTask } from '@/types/analytics';
-import { priorityConfig } from '@/lib/task-colors';
+import { priorityConfig, stageBorderColors, stageCardBg, stageTextColor } from '@/lib/task-colors';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -53,9 +52,10 @@ interface KanbanCardProps {
   task: Task;
   isOverlay?: boolean;
   costData?: CostByTask;
+  index?: number;
 }
 
-export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProps) {
+export function KanbanCard({ task, isOverlay = false, costData, index = 0 }: KanbanCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -108,33 +108,47 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative group ${isDragging ? 'opacity-50' : ''}`}
+      className={`relative group ${isDragging ? 'opacity-20' : ''}`}
     >
       {/* Drag handle wraps the card */}
       <div {...attributes} {...listeners}>
         <Link href={`/tasks/${task.id}`}>
-          <Card className="cursor-pointer hover:shadow-md transition-shadow overflow-hidden">
-            <CardHeader className="p-3 pb-1">
+          <div
+            className={`
+              rounded-xl border border-border/60 overflow-hidden cursor-pointer
+              hover:shadow-xl hover:shadow-black/30 hover:-translate-y-0.5
+              active:translate-y-0 active:shadow-md
+              transition-all duration-150 ease-out
+              motion-safe:animate-fade-in-up
+              ${stageCardBg[task.stage]} ${stageBorderColors[task.stage]}
+              ${isOverlay ? 'shadow-2xl shadow-black/50 scale-[1.04] rotate-[0.7deg] -translate-y-1' : ''}
+            `}
+            style={{ animationDelay: isOverlay ? undefined : `${index * 35}ms` }}
+          >
+            {/* Header */}
+            <div className="px-3 pt-3 pb-1.5">
               <div className="flex items-start gap-1.5">
                 {isSessionActive && (
                   <span
-                    className="mt-1 inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse shrink-0"
+                    className="mt-1 inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-breathe shrink-0"
                     aria-label="Session active"
                   />
                 )}
-                <CardTitle className="text-sm font-medium line-clamp-2 flex-1 pr-5">
+                <p className={`text-sm font-semibold line-clamp-2 flex-1 pr-4 leading-snug ${stageTextColor[task.stage]}`}>
                   {task.title}
-                </CardTitle>
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="p-3 pt-1 space-y-1.5">
+            </div>
+
+            {/* Content */}
+            <div className="px-3 pb-3 pt-0 space-y-1.5">
               {descriptionPreview && (
-                <p className="text-xs text-muted-foreground line-clamp-2">
+                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                   {descriptionPreview}
                 </p>
               )}
               {folderName && (
-                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 rounded px-1.5 py-0.5">
+                <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-black/10 dark:bg-white/5 rounded px-1.5 py-0.5">
                   <FolderOpen className="h-3 w-3" />
                   {folderName}
                 </span>
@@ -142,12 +156,12 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
               {costData && (costData.cost_usd > 0 || totalTokens > 0) && (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {costData.cost_usd > 0 && (
-                    <span className="text-[10px] bg-green-500/10 text-green-600 dark:text-green-400 rounded px-1.5 py-0.5 font-medium">
+                    <span className="text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 rounded px-1.5 py-0.5 font-medium">
                       ${costData.cost_usd < 0.01 ? '<0.01' : costData.cost_usd.toFixed(2)}
                     </span>
                   )}
                   {totalTokens > 0 && (
-                    <span className="text-[10px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded px-1.5 py-0.5 font-medium">
+                    <span className="text-[10px] bg-primary/10 text-primary rounded px-1.5 py-0.5 font-medium">
                       {fmtTokens(totalTokens)} tok
                     </span>
                   )}
@@ -158,15 +172,13 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
                   {updatedRelative}
                 </span>
                 {priorityInfo && (
-                  <span
-                    className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${priorityInfo.className}`}
-                  >
+                  <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${priorityInfo.className}`}>
                     {priorityInfo.label}
                   </span>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </Link>
       </div>
 
@@ -176,7 +188,7 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
             variant="ghost"
             size="icon"
             aria-label="Delete task"
-            className="absolute top-1 right-7 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
+            className="absolute top-1 right-7 h-8 w-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -191,7 +203,9 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
               variant="ghost"
               size="icon"
               aria-label="More options"
-              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
+              aria-expanded={menuOpen}
+              aria-haspopup="menu"
+              className="h-8 w-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-muted"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();

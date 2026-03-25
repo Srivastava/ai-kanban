@@ -6,12 +6,16 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Cartes
 import { useTaskSessions, useTokensByTask } from '@/hooks/use-analytics';
 import type { SessionDetail } from '@/types/analytics';
 
+// SVG fill attributes require resolved hex values — CSS custom properties
+// don't resolve in SVG presentation attributes. Values match design tokens:
+// emerald-500(completed), indigo(running≈primary), amber-500(pending),
+// slate-400(stopped), red-500(failed).
 const STATUS_COLORS: Record<string, string> = {
-  completed: '#22c55e',
-  running: '#6366f1',
-  pending: '#f97316',
-  stopped: '#94a3b8',
-  failed: '#ef4444',
+  completed: '#10b981',
+  running:   '#6366f1',
+  pending:   '#f59e0b',
+  stopped:   '#94a3b8',
+  failed:    '#ef4444',
 };
 
 function statusColor(status: string) {
@@ -120,7 +124,7 @@ export function SessionLifecyclePanel({
             </div>
           ) : isLoading ? (
             <div className="p-4 space-y-2">
-              <div className="h-32 animate-pulse bg-muted rounded" />
+              <div className="h-32 bg-muted rounded animate-shimmer" />
             </div>
           ) : sessions.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
