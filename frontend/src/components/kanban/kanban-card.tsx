@@ -13,6 +13,7 @@ import { useDeleteTask, useMoveTask } from '@/hooks/use-tasks';
 import { useAllSessions } from '@/hooks/use-sessions';
 import type { Task, Stage } from '@/types/task';
 import type { CostByTask } from '@/types/analytics';
+import { priorityConfig } from '@/lib/task-colors';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -36,13 +37,6 @@ function getProjectFolderName(projectPath: string): string {
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
-
-const priorityConfig: Record<number, { label: string; className: string }> = {
-  1: { label: 'Low', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
-  2: { label: 'Medium', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-  3: { label: 'High', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
-  4: { label: 'Critical', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-};
 
 const ALL_STAGES: { value: Stage; label: string }[] = [
   { value: 'backlog', label: 'Backlog' },
@@ -124,7 +118,7 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
               <div className="flex items-start gap-1.5">
                 {isSessionActive && (
                   <span
-                    className="mt-1 inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0"
+                    className="mt-1 inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse shrink-0"
                     aria-label="Session active"
                   />
                 )}
@@ -182,7 +176,7 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
             variant="ghost"
             size="icon"
             aria-label="Delete task"
-            className="absolute top-1.5 right-7 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
+            className="absolute top-1 right-7 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -197,7 +191,7 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
               variant="ghost"
               size="icon"
               aria-label="More options"
-              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
+              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-muted"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -208,10 +202,15 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
             </Button>
 
             {menuOpen && (
-              <div className="absolute right-0 top-7 min-w-[160px] rounded-md border border-border bg-popover shadow-md z-50 py-1">
+              <div
+                role="menu"
+                aria-label="Task options"
+                className="absolute right-0 top-7 min-w-[160px] rounded-md border border-border bg-popover shadow-md z-50 py-1"
+              >
                 {ALL_STAGES.filter((s) => s.value !== task.stage).map((s) => (
                   <button
                     key={s.value}
+                    role="menuitem"
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                     onClick={(e) => {
                       e.preventDefault();
@@ -225,6 +224,7 @@ export function KanbanCard({ task, isOverlay = false, costData }: KanbanCardProp
                 <div className="h-px bg-border my-1" />
                 <Link
                   href={`/tasks/${task.id}`}
+                  role="menuitem"
                   className="block px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                   onClick={(e) => e.stopPropagation()}
                 >

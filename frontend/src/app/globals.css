@@ -125,6 +125,18 @@
   }
 }
 
+/* Respect motion preferences — disable all animations for users who opt out */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Recharts renders axis tick text via SVG presentation attributes (fill="...").
    CSS variables don't resolve in SVG presentation attributes — only in CSS style
    properties. These rules override the attribute with a CSS property so the

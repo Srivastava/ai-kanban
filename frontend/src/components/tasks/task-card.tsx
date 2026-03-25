@@ -11,6 +11,7 @@ import { ConfirmDeleteDialog } from './confirm-delete-dialog';
 import { useDeleteTask, useMoveTask } from '@/hooks/use-tasks';
 import { useAllSessions } from '@/hooks/use-sessions';
 import type { Task, Stage } from '@/types/task';
+import { stageColors, stageBorderColors, stageLabels, priorityConfig } from '@/lib/task-colors';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,40 +41,6 @@ function getProjectFolderName(projectPath: string): string {
 }
 
 // ── constants ─────────────────────────────────────────────────────────────────
-
-const stageColors: Record<Stage, string> = {
-  backlog: 'bg-gray-500',
-  planning: 'bg-blue-500',
-  ready: 'bg-yellow-500',
-  in_progress: 'bg-orange-500',
-  review: 'bg-purple-500',
-  done: 'bg-green-500',
-};
-
-const stageBorderColors: Record<Stage, string> = {
-  backlog: 'border-l-4 border-l-slate-400',
-  planning: 'border-l-4 border-l-blue-500',
-  ready: 'border-l-4 border-l-amber-500',
-  in_progress: 'border-l-4 border-l-orange-500',
-  review: 'border-l-4 border-l-purple-500',
-  done: 'border-l-4 border-l-green-500',
-};
-
-const stageLabels: Record<Stage, string> = {
-  backlog: 'Backlog',
-  planning: 'Planning',
-  ready: 'Ready',
-  in_progress: 'In Progress',
-  review: 'Review',
-  done: 'Done',
-};
-
-const priorityConfig: Record<number, { label: string; className: string }> = {
-  1: { label: 'Low', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
-  2: { label: 'Medium', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-  3: { label: 'High', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' },
-  4: { label: 'Critical', className: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' },
-};
 
 const MOVE_STAGES: { value: Stage; label: string }[] = [
   { value: 'in_progress', label: 'Move to In Progress' },
@@ -136,7 +103,7 @@ export function TaskCard({ task }: TaskCardProps) {
               <CardTitle className="text-base font-medium line-clamp-2 pr-6 flex items-center gap-1.5">
                 {isSessionActive && (
                   <span
-                    className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0"
+                    className="inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse shrink-0"
                     aria-label="Session active"
                   />
                 )}
@@ -201,10 +168,15 @@ export function TaskCard({ task }: TaskCardProps) {
         </Button>
 
         {menuOpen && (
-          <div className="absolute right-0 top-8 min-w-[160px] rounded-md border border-border bg-popover shadow-md z-50 py-1">
+          <div
+            role="menu"
+            aria-label="Task options"
+            className="absolute right-0 top-8 min-w-[160px] rounded-md border border-border bg-popover shadow-md z-50 py-1"
+          >
             {MOVE_STAGES.filter((s) => s.value !== task.stage).map((s) => (
               <button
                 key={s.value}
+                role="menuitem"
                 className="w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleMove(s.value); }}
               >
@@ -214,6 +186,7 @@ export function TaskCard({ task }: TaskCardProps) {
             <div className="h-px bg-border my-1" />
             <Link
               href={`/tasks/${task.id}`}
+              role="menuitem"
               className="block px-3 py-1.5 text-sm hover:bg-muted transition-colors"
               onClick={(e) => e.stopPropagation()}
             >

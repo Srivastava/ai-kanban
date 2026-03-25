@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { TaskCard } from './task-card';
 import { TaskCardSkeleton } from './task-card-skeleton';
 import type { Task, Stage } from '@/types/task';
+import { stageColors, stageLabels } from '@/lib/task-colors';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -17,24 +18,6 @@ function getProjectFolderName(projectPath: string): string {
   const parts = projectPath.replace(/\/$/, '').split('/');
   return parts[parts.length - 1] || projectPath;
 }
-
-const stageColors: Record<Stage, string> = {
-  backlog: 'bg-gray-500',
-  planning: 'bg-blue-500',
-  ready: 'bg-yellow-500',
-  in_progress: 'bg-orange-500',
-  review: 'bg-purple-500',
-  done: 'bg-green-500',
-};
-
-const stageLabels: Record<Stage, string> = {
-  backlog: 'Backlog',
-  planning: 'Planning',
-  ready: 'Ready',
-  in_progress: 'In Progress',
-  review: 'Review',
-  done: 'Done',
-};
 
 type ViewMode = 'grid' | 'list' | 'compact';
 type SortMode = 'newest' | 'oldest' | 'title';
@@ -99,20 +82,38 @@ function CompactRow({ task }: { task: Task }) {
 function EmptyState({ stageParam, onNewTask }: { stageParam?: string; onNewTask?: () => void }) {
   const stageLabel = stageParam
     ? stageLabels[stageParam as Stage] ?? stageParam
-    : 'this view';
+    : null;
+
+  const messages: Record<string, { title: string; hint: string }> = {
+    backlog:     { title: 'Nothing queued up',   hint: 'Capture ideas and future work here.' },
+    planning:    { title: 'No tasks in planning', hint: 'Move tasks here when the AI starts breaking them down.' },
+    ready:       { title: 'Nothing ready yet',    hint: 'Tasks move here when they\'re fully scoped and ready to execute.' },
+    in_progress: { title: 'Nothing active',       hint: 'Start an AI session on a task to move it here.' },
+    review:      { title: 'No tasks in review',   hint: 'Tasks land here when the AI finishes and needs a human eye.' },
+    done:        { title: 'Nothing done yet',      hint: 'Completed tasks will show up here.' },
+  };
+
+  const msg = stageParam && messages[stageParam]
+    ? messages[stageParam]
+    : { title: 'No tasks yet', hint: 'Create your first task to get started.' };
 
   return (
-    <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-      <div className="text-4xl text-muted-foreground/30">
-        <LayoutGrid className="h-12 w-12 mx-auto" />
+    <div className="flex flex-col items-center justify-center h-64 gap-4 text-center px-6">
+      <div className="h-14 w-14 rounded-2xl border-2 border-dashed border-border flex items-center justify-center">
+        <LayoutGrid className="h-6 w-6 text-muted-foreground/40" aria-hidden="true" />
       </div>
-      <div>
-        <p className="text-base font-medium text-muted-foreground">No tasks in {stageLabel}</p>
-        <p className="text-sm text-muted-foreground/70 mt-1">Create your first task to get started</p>
+      <div className="space-y-1">
+        <p className="text-sm font-semibold text-foreground">{msg.title}</p>
+        <p className="text-sm text-muted-foreground">{msg.hint}</p>
+        {stageLabel && (
+          <p className="text-xs text-muted-foreground/60 mt-1">
+            Showing <span className="font-medium">{stageLabel}</span>
+          </p>
+        )}
       </div>
       {onNewTask && (
-        <Button size="sm" onClick={onNewTask} className="mt-1">
-          <Plus className="h-4 w-4 mr-1" />
+        <Button size="sm" onClick={onNewTask}>
+          <Plus className="h-4 w-4 mr-1" aria-hidden="true" />
           New Task
         </Button>
       )}
@@ -186,23 +187,26 @@ export function TaskList({ tasks, isLoading, stageParam, onNewTask }: TaskListPr
           <button
             className={`p-1.5 transition-colors ${viewMode === 'grid' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}
             onClick={() => setViewMode('grid')}
-            title="Grid view"
+            aria-label="Grid view"
+            aria-pressed={viewMode === 'grid'}
           >
-            <LayoutGrid className="h-4 w-4" />
+            <LayoutGrid className="h-4 w-4" aria-hidden="true" />
           </button>
           <button
             className={`p-1.5 transition-colors border-x border-border ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}
             onClick={() => setViewMode('list')}
-            title="List view"
+            aria-label="List view"
+            aria-pressed={viewMode === 'list'}
           >
-            <List className="h-4 w-4" />
+            <List className="h-4 w-4" aria-hidden="true" />
           </button>
           <button
             className={`p-1.5 transition-colors ${viewMode === 'compact' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}
             onClick={() => setViewMode('compact')}
-            title="Compact view"
+            aria-label="Compact view"
+            aria-pressed={viewMode === 'compact'}
           >
-            <AlignJustify className="h-4 w-4" />
+            <AlignJustify className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 

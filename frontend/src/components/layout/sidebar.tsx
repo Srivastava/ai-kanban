@@ -80,7 +80,7 @@ function SidebarMetrics() {
       </div>
       {data && data.active_sessions_today > 0 && (
         <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-green-600 dark:text-green-400 px-1">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 motion-safe:animate-pulse" />
           {data.active_sessions_today} active today
         </div>
       )}
@@ -147,6 +147,8 @@ function SidebarContent() {
           {/* Collapsible Tasks section */}
           <button
             onClick={() => setTasksOpen((o) => !o)}
+            aria-expanded={tasksOpen}
+            aria-controls="sidebar-tasks-list"
             className="w-full flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
           >
             <span className="flex items-center gap-3">
@@ -160,7 +162,7 @@ function SidebarContent() {
           </button>
 
           {tasksOpen && (
-            <div className="ml-4 space-y-0.5 border-l border-border pl-3">
+            <div id="sidebar-tasks-list" className="ml-4 space-y-0.5 border-l border-border pl-3">
               {stages.map((stage) => (
                 <Link
                   key={stage.value}
@@ -184,7 +186,7 @@ function SidebarContent() {
       </aside>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background">
         <div className="flex items-stretch h-14">
           {mobileNavItems.map(({ href, label, icon: Icon }) => (
             <Link

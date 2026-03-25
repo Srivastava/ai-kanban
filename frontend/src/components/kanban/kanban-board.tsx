@@ -20,17 +20,9 @@ import { useAllSessions } from '@/hooks/use-sessions';
 import { apiClient } from '@/lib/api-client';
 import type { Task, Stage } from '@/types/task';
 import type { CostByTask } from '@/types/analytics';
+import { stageColors, stageLabels } from '@/lib/task-colors';
 
 const stages: Stage[] = ['backlog', 'planning', 'ready', 'in_progress', 'review', 'done'];
-
-const stageLabels: Record<Stage, string> = {
-  backlog: 'Backlog',
-  planning: 'Planning',
-  ready: 'Ready',
-  in_progress: 'In Progress',
-  review: 'Review',
-  done: 'Done',
-};
 
 interface UndoEntry {
   taskId: string;
@@ -147,7 +139,7 @@ export function KanbanBoard({ tasks, isLoading, onCreateTask }: KanbanBoardProps
         </span>
         {activeSessionCount > 0 && (
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="inline-block h-2 w-2 rounded-full bg-green-500 motion-safe:animate-pulse" />
             <span className="font-medium text-foreground">{activeSessionCount}</span> active
           </span>
         )}
@@ -230,15 +222,6 @@ interface MobileKanbanProps {
 function MobileKanban({ tasksByStage, isLoading, onCreateTask, costByTaskId }: MobileKanbanProps) {
   const [activeStage, setActiveStage] = useState<Stage>('in_progress');
 
-  const stageBadgeColors: Record<Stage, string> = {
-    backlog: 'bg-slate-500',
-    planning: 'bg-blue-500',
-    ready: 'bg-amber-500',
-    in_progress: 'bg-orange-500',
-    review: 'bg-purple-500',
-    done: 'bg-green-500',
-  };
-
   return (
     <div className="sm:hidden">
       {/* Stage tab strip */}
@@ -247,9 +230,9 @@ function MobileKanban({ tasksByStage, isLoading, onCreateTask, costByTaskId }: M
           <button
             key={stage}
             onClick={() => setActiveStage(stage)}
-            className={`shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium transition-colors min-h-[36px] ${
               activeStage === stage
-                ? `${stageBadgeColors[stage]} text-white`
+                ? `${stageColors[stage]} text-white`
                 : 'text-muted-foreground hover:bg-muted'
             }`}
           >

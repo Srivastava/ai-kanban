@@ -8,33 +8,7 @@ import { KanbanCard } from './kanban-card';
 import { KanbanCardSkeleton } from './kanban-card-skeleton';
 import type { Task, Stage } from '@/types/task';
 import type { CostByTask } from '@/types/analytics';
-
-const stageLabels: Record<Stage, string> = {
-  backlog: 'Backlog',
-  planning: 'Planning',
-  ready: 'Ready',
-  in_progress: 'In Progress',
-  review: 'Review',
-  done: 'Done',
-};
-
-const stageHeaderBorder: Record<Stage, string> = {
-  backlog: 'border-t-slate-400',
-  planning: 'border-t-blue-500',
-  ready: 'border-t-amber-500',
-  in_progress: 'border-t-orange-500',
-  review: 'border-t-purple-500',
-  done: 'border-t-green-500',
-};
-
-const stageTextColor: Record<Stage, string> = {
-  backlog: 'text-slate-500 dark:text-slate-400',
-  planning: 'text-blue-600 dark:text-blue-400',
-  ready: 'text-amber-600 dark:text-amber-400',
-  in_progress: 'text-orange-600 dark:text-orange-400',
-  review: 'text-purple-600 dark:text-purple-400',
-  done: 'text-green-600 dark:text-green-400',
-};
+import { stageLabels, stageHeaderBorder, stageTextColor } from '@/lib/task-colors';
 
 // WIP limits — warn when column exceeds these
 const WIP_LIMITS: Partial<Record<Stage, number>> = {
@@ -66,7 +40,7 @@ export function KanbanColumn({ stage, tasks, isLoading, onCreateTask, costByTask
 
   return (
     <div
-      className={`flex flex-col min-w-[270px] max-w-[310px] rounded-lg bg-muted/10 border-t-4 ${stageHeaderBorder[stage]}`}
+      className={`flex flex-col w-full sm:min-w-[270px] sm:max-w-[310px] rounded-lg bg-muted/10 border-t-4 ${stageHeaderBorder[stage]}`}
     >
       {/* Column header */}
       <div className="flex items-center justify-between px-2 pt-2.5 pb-2">
@@ -92,7 +66,7 @@ export function KanbanColumn({ stage, tasks, isLoading, onCreateTask, costByTask
             variant="ghost"
             size="icon"
             aria-label={`Add task to ${stageLabels[stage]}`}
-            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
             onClick={() => onCreateTask(stage)}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -138,11 +112,14 @@ export function KanbanColumn({ stage, tasks, isLoading, onCreateTask, costByTask
 
             {tasks.length === 0 && (
               <button
-                className="w-full min-h-[140px] flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border/50 text-muted-foreground hover:border-primary/40 hover:text-primary/70 transition-colors"
+                className="w-full min-h-[140px] flex flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-border/40 text-muted-foreground/50 hover:border-primary/30 hover:text-muted-foreground transition-colors group/empty"
                 onClick={() => onCreateTask?.(stage)}
+                aria-label={`Add task to ${stageLabels[stage]}`}
               >
-                <Plus className="h-4 w-4" />
-                <span className="text-xs">Add task</span>
+                <div className="h-8 w-8 rounded-full border-2 border-dashed border-current flex items-center justify-center group-hover/empty:scale-110 transition-transform">
+                  <Plus className="h-3.5 w-3.5" />
+                </div>
+                <span className="text-xs font-medium">Drop here or add task</span>
               </button>
             )}
           </>
