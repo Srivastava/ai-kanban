@@ -15,7 +15,7 @@ describe('ToolBreakdownChart', () => {
 
   it('shows loading skeleton before data arrives', () => {
     renderWithProviders(<ToolBreakdownChart />);
-    expect(document.querySelector('.animate-pulse')).toBeTruthy();
+    expect(document.querySelector('.animate-shimmer')).toBeTruthy();
   });
 
   it('does not show empty state when tool data exists', async () => {

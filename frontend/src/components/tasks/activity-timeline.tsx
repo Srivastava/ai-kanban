@@ -263,7 +263,7 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
   );
 
   if (isLoading && allEntries.length === 0) {
-    return <div className="h-16 animate-pulse bg-muted rounded" />;
+    return <div className="h-16 bg-muted rounded animate-shimmer" />;
   }
 
   return (

@@ -30,6 +30,6 @@ describe('CostBreakdownTable', () => {
 
   it('shows loading skeleton while fetching', () => {
     renderWithProviders(<CostBreakdownTable />);
-    expect(document.querySelector('.animate-pulse')).toBeTruthy();
+    expect(document.querySelector('.animate-shimmer')).toBeTruthy();
   });
 });

@@ -95,9 +95,13 @@ class Logger {
       metadata: enrichedMetadata,
     };
 
-    // Always log to console for immediate visibility
-    const consoleMethod = level === 'ERROR' ? 'error' : level === 'WARN' ? 'warn' : level === 'DEBUG' ? 'debug' : 'log';
-    console[consoleMethod](`[${level}] [frontend] ${message}`, metadata || '');
+    // In production: only ERROR/WARN reach the console — DEBUG/INFO are silent.
+    // In development: all levels are logged for visibility.
+    const isProd = process.env.NODE_ENV === 'production';
+    if (!isProd || level === 'ERROR' || level === 'WARN') {
+      const consoleMethod = level === 'ERROR' ? 'error' : level === 'WARN' ? 'warn' : level === 'DEBUG' ? 'debug' : 'log';
+      console[consoleMethod](`[${level}] [frontend] ${message}`, metadata || '');
+    }
 
     this.buffer.push(entry);
 
@@ -107,16 +111,12 @@ class Logger {
   }
 
   async flush() {
-    if (this.buffer.length === 0) {
-      console.debug('[Logger] Flush called but buffer is empty');
-      return;
-    }
+    if (this.buffer.length === 0) return;
 
     const entries = this.buffer.splice(0, this.buffer.length);
-    console.debug(`[Logger] Flushing ${entries.length} log entries to backend`);
 
     try {
-      const results = await Promise.allSettled(
+      await Promise.allSettled(
         entries.map((entry) =>
           fetch(`${getApiBase()}/api/logs`, {
             method: 'POST',
@@ -125,10 +125,6 @@ class Logger {
           })
         )
       );
-
-      const succeeded = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.filter(r => r.status === 'rejected').length;
-      console.debug(`[Logger] Flush complete: ${succeeded} succeeded, ${failed} failed`);
     } catch (err) {
       console.error('[Logger] Flush failed:', err);
     }

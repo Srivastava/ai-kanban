@@ -4,6 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { useDailyTokens } from '@/hooks/use-analytics';
 import { PRICING } from '@/lib/pricing';
 import { CostTrendBadges } from '@/components/analytics/period-comparison';
+import { TOKEN_COLORS } from '@/lib/chart-colors';
 
 function dayCost(d: { input_tokens: number; output_tokens: number; cache_creation_tokens: number; cache_read_tokens: number }): number {
   return (d.input_tokens        / 1_000_000) * PRICING.input
@@ -13,11 +14,11 @@ function dayCost(d: { input_tokens: number; output_tokens: number; cache_creatio
 }
 
 const TOOLTIP_STYLE = {
-  background: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: '8px',
   fontSize: '12px',
-  color: 'hsl(var(--card-foreground))',
+  color: 'var(--card-foreground)',
 };
 
 interface Props { taskId?: string | null }
@@ -30,7 +31,7 @@ export function CumulativeCostChart({ taskId }: Props) {
     const cost = dayCost(d);
     running += cost;
     return {
-      date: d.date.slice(5), // strip year: "03-17"
+      date: d.date.slice(5),
       cumulative: parseFloat(running.toFixed(4)),
     };
   });
@@ -50,13 +51,13 @@ export function CumulativeCostChart({ taskId }: Props) {
           </p>
         </div>
         {!isLoading && totalCost > 0 && (
-          <span className="text-lg font-bold tabular-nums text-emerald-500">
+          <span className="text-lg font-bold tabular-nums text-stage-done-text">
             ${totalCost.toFixed(4)}
           </span>
         )}
       </div>
       {isLoading ? (
-        <div className="h-48 animate-pulse bg-muted rounded" />
+        <div className="h-48 bg-muted rounded animate-shimmer" />
       ) : chartData.length === 0 ? (
         <div className="h-48 flex items-center justify-center">
           <p className="text-muted-foreground text-sm">No cost data in the last 30 days</p>
@@ -66,15 +67,15 @@ export function CumulativeCostChart({ taskId }: Props) {
           <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <defs>
               <linearGradient id="costGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                <stop offset="5%"  stopColor={TOKEN_COLORS.output} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={TOKEN_COLORS.output} stopOpacity={0.02} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
             <YAxis
               tickFormatter={(v) => `$${v.toFixed(2)}`}
-              tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+              tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
             />
             <Tooltip
               formatter={(value) => [`$${Number(value).toFixed(4)}`, 'Cumulative']}
@@ -83,7 +84,7 @@ export function CumulativeCostChart({ taskId }: Props) {
             <Area
               type="monotone"
               dataKey="cumulative"
-              stroke="#10b981"
+              stroke={TOKEN_COLORS.output}
               strokeWidth={2}
               fill="url(#costGradient)"
             />

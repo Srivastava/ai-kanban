@@ -29,6 +29,6 @@ describe('SessionIntelligenceCard', () => {
 
   it('shows loading skeleton while fetching', () => {
     renderWithProviders(<SessionIntelligenceCard />);
-    expect(document.querySelector('.animate-pulse')).toBeTruthy();
+    expect(document.querySelector('.animate-shimmer')).toBeTruthy();
   });
 });

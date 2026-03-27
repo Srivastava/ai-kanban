@@ -46,6 +46,26 @@ export const stageTextColor: Record<Stage, string> = {
   done:        'text-stage-done-text',
 };
 
+/** Ambient card background tint — hue-matched to each stage, light/dark aware */
+export const stageCardBg: Record<Stage, string> = {
+  backlog:     'bg-card-tint-backlog',
+  planning:    'bg-card-tint-planning',
+  ready:       'bg-card-tint-ready',
+  in_progress: 'bg-card-tint-in-progress',
+  review:      'bg-card-tint-review',
+  done:        'bg-card-tint-done',
+};
+
+/** Dashed border for empty column states — stage-hued, subtle opacity */
+export const stageEmptyBorder: Record<Stage, string> = {
+  backlog:     'border-stage-backlog/30 hover:border-stage-backlog/60',
+  planning:    'border-stage-planning/30 hover:border-stage-planning/60',
+  ready:       'border-stage-ready/30 hover:border-stage-ready/60',
+  in_progress: 'border-stage-in-progress/30 hover:border-stage-in-progress/60',
+  review:      'border-stage-review/30 hover:border-stage-review/60',
+  done:        'border-stage-done/30 hover:border-stage-done/60',
+};
+
 /** Human-readable stage names */
 export const stageLabels: Record<Stage, string> = {
   backlog:     'Backlog',

@@ -5,22 +5,17 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useTokensBySession } from '@/hooks/use-analytics';
 import type { SessionTokens } from '@/types/analytics';
 
-const TZ = 'America/Los_Angeles';
+import { formatTokens as fmtTokens } from '@/lib/format';
 
 function fmtTime(iso: string | null) {
   if (!iso) return '—';
-  return new Intl.DateTimeFormat('en-US', {
-    timeZone: TZ,
+  return new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   }).format(new Date(iso));
-}
-
-function fmtTokens(n: number) {
-  return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
 }
 
 function shortId(id: string) {
@@ -64,7 +59,7 @@ export function ActiveSessionsPanel({ onSessionClick, activeSessionId }: Props) 
         <div className="border-t border-border">
           {isLoading ? (
             <div className="px-4 py-3 space-y-2">
-              {[1, 2, 3].map((i) => <div key={i} className="h-6 animate-pulse bg-muted rounded" />)}
+              {[1, 2, 3].map((i) => <div key={i} className="h-6 bg-muted rounded animate-shimmer" />)}
             </div>
           ) : (
             <div className="overflow-x-auto">

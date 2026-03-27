@@ -6,19 +6,15 @@ import {
 } from 'recharts';
 import { useDevActivity, useLocHistory, useTaskSessions, useTokensByTask } from '@/hooks/use-analytics';
 import { useState } from 'react';
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return `${n}`;
-}
+import { formatTokens } from '@/lib/format';
+import { TOKEN_COLORS } from '@/lib/chart-colors';
 
 const TOOLTIP_STYLE = {
-  background: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: '8px',
   fontSize: '12px',
-  color: 'hsl(var(--card-foreground))',
+  color: 'var(--card-foreground)',
 };
 
 interface Props { taskId?: string | null }
@@ -33,39 +29,39 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
 
   const row = data[0] ?? null;
 
-  // LOC growth line chart data
   const locData = locHistory.map((entry) => ({
     label: `#${entry.session_index}`,
     loc: entry.project_loc,
   }));
 
-  // Token stacked area chart data — sessions ordered chronologically.
-  // Note: SessionDetail does not include cache_creation/cache_read tokens,
-  // so we show only input + output (two-layer stack).
   const sessionTokenData = [...sessions]
-    .reverse() // sessions come newest-first, reverse for timeline
+    .reverse()
     .map((s, i) => ({
       label: `#${i + 1}`,
       input: s.input_tokens,
       output: s.output_tokens,
     }));
 
-  const skeleton = <div className="h-40 animate-pulse bg-muted rounded" />;
+  const skeleton = <div className="h-40 bg-muted rounded animate-shimmer" />;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       {/* Task selector — hidden when external taskId provided */}
       {!externalTaskId && (
-        <select
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm max-w-xs"
-          value={internalTaskId ?? ''}
-          onChange={(e) => setInternalTaskId(e.target.value || null)}
-        >
-          <option value="">Select a task…</option>
-          {tasks.map((t) => (
-            <option key={t.task_id} value={t.task_id}>{t.task_title}</option>
-          ))}
-        </select>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="dev-activity-task-select" className="sr-only">Select task</label>
+          <select
+            id="dev-activity-task-select"
+            className="rounded-md border border-border bg-background px-3 py-1.5 text-sm max-w-xs"
+            value={internalTaskId ?? ''}
+            onChange={(e) => setInternalTaskId(e.target.value || null)}
+          >
+            <option value="">Select a task…</option>
+            {tasks.map((t) => (
+              <option key={t.task_id} value={t.task_id}>{t.task_title}</option>
+            ))}
+          </select>
+        </div>
       )}
 
       {!selectedTaskId ? (
@@ -90,18 +86,18 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
               <p className="text-xs text-muted-foreground">Lines written (net)</p>
               <p className="font-semibold">
                 {row.lines_added > 0
-                  ? <span className="text-green-600">+{Math.round(row.lines_added).toLocaleString()}</span>
+                  ? <span className="text-stage-done-text">+{Math.round(row.lines_added).toLocaleString()}</span>
                   : '—'}
               </p>
             </div>
             <div className="rounded-lg bg-muted/50 px-3 py-2">
               <p className="text-xs text-muted-foreground">Tokens (in / cached / out)</p>
               <p className="font-semibold text-sm">
-                <span className="text-blue-500">{formatTokens(row.input_tokens ?? 0)}</span>
+                <span className="text-stage-planning-text">{formatTokens(row.input_tokens ?? 0)}</span>
                 {' / '}
-                <span className="text-amber-500">{formatTokens((row.cache_creation_tokens ?? 0) + (row.cache_read_tokens ?? 0))}</span>
+                <span className="text-stage-ready-text">{formatTokens((row.cache_creation_tokens ?? 0) + (row.cache_read_tokens ?? 0))}</span>
                 {' / '}
-                <span className="text-violet-500">{formatTokens(row.output_tokens ?? 0)}</span>
+                <span className="text-stage-review-text">{formatTokens(row.output_tokens ?? 0)}</span>
               </p>
             </div>
             <div className="rounded-lg bg-muted/50 px-3 py-2">
@@ -110,9 +106,10 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Charts — flat sections, no nested cards */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* LOC growth line chart */}
-            <div className="rounded-xl border border-border bg-card p-5 space-y-2">
+            <div className="space-y-2">
               <h3 className="font-semibold text-sm">Project LOC Over Sessions</h3>
               <p className="text-xs text-muted-foreground">How the codebase grew session by session</p>
               {locData.length < 2 ? (
@@ -124,11 +121,11 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <LineChart data={locData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
                     <YAxis
                       tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}K` : `${v}`}
-                      tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                     />
                     <Tooltip
                       formatter={(value) => [typeof value === 'number' ? value.toLocaleString() : value, 'Lines of code']}
@@ -137,9 +134,9 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
                     <Line
                       type="monotone"
                       dataKey="loc"
-                      stroke="#22c55e"
+                      stroke={TOKEN_COLORS.output}
                       strokeWidth={2}
-                      dot={{ fill: '#22c55e', r: 3 }}
+                      dot={{ fill: TOKEN_COLORS.output, r: 3 }}
                       activeDot={{ r: 5 }}
                     />
                   </LineChart>
@@ -148,7 +145,7 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
             </div>
 
             {/* Token stacked area chart */}
-            <div className="rounded-xl border border-border bg-card p-5 space-y-2">
+            <div className="space-y-2">
               <h3 className="font-semibold text-sm">Token Usage Per Session</h3>
               <p className="text-xs text-muted-foreground">Input and output tokens per session</p>
               {sessionTokenData.length < 2 ? (
@@ -160,9 +157,9 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
               ) : (
                 <ResponsiveContainer width="100%" height={160}>
                   <AreaChart data={sessionTokenData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                    <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                    <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
                     <Tooltip
                       formatter={(value, name) => {
                         const labels: Record<string, string> = { input: 'Input', output: 'Output' };
@@ -171,8 +168,8 @@ export function DevActivityCharts({ taskId: externalTaskId }: Props) {
                       contentStyle={TOOLTIP_STYLE}
                     />
                     <Legend formatter={(v) => ({ input: 'Input', output: 'Output' }[v as 'input' | 'output'] ?? v)} iconType="circle" />
-                    <Area type="monotone" dataKey="input"  stackId="1" stroke="#6366f1" fill="#6366f1" fillOpacity={0.6} />
-                    <Area type="monotone" dataKey="output" stackId="1" stroke="#a855f7" fill="#a855f7" fillOpacity={0.6} />
+                    <Area type="monotone" dataKey="input"  stackId="1" stroke={TOKEN_COLORS.input}  fill={TOKEN_COLORS.input}  fillOpacity={0.6} />
+                    <Area type="monotone" dataKey="output" stackId="1" stroke={TOKEN_COLORS.output} fill={TOKEN_COLORS.output} fillOpacity={0.6} />
                   </AreaChart>
                 </ResponsiveContainer>
               )}

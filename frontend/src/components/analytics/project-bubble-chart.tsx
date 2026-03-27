@@ -23,7 +23,7 @@ export function ProjectBubbleChart({ onTaskSelect, selectedTaskId }: Props) {
   const [hoverId, setHoverId] = useState<string | null>(null);
 
   const active = tasks.filter(t => t.total_tokens > 0);
-  if (isLoading) return <div className="rounded-xl border border-border bg-card p-5 h-32 animate-pulse bg-muted/20" />;
+  if (isLoading) return <div className="rounded-xl border border-border bg-card p-5 h-32 bg-muted/20 animate-shimmer" />;
   if (active.length === 0) return null;
 
   const sorted = [...active].sort((a, b) => b.total_tokens - a.total_tokens);

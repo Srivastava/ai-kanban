@@ -6,17 +6,7 @@ import { useAllSessions } from '@/hooks/use-sessions';
 import { useTasks } from '@/hooks/use-tasks';
 import type { Session } from '@/types/session';
 
-const STATUS_COLORS: Record<string, string> = {
-  completed: '#22c55e',
-  running: '#6366f1',
-  pending: '#f97316',
-  stopped: '#94a3b8',
-  failed: '#ef4444',
-};
-
-function statusColor(status: string) {
-  return STATUS_COLORS[status] ?? '#94a3b8';
-}
+import { statusColor } from '@/lib/chart-colors';
 
 function shortId(id: string) {
   return id.slice(0, 8);
@@ -112,7 +102,7 @@ export function SessionDiagnosticsPanel({ onSessionClick, onTaskClick }: Props) 
       {open && (
         <div className="p-4">
           {isLoading ? (
-            <div className="h-24 animate-pulse bg-muted rounded" />
+            <div className="h-24 bg-muted rounded animate-shimmer" />
           ) : filtered.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">
               {statusFilter === 'all'

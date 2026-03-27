@@ -18,7 +18,7 @@ export function CostBreakdownTable({ taskId }: Props) {
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <h3 className="font-semibold">Top Tasks by Cost</h3>
       {isLoading ? (
-        <div className="h-48 animate-pulse bg-muted rounded" />
+        <div className="h-48 bg-muted rounded animate-shimmer" />
       ) : data.length === 0 ? (
         <div className="h-48 flex items-center justify-center">
           <p className="text-muted-foreground text-sm">No cost data yet</p>

@@ -24,8 +24,8 @@ describe('OverviewCards', () => {
 
   it('shows loading skeleton while fetching', () => {
     renderWithProviders(<OverviewCards />);
-    // Before data loads, skeletons appear (animate-pulse elements)
-    const skeletons = document.querySelectorAll('.animate-pulse');
+    // Before data loads, skeletons appear (animate-shimmer elements)
+    const skeletons = document.querySelectorAll('.animate-shimmer');
     expect(skeletons.length).toBeGreaterThan(0);
   });
 

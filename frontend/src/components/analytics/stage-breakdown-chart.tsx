@@ -1,26 +1,23 @@
 'use client';
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTokensByStage } from '@/hooks/use-analytics';
+import { formatTokens } from '@/lib/format';
 
 const STAGE_ORDER = ['backlog', 'planning', 'in_progress', 'review', 'done'];
 
+// Stage colors reference CSS tokens — matches kanban board exactly.
+// Using var(--stage-*) which are full OKLCH color values in globals.css.
 const STAGE_COLORS: Record<string, string> = {
-  backlog: '#94a3b8',
-  planning: '#6366f1',
-  in_progress: '#22c55e',
-  review: '#f97316',
-  done: '#a855f7',
+  backlog:     'var(--stage-backlog)',
+  planning:    'var(--stage-planning)',
+  in_progress: 'var(--stage-in-progress)',
+  review:      'var(--stage-review)',
+  done:        'var(--stage-done)',
 };
 
 function stageColor(stage: string): string {
-  return STAGE_COLORS[stage] ?? '#64748b';
-}
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
+  return STAGE_COLORS[stage] ?? 'var(--muted-foreground)';
 }
 
 function stageLabel(s: string): string {
@@ -54,7 +51,7 @@ export function StageBreakdownChart({ taskId }: Props) {
         <p className="text-xs text-muted-foreground mt-0.5">Stage task was in when AI worked on it</p>
       </div>
       {isLoading ? (
-        <div className="h-56 animate-pulse bg-muted rounded" />
+        <div className="h-56 bg-muted rounded animate-shimmer" />
       ) : chartData.length === 0 ? (
         <div className="h-56 flex items-center justify-center">
           <p className="text-muted-foreground text-sm">No stage data yet</p>
@@ -73,7 +70,7 @@ export function StageBreakdownChart({ taskId }: Props) {
                 paddingAngle={2}
                 dataKey="value"
                 nameKey="label"
-                stroke="hsl(var(--card))"
+                stroke="var(--card)"
                 strokeWidth={2}
               >
                 {chartData.map((entry) => (
@@ -86,11 +83,11 @@ export function StageBreakdownChart({ taskId }: Props) {
                   String(name),
                 ]}
                 contentStyle={{
-                  background: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
+                  background: 'var(--card)',
+                  border: '1px solid var(--border)',
                   borderRadius: '8px',
                   fontSize: '12px',
-                  color: 'hsl(var(--card-foreground))',
+                  color: 'var(--card-foreground)',
                 }}
               />
             </PieChart>

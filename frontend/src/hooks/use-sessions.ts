@@ -34,6 +34,8 @@ export function useAllSessions(statuses?: string[], limit = 100) {
     queryKey: ['sessions', 'all', statuses, limit],
     queryFn: () => apiClient<Session[]>(`/api/sessions/all?${qs}`),
     refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 5_000,
   });
 }
 

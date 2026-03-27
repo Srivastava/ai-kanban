@@ -24,6 +24,6 @@ describe('StageBreakdownChart', () => {
 
   it('shows loading skeleton while fetching', () => {
     renderWithProviders(<StageBreakdownChart />);
-    expect(document.querySelector('.animate-pulse')).toBeTruthy();
+    expect(document.querySelector('.animate-shimmer')).toBeTruthy();
   });
 });

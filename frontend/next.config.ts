@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  compress: true,
+  productionBrowserSourceMaps: false,
   allowedDevOrigins: ['192.168.4.118', '127.0.0.1', 'localhost', 'aikanban.cecep.duckdns.org'],
   async rewrites() {
     return [

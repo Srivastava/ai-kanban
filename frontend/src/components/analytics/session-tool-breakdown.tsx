@@ -48,7 +48,7 @@ export function SessionToolBreakdown({ sessionId, sessionTotalTokens, onClose }:
       </div>
 
       {isLoading ? (
-        <div className="h-24 animate-pulse bg-muted rounded" />
+        <div className="h-24 bg-muted rounded animate-shimmer" />
       ) : data.length === 0 ? (
         <p className="text-xs text-muted-foreground italic">No tool call data for this session</p>
       ) : (

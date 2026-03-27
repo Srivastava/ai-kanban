@@ -6,20 +6,8 @@ import { useTokensByTask, useTaskSessions } from '@/hooks/use-analytics';
 import { formatDistanceToNow } from 'date-fns';
 import { SessionToolBreakdown } from './session-tool-breakdown';
 
-const STATUS_COLORS: Record<string, string> = {
-  completed: '#22c55e',
-  failed:    '#ef4444',
-  stopped:   '#f97316',
-  running:   '#6366f1',
-};
-
-function statusColor(status: string): string {
-  return STATUS_COLORS[status] ?? '#94a3b8';
-}
-
-function formatTokens(v: number) {
-  return v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v);
-}
+import { statusColor, STATUS_COLORS } from '@/lib/chart-colors';
+import { formatTokens } from '@/lib/format';
 
 function formatDuration(secs: number | null): string {
   if (!secs) return '—';
@@ -28,11 +16,11 @@ function formatDuration(secs: number | null): string {
 }
 
 const TOOLTIP_STYLE = {
-  background: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: '8px',
   fontSize: '12px',
-  color: 'hsl(var(--card-foreground))',
+  color: 'var(--card-foreground)',
 };
 
 interface Props { taskId?: string | null }
@@ -92,7 +80,7 @@ export function SessionTimelineChart({ taskId: externalTaskId }: Props) {
           </p>
         </div>
       ) : isLoading ? (
-        <div className="h-64 animate-pulse bg-muted rounded" />
+        <div className="h-64 bg-muted rounded animate-shimmer" />
       ) : sessions.length === 0 ? (
         <div className="h-48 flex items-center justify-center">
           <p className="text-muted-foreground text-sm">No sessions found for this task</p>

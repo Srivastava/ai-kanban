@@ -111,11 +111,19 @@
   --border: oklch(0.912 0.008 264);
   --input: oklch(0.912 0.008 264);
   --ring: oklch(0.46 0.18 264);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  /* Chart series — aligned with stage color identity:
+     1=planning(blue) 2=done(green) 3=in_progress(orange) 4=review(purple) 5=ready(amber) */
+  --chart-1: oklch(0.546 0.245 263);
+  --chart-2: oklch(0.696 0.170 163);
+  --chart-3: oklch(0.702 0.191 42);
+  --chart-4: oklch(0.627 0.265 304);
+  --chart-5: oklch(0.769 0.189 70);
+
+  /* Activity heatmap intensity levels — green ramp, light mode */
+  --heatmap-1: oklch(0.88 0.07 163);
+  --heatmap-2: oklch(0.76 0.13 163);
+  --heatmap-3: oklch(0.63 0.17 163);
+  --heatmap-4: oklch(0.50 0.19 163);
   --sidebar: oklch(0.980 0.007 264);
   --sidebar-foreground: oklch(0.145 0.008 264);
   --sidebar-primary: oklch(0.32 0.12 264);
@@ -176,11 +184,18 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.60 0.22 264);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  /* Chart series — brighter variants for dark backgrounds */
+  --chart-1: oklch(0.60 0.22 264);
+  --chart-2: oklch(0.792 0.141 160);
+  --chart-3: oklch(0.750 0.183 54);
+  --chart-4: oklch(0.714 0.196 297);
+  --chart-5: oklch(0.828 0.189 84);
+
+  /* Activity heatmap intensity — inverted ramp: higher intensity = lighter on dark bg */
+  --heatmap-1: oklch(0.30 0.06 163);
+  --heatmap-2: oklch(0.44 0.10 163);
+  --heatmap-3: oklch(0.58 0.15 163);
+  --heatmap-4: oklch(0.72 0.17 163);
   --sidebar: oklch(0.192 0.012 264);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);

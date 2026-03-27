@@ -2,14 +2,8 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useTokensByTool } from '@/hooks/use-analytics';
-
-const COLORS = ['#6366f1', '#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#f43f5e'];
-
-function fmtTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
-}
+import { formatTokens } from '@/lib/format';
+import { seriesColor } from '@/lib/chart-colors';
 
 interface Props { taskId?: string | null }
 
@@ -27,14 +21,14 @@ export function ToolBreakdownChart({ taskId }: Props) {
 
   const barData = [...top]
     .sort((a, b) => b.call_count - a.call_count)
-    .map((d, i) => ({ name: d.tool_name, calls: d.call_count, colorIdx: top.indexOf(d) }));
+    .map((d) => ({ name: d.tool_name, calls: d.call_count, colorIdx: top.indexOf(d) }));
 
   const TOOLTIP_STYLE = {
-    background: 'hsl(var(--card))',
-    border: '1px solid hsl(var(--border))',
+    background: 'var(--card)',
+    border: '1px solid var(--border)',
     borderRadius: '8px',
     fontSize: '12px',
-    color: 'hsl(var(--card-foreground))',
+    color: 'var(--card-foreground)',
   };
 
   return (
@@ -42,7 +36,7 @@ export function ToolBreakdownChart({ taskId }: Props) {
       <h3 className="font-semibold">Tool Usage</h3>
 
       {isLoading ? (
-        <div className="h-48 animate-pulse bg-muted rounded" />
+        <div className="h-48 bg-muted rounded animate-shimmer" />
       ) : pieData.length === 0 ? (
         <div className="h-48 flex items-center justify-center">
           <p className="text-muted-foreground text-sm">No tool data yet</p>
@@ -64,16 +58,16 @@ export function ToolBreakdownChart({ taskId }: Props) {
                     paddingAngle={2}
                     dataKey="value"
                     nameKey="name"
-                    stroke="hsl(var(--card))"
+                    stroke="var(--card)"
                     strokeWidth={2}
                   >
                     {pieData.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      <Cell key={i} fill={seriesColor(i)} />
                     ))}
                   </Pie>
                   <Tooltip
                     formatter={(value, name) => [
-                      `${fmtTokens(Number(value))} (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`,
+                      `${formatTokens(Number(value))} (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`,
                       String(name),
                     ]}
                     contentStyle={TOOLTIP_STYLE}
@@ -86,9 +80,9 @@ export function ToolBreakdownChart({ taskId }: Props) {
             <div className="space-y-1.5">
               {pieData.map((entry, i) => (
                 <div key={entry.name} className="flex items-center gap-2 text-xs">
-                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: COLORS[i % COLORS.length] }} />
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: seriesColor(i) }} />
                   <span className="flex-1 text-foreground truncate">{entry.name}</span>
-                  <span className="tabular-nums text-muted-foreground">{fmtTokens(entry.value)}</span>
+                  <span className="tabular-nums text-muted-foreground">{formatTokens(entry.value)}</span>
                   <span className="tabular-nums text-muted-foreground w-14 text-right">{entry.calls.toLocaleString()} calls</span>
                 </div>
               ))}
@@ -100,13 +94,13 @@ export function ToolBreakdownChart({ taskId }: Props) {
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Call frequency</p>
             <ResponsiveContainer width="100%" height={Math.max(120, barData.length * 28)}>
               <BarChart data={barData} layout="vertical" margin={{ top: 0, right: 40, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                <XAxis type="number" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
                 <YAxis
                   type="category"
                   dataKey="name"
                   width={80}
-                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
                 />
                 <Tooltip
                   formatter={(v) => [Number(v).toLocaleString(), 'Calls']}
@@ -114,7 +108,7 @@ export function ToolBreakdownChart({ taskId }: Props) {
                 />
                 <Bar dataKey="calls" radius={[0, 3, 3, 0]}>
                   {barData.map((entry, i) => (
-                    <Cell key={i} fill={COLORS[entry.colorIdx % COLORS.length]} />
+                    <Cell key={i} fill={seriesColor(entry.colorIdx)} />
                   ))}
                 </Bar>
               </BarChart>

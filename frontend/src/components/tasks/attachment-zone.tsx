@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Paperclip, Trash2, Upload } from 'lucide-react';
+import { Loader2, Paperclip, Trash2, Upload } from 'lucide-react';
 import { useAttachments, useDeleteAttachment, useUploadAttachment, attachmentFileUrl } from '@/hooks/use-attachments';
 import type { TaskAttachment } from '@/types/attachment';
 
@@ -85,7 +85,10 @@ export function AttachmentZone({ taskId }: Props) {
         onDrop={(e) => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files); }}
       >
         {upload.isPending ? (
-          <span className="animate-pulse">Uploading…</span>
+          <>
+            <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" />
+            <span>Uploading...</span>
+          </>
         ) : (
           <>
             <Upload className="h-3.5 w-3.5 shrink-0" />

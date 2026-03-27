@@ -33,7 +33,7 @@ function BurnRateSparkline({ value }: { value: number }) {
   ).join(' ');
 
   return (
-    <svg width={W} height={H} className="inline-block opacity-70">
+    <svg width={W} height={H} className="inline-block opacity-70" aria-hidden="true">
       <polyline points={pts} fill="none" style={{ stroke: 'var(--muted-foreground)' }} strokeWidth={1.5} strokeLinejoin="round" />
     </svg>
   );

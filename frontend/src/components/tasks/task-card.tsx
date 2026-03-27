@@ -156,7 +156,7 @@ export function TaskCard({ task }: TaskCardProps) {
         variant="ghost"
         size="icon"
         aria-label="Delete task"
-        className="absolute top-2 right-8 h-8 w-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
+        className="absolute top-2 right-9 h-9 w-9 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmOpen(true); }}
       >
         <Trash2 className="h-3.5 w-3.5" />
@@ -170,7 +170,7 @@ export function TaskCard({ task }: TaskCardProps) {
           aria-label="More options"
           aria-expanded={menuOpen}
           aria-haspopup="menu"
-          className="h-8 w-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-muted"
+          className="h-9 w-9 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-muted"
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen((o) => !o); }}
         >
           <MoreHorizontal className="h-3.5 w-3.5" />

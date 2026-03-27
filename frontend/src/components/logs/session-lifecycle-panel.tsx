@@ -6,21 +6,8 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, Cartes
 import { useTaskSessions, useTokensByTask } from '@/hooks/use-analytics';
 import type { SessionDetail } from '@/types/analytics';
 
-// SVG fill attributes require resolved hex values — CSS custom properties
-// don't resolve in SVG presentation attributes. Values match design tokens:
-// emerald-500(completed), indigo(running≈primary), amber-500(pending),
-// slate-400(stopped), red-500(failed).
-const STATUS_COLORS: Record<string, string> = {
-  completed: '#10b981',
-  running:   '#6366f1',
-  pending:   '#f59e0b',
-  stopped:   '#94a3b8',
-  failed:    '#ef4444',
-};
-
-function statusColor(status: string) {
-  return STATUS_COLORS[status] ?? '#94a3b8';
-}
+import { statusColor } from '@/lib/chart-colors';
+import { formatTokens } from '@/lib/format';
 
 function formatDuration(secs: number | null): string {
   if (secs == null || secs < 0) return '—';
@@ -29,10 +16,6 @@ function formatDuration(secs: number | null): string {
   const s = secs % 60;
   if (m < 60) return `${m}m ${s}s`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-
-function formatTokens(v: number) {
-  return v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v);
 }
 
 function shortId(id: string) {
@@ -57,8 +40,8 @@ interface Props {
 }
 
 const TOOLTIP_STYLE = {
-  background: 'hsl(var(--card))',
-  border: '1px solid hsl(var(--border))',
+  background: 'var(--card)',
+  border: '1px solid var(--border)',
   borderRadius: '8px',
   fontSize: '12px',
 };
@@ -97,7 +80,7 @@ export function SessionLifecyclePanel({
           onClick={() => setOpen((o) => !o)}
           className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors shrink-0"
         >
-          <span className="w-2 h-2 rounded-full bg-indigo-500/60" />
+          <span className="w-2 h-2 rounded-full bg-stage-planning/60" />
           Session Lifecycle
           {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         </button>

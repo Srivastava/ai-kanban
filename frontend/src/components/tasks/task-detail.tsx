@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { format as formatDate } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
@@ -71,11 +71,13 @@ function CollapsibleCard({
   contentClassName?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const contentId = useId();
   return (
     <Card>
       <button
         onClick={() => setOpen(!open)}
         aria-expanded={open}
+        aria-controls={contentId}
         className="flex items-center gap-2 w-full px-5 py-3.5 text-left text-sm font-semibold uppercase tracking-wide text-foreground bg-muted/30 border-b border-border hover:bg-muted/50 transition-colors rounded-t-lg"
       >
         {icon && <span className="text-primary/70">{icon}</span>}
@@ -84,7 +86,7 @@ function CollapsibleCard({
           ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
           : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
       </button>
-      {open && <CardContent className={contentClassName ?? 'pt-4 px-5 pb-5'}>{children}</CardContent>}
+      {open && <CardContent id={contentId} className={contentClassName ?? 'pt-4 px-5 pb-5'}>{children}</CardContent>}
     </Card>
   );
 }
@@ -314,7 +316,7 @@ function EnrichmentBanner({ taskId }: { taskId: string }) {
 
   return (
     <div className="mb-3 flex items-center gap-2 rounded-md border border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-3 py-2 text-sm text-indigo-800 dark:text-indigo-200">
-      <span className="h-2 w-2 rounded-full bg-indigo-500 motion-safe:animate-pulse shrink-0" />
+      <span className="h-2 w-2 rounded-full bg-indigo-500 motion-safe:animate-breathe shrink-0" />
       <span>Enriching task description with AI — instructions will appear shortly...</span>
     </div>
   );
@@ -394,7 +396,7 @@ function QueueBadge({ taskId, sessionStatus }: { taskId: string; sessionStatus: 
 
   return (
     <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-600">
-      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-pulse" />
+      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 motion-safe:animate-breathe" />
       In Queue
     </span>
   );
@@ -432,7 +434,7 @@ function ContextFilePreview({ taskId }: { taskId: string }) {
   }, [taskId, subscribe, queryClient]);
 
   if (isLoading) return (
-    <div className="mt-3 rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground animate-pulse">
+    <div className="mt-3 rounded-lg border border-border bg-muted/20 animate-shimmer p-3 text-xs text-muted-foreground">
       Loading context file...
     </div>
   );
@@ -762,7 +764,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
         {/* Plan writing indicator */}
         {showPlanWriting && (
           <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse shrink-0" />
+            <span className="h-2 w-2 rounded-full bg-blue-500 motion-safe:animate-breathe shrink-0" />
             <span className="italic">Claude is writing the implementation plan...</span>
           </div>
         )}
@@ -843,7 +845,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
       {/* Activity Timeline (replaces Updates) */}
       <CollapsibleCard title="Activity" defaultOpen={true}>
         {commentsLoading ? (
-          <div className="h-16 animate-pulse bg-muted rounded" />
+          <div className="h-16 bg-muted rounded animate-shimmer" />
         ) : (
           <ActivityTimeline task={task} sessionId={task.session_id ?? null} />
         )}

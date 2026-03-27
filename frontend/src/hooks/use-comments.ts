@@ -10,6 +10,8 @@ export function useComments(taskId: string) {
     queryFn: () => apiClient<CommentWithReplies[]>(`/api/tasks/${taskId}/comments`),
     enabled: !!taskId,
     refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    staleTime: 5_000,
   });
 }
 

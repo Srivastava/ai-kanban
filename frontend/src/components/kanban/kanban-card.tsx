@@ -188,7 +188,7 @@ export function KanbanCard({ task, isOverlay = false, costData, index = 0 }: Kan
             variant="ghost"
             size="icon"
             aria-label="Delete task"
-            className="absolute top-1 right-7 h-8 w-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
+            className="absolute top-1 right-8 h-9 w-9 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 z-10"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -205,7 +205,7 @@ export function KanbanCard({ task, isOverlay = false, costData, index = 0 }: Kan
               aria-label="More options"
               aria-expanded={menuOpen}
               aria-haspopup="menu"
-              className="h-8 w-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-muted"
+              className="h-9 w-9 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-muted"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();

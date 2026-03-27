@@ -34,7 +34,7 @@ export function HourlyBreakdown({ taskId }: Props) {
     <div className="rounded-xl border border-border bg-card p-5 space-y-3">
       <h3 className="font-semibold text-sm">Activity by Hour</h3>
       {isLoading ? (
-        <div className="h-32 animate-pulse bg-muted rounded" />
+        <div className="h-32 bg-muted rounded animate-shimmer" />
       ) : (
         <ResponsiveContainer width="100%" height={120}>
           <BarChart data={filled} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>

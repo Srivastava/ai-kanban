@@ -4,13 +4,7 @@ import { useUsageWindows } from '@/hooks/use-analytics';
 import { cn } from '@/lib/utils';
 import { RefreshCw } from 'lucide-react';
 
-const TZ = 'America/Los_Angeles';
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
-}
+import { formatTokens } from '@/lib/format';
 
 function formatReset(
   iso: string | null,
@@ -19,8 +13,7 @@ function formatReset(
   if (noData) return { label: '—', countdown: 'Rate limited' };
   if (!iso) return { label: '—', countdown: 'No data yet' };
   const d = new Date(iso);
-  const label = new Intl.DateTimeFormat('en-US', {
-    timeZone: TZ,
+  const label = new Intl.DateTimeFormat(undefined, {
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
@@ -67,8 +60,7 @@ export function UsageWindowsCard() {
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useUsageWindows();
 
   const lastUpdated = dataUpdatedAt
-    ? new Intl.DateTimeFormat('en-US', {
-        timeZone: TZ,
+    ? new Intl.DateTimeFormat(undefined, {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
@@ -81,7 +73,7 @@ export function UsageWindowsCard() {
   const resetWeek = formatReset(data?.reset_week ?? null, false);
 
   const skeleton = (
-    <span className="animate-pulse bg-muted rounded w-16 h-6 inline-block" />
+    <span className="bg-muted rounded w-16 h-6 inline-block animate-shimmer" />
   );
 
   return (
@@ -117,7 +109,7 @@ export function UsageWindowsCard() {
             <UsageGauge
               used={data.tokens_5hr}
               limit={data.limit_5hr}
-              colorClass="bg-blue-500"
+              colorClass="bg-stage-planning"
             />
           )}
         </div>
@@ -132,7 +124,7 @@ export function UsageWindowsCard() {
             <UsageGauge
               used={data.tokens_week}
               limit={data.limit_week}
-              colorClass="bg-violet-500"
+              colorClass="bg-stage-review"
             />
           )}
         </div>

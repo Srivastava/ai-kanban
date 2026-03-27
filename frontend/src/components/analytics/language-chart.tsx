@@ -2,14 +2,8 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTokensByLanguage } from '@/hooks/use-analytics';
-
-const COLORS = ['#6366f1', '#a855f7', '#ec4899', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#f43f5e'];
-
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return `${n}`;
-}
+import { formatTokens } from '@/lib/format';
+import { seriesColor } from '@/lib/chart-colors';
 
 interface Props { taskId?: string | null }
 
@@ -28,7 +22,7 @@ export function LanguageChart({ taskId }: Props) {
     <div className="rounded-xl border border-border bg-card p-5 space-y-4">
       <h3 className="font-semibold">Tokens by Language</h3>
       {isLoading ? (
-        <div className="h-56 animate-pulse bg-muted rounded" />
+        <div className="h-56 bg-muted rounded animate-shimmer" />
       ) : chartData.length === 0 ? (
         <div className="h-56 flex items-center justify-center">
           <p className="text-muted-foreground text-sm">No language data yet</p>
@@ -47,11 +41,11 @@ export function LanguageChart({ taskId }: Props) {
                 paddingAngle={2}
                 dataKey="value"
                 nameKey="ext"
-                stroke="hsl(var(--card))"
+                stroke="var(--card)"
                 strokeWidth={2}
               >
                 {chartData.map((_, i) => (
-                  <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  <Cell key={i} fill={seriesColor(i)} />
                 ))}
               </Pie>
               <Tooltip
@@ -60,11 +54,11 @@ export function LanguageChart({ taskId }: Props) {
                   String(name),
                 ]}
                 contentStyle={{
-                  background: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
+                  background: 'var(--card)',
+                  border: '1px solid var(--border)',
                   borderRadius: '8px',
                   fontSize: '12px',
-                  color: 'hsl(var(--card-foreground))',
+                  color: 'var(--card-foreground)',
                 }}
               />
             </PieChart>
@@ -76,7 +70,7 @@ export function LanguageChart({ taskId }: Props) {
               <div key={entry.ext} className="flex items-center gap-2 text-sm">
                 <span
                   className="w-3 h-3 rounded-sm flex-shrink-0"
-                  style={{ background: COLORS[i % COLORS.length] }}
+                  style={{ background: seriesColor(i) }}
                 />
                 <span className="flex-1 font-mono text-foreground">{entry.ext}</span>
                 <span className="tabular-nums text-muted-foreground">{formatTokens(entry.value)}</span>

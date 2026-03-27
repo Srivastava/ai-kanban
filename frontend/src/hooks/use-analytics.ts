@@ -26,6 +26,8 @@ export function useAnalyticsOverview() {
       return result;
     },
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    staleTime: 10_000,
   });
 }
 
@@ -41,6 +43,7 @@ export function useDailyTokens(days = 30, taskId?: string | null) {
       logger.debug('useDailyTokens: fetch complete', { count: result.length });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -56,6 +59,7 @@ export function useWeeklyTokens(weeks = 12, taskId?: string | null) {
       logger.debug('useWeeklyTokens: fetch complete', { count: result.length });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -71,6 +75,7 @@ export function useMonthlyTokens(months = 6, taskId?: string | null) {
       logger.debug('useMonthlyTokens: fetch complete', { count: result.length });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -85,6 +90,7 @@ export function useTokensByTask() {
       logger.debug('useTokensByTask: fetch complete', { count: result.length });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -99,6 +105,7 @@ export function useTokensBySession() {
       logger.debug('useTokensBySession: fetch complete', { count: result.length });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -114,6 +121,7 @@ export function useTokensByTool(taskId?: string | null) {
       logger.debug('useTokensByTool: fetch complete', { count: result.length, tools: result.map(t => t.tool_name) });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -129,6 +137,7 @@ export function useTokensByLanguage(taskId?: string | null) {
       logger.debug('useTokensByLanguage: fetch complete', { count: result.length, languages: result.map(l => l.file_ext) });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -143,6 +152,7 @@ export function useTokenEfficiency(taskId?: string | null) {
       logger.debug('useTokenEfficiency: fetch complete', { count: result.length });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -151,6 +161,7 @@ export function useLocHistory(taskId: string | null) {
     queryKey: ['analytics', 'loc-history', taskId],
     queryFn: () => apiClient<LocHistoryEntry[]>(`/api/analytics/tasks/${taskId!}/loc-history`),
     enabled: !!taskId,
+    staleTime: 60_000,
   });
 }
 
@@ -166,8 +177,10 @@ export function useSessionTimeline(sessionId: string | null) {
       return result;
     },
     enabled: !!sessionId,
+    staleTime: 60_000,
   });
 }
+
 export function useUsageWindows() {
   logger.debug('useUsageWindows hook called');
 
@@ -178,7 +191,9 @@ export function useUsageWindows() {
       logger.debug('useUsageWindows: fetch complete', { tokens_5hr: result.tokens_5hr });
       return result;
     },
-    refetchInterval: 60_000, // refresh every minute
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
 }
 
@@ -190,6 +205,7 @@ export function useCostByTask() {
       logger.debug('useCostByTask: fetch complete', { count: result.length });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -202,6 +218,7 @@ export function useTokensByStage(taskId?: string | null) {
       logger.debug('useTokensByStage: fetch complete', { count: result.length });
       return result;
     },
+    staleTime: 60_000,
   });
 }
 
@@ -214,6 +231,8 @@ export function useSessionSummary() {
       return result;
     },
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    staleTime: 10_000,
   });
 }
 
@@ -226,6 +245,8 @@ export function useBurnRate() {
       return result;
     },
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
 }
 
@@ -234,6 +255,7 @@ export function useTaskTimeline(taskId: string | null) {
     queryKey: ['analytics', 'task-timeline', taskId],
     queryFn: () => apiClient<TaskTimelineEvent[]>(`/api/analytics/tasks/${taskId}/task-timeline`),
     enabled: !!taskId,
+    staleTime: 60_000,
   });
 }
 
@@ -243,6 +265,8 @@ export function useTaskSessions(taskId: string | null) {
     queryFn: () => apiClient<SessionDetail[]>(`/api/tasks/${taskId}/sessions-detail`),
     enabled: !!taskId,
     refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    staleTime: 5_000,
   });
 }
 
@@ -254,6 +278,8 @@ export function useDevActivity(taskId: string | null) {
     ),
     enabled: !!taskId,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
 }
 
@@ -261,7 +287,7 @@ export function usePlanTier() {
   return useQuery({
     queryKey: ['analytics', 'plan-tier'],
     queryFn: () => apiClient<PlanTier>('/api/analytics/plan-tier'),
-    // No refetchInterval — static/env-driven
+    staleTime: Infinity, // static / env-driven, never changes at runtime
   });
 }
 
@@ -272,6 +298,8 @@ export function useRoiMetrics(taskId?: string | null) {
       taskId ? `/api/analytics/roi?task_id=${taskId}` : '/api/analytics/roi'
     ),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
 }
 
@@ -280,6 +308,8 @@ export function useContextUsage() {
     queryKey: ['analytics', 'context-usage'],
     queryFn: () => apiClient<ContextWindowUsage[]>('/api/analytics/context-usage'),
     refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    staleTime: 5_000,
   });
 }
 
@@ -290,6 +320,7 @@ export function useDailyHeatmap(days = 365, taskId?: string | null) {
       const params = taskId ? `days=${days}&task_id=${taskId}` : `days=${days}`;
       return apiClient<HeatmapEntry[]>(`/api/analytics/daily-heatmap?${params}`);
     },
+    staleTime: 60_000,
   });
 }
 
@@ -302,6 +333,7 @@ export function useHourlyBreakdown(taskId?: string | null) {
         : '/api/analytics/hourly-breakdown';
       return apiClient<HourlyEntry[]>(url);
     },
+    staleTime: 60_000,
   });
 }
 
@@ -311,6 +343,7 @@ export function useSessionTools(sessionId: string | null) {
     queryFn: async () =>
       apiClient<SessionToolTokens[]>(`/api/analytics/sessions/${sessionId!}/tools`),
     enabled: !!sessionId,
+    staleTime: 60_000,
   });
 }
 
