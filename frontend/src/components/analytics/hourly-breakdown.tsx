@@ -2,12 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { useHourlyBreakdown } from '@/hooks/use-analytics';
-
-function fmt(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
-}
+import { formatTokens as fmt } from '@/lib/format';
 
 function hourLabel(h: number) {
   if (h === 0) return '12a';
@@ -38,19 +33,19 @@ export function HourlyBreakdown({ taskId }: Props) {
       ) : (
         <ResponsiveContainer width="100%" height={120}>
           <BarChart data={filled} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-            <XAxis dataKey="label" tick={{ fontSize: 8, fill: 'hsl(var(--muted-foreground))' }}
+            <XAxis dataKey="label" tick={{ fontSize: 8, fill: 'var(--muted-foreground)' }}
               interval={2} />
-            <YAxis tickFormatter={fmt} tick={{ fontSize: 8, fill: 'hsl(var(--muted-foreground))' }} />
+            <YAxis tickFormatter={fmt} tick={{ fontSize: 8, fill: 'var(--muted-foreground)' }} />
             <Tooltip
               formatter={(v) => [fmt(Number(v)), 'Tokens']}
               labelFormatter={(l) => `Hour: ${l} UTC`}
-              contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 11, color: 'hsl(var(--card-foreground))' }}
+              contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 11, color: 'var(--card-foreground)' }}
             />
             <Bar dataKey="tokens" radius={[2, 2, 0, 0]}>
               {filled.map((entry) => (
                 <Cell key={entry.hour}
                   fill={entry.tokens === 0
-                    ? 'hsl(var(--muted))'
+                    ? 'var(--muted)'
                     : `hsl(${137} ${Math.round(50 + (entry.tokens / max) * 40)}% ${Math.round(45 - (entry.tokens / max) * 15)}%)`} />
               ))}
             </Bar>

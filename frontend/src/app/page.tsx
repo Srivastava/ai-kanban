@@ -131,7 +131,11 @@ function HomeContent() {
         <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6">
           <MobileMetricsStrip />
           <StatsStrip onNewTask={() => setDialogOpen(true)} />
-          <Suspense fallback={<div role="status" aria-live="polite" className="flex items-center justify-center h-64 text-sm text-muted-foreground">Loading...</div>}>
+          <Suspense fallback={
+            <div role="status" aria-live="polite" className="space-y-3 pt-1">
+              {[1,2,3,4].map(i => <div key={i} className="h-20 rounded-xl bg-muted/40 animate-shimmer" />)}
+            </div>
+          }>
             <TaskContent onNewTask={() => setDialogOpen(true)} />
           </Suspense>
         </main>
@@ -143,7 +147,14 @@ function HomeContent() {
 
 export default function Home() {
   return (
-    <Suspense fallback={<div role="status" aria-live="polite" className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading...</div>}>
+    <Suspense fallback={
+      <div role="status" aria-live="polite" className="flex min-h-screen bg-background">
+        <div className="w-14 md:w-56 shrink-0 border-r border-border animate-shimmer" />
+        <div className="flex-1 p-6 space-y-3">
+          {[1,2,3,4,5].map(i => <div key={i} className="h-16 rounded-xl bg-muted/40 animate-shimmer" />)}
+        </div>
+      </div>
+    }>
       <HomeContent />
     </Suspense>
   );

@@ -49,12 +49,12 @@ export function OverviewCards() {
                 <span className="tabular-nums font-medium">{fmt(data.total_input_tokens)}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-amber-600 dark:text-amber-400">Cache write ⚡</span>
-                <span className="tabular-nums font-medium text-amber-600 dark:text-amber-400">{fmt(cacheCreation)}</span>
+                <span className="text-stage-ready-text">Cache write ⚡</span>
+                <span className="tabular-nums font-medium text-stage-ready-text">{fmt(cacheCreation)}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-amber-500 dark:text-amber-500">Cache read ⚡</span>
-                <span className="tabular-nums font-medium text-amber-500">{fmt(cacheRead)}</span>
+                <span className="text-stage-ready-text/80">Cache read ⚡</span>
+                <span className="tabular-nums font-medium text-stage-ready-text/80">{fmt(cacheRead)}</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Output</span>
@@ -67,8 +67,8 @@ export function OverviewCards() {
         </div>
 
         {/* Estimated Cost — featured */}
-        <div className="rounded-xl border border-border bg-card p-5 border-t-2 border-t-amber-500/60">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-500 mb-2">Estimated Cost</p>
+        <div className="rounded-xl border border-border bg-card p-5 border-t-2 border-t-stage-ready/60">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-stage-ready-text mb-2">Estimated Cost</p>
           <p className="text-5xl font-black tabular-nums leading-none tracking-tighter mb-3">
             {isLoading ? <Skeleton className="w-24 h-12" /> : (data ? fmtCost(data.estimated_cost_usd) : '—')}
           </p>
@@ -79,12 +79,12 @@ export function OverviewCards() {
                 <span className="tabular-nums font-medium">{fmtCost(costOutput)}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-amber-600 dark:text-amber-400">Cache write</span>
-                <span className="tabular-nums font-medium text-amber-600 dark:text-amber-400">{fmtCost(costCacheWrite)}</span>
+                <span className="text-stage-ready-text">Cache write</span>
+                <span className="tabular-nums font-medium text-stage-ready-text">{fmtCost(costCacheWrite)}</span>
               </div>
               <div className="flex justify-between text-xs">
-                <span className="text-amber-500 dark:text-amber-500">Cache read</span>
-                <span className="tabular-nums font-medium text-amber-500">{fmtCost(costCacheRead)}</span>
+                <span className="text-stage-ready-text/80">Cache read</span>
+                <span className="tabular-nums font-medium text-stage-ready-text/80">{fmtCost(costCacheRead)}</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Input</span>
@@ -99,15 +99,15 @@ export function OverviewCards() {
 
       {/* Secondary row: compact stats */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-border bg-card px-4 py-4 flex items-center justify-between border-t-2 border-t-emerald-500/50">
+        <div className="rounded-xl border border-border bg-card px-4 py-4 flex items-center justify-between border-t-2 border-t-stage-done/50">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500">Sessions</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-stage-done-text">Sessions</p>
             <p className="text-3xl font-black tabular-nums tracking-tighter leading-tight mt-1">
               {isLoading ? <Skeleton className="w-10 h-8" /> : (data ? data.total_sessions : '—')}
             </p>
           </div>
           {data && !isLoading && data.active_sessions_today > 0 && (
-            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-500/10 rounded-lg px-2.5 py-1.5">
+            <span className="text-xs text-stage-done-text font-bold bg-stage-done/10 rounded-lg px-2.5 py-1.5">
               {data.active_sessions_today} live
             </span>
           )}

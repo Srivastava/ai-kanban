@@ -5,10 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { useSessionTools } from '@/hooks/use-analytics';
 import { X } from 'lucide-react';
 
-function fmt(n: number) {
-  if (n >= 1_000) return `${(n / 1_000).toFixed(0)}K`;
-  return String(n);
-}
+import { formatTokens as fmt } from '@/lib/format';
 
 interface Props {
   sessionId: string;
@@ -34,7 +31,7 @@ export function SessionToolBreakdown({ sessionId, sessionTotalTokens, onClose }:
     calls: t.call_count,
   }));
 
-  const COLORS = ['#6366f1','#8b5cf6','#3b82f6','#06b6d4','#10b981','#f59e0b','#ef4444','#64748b'];
+  const COLORS = ['var(--chart-1)','var(--chart-2)','var(--chart-3)','var(--chart-4)','var(--chart-5)','var(--chart-1)','var(--chart-2)','var(--chart-3)'];
 
   return (
     <div className="mt-2 rounded-lg border border-border bg-muted/20 p-4 space-y-3">
@@ -55,14 +52,14 @@ export function SessionToolBreakdown({ sessionId, sessionTotalTokens, onClose }:
         <>
           <ResponsiveContainer width="100%" height={Math.max(80, data.length * 28)}>
             <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 60, left: 10, bottom: 0 }}>
-              <XAxis type="number" tickFormatter={fmt} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--foreground))' }} width={80} />
+              <XAxis type="number" tickFormatter={fmt} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'var(--foreground)' }} width={80} />
               <Tooltip
                 formatter={(v, _name, props) => [
                   `${fmt(Number(v))} tokens · ${props.payload.calls} calls`,
                   'Total',
                 ]}
-                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 11, color: 'hsl(var(--card-foreground))' }}
+                contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 11, color: 'var(--card-foreground)' }}
               />
               <Bar dataKey="total" radius={[0, 3, 3, 0]}>
                 {chartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}

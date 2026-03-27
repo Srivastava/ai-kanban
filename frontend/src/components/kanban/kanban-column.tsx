@@ -135,7 +135,7 @@ export function KanbanColumn({ stage, tasks, isLoading, onCreateTask, costByTask
             variant="ghost"
             size="icon"
             aria-label={`Add task to ${stageLabels[stage]}`}
-            className={`h-7 w-7 ${stageTextColor[stage]} opacity-60 hover:opacity-100 transition-opacity`}
+            className={`h-9 w-9 ${stageTextColor[stage]} opacity-60 hover:opacity-100 transition-opacity`}
             onClick={() => onCreateTask(stage)}
           >
             <Plus className="h-3.5 w-3.5" />

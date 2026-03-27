@@ -17,9 +17,9 @@ export function ProductivitySection({ taskId }: Props) {
   const hasOtelData = (roi?.total_commits ?? 0) > 0 || (roi?.total_prs ?? 0) > 0;
 
   const activityData = roi ? [
-    { name: 'Commits', value: roi.total_commits, color: '#6366f1' },
-    { name: 'PRs', value: roi.total_prs, color: '#8b5cf6' },
-    { name: 'LOC (÷100)', value: Math.round(roi.total_loc / 100), color: '#a78bfa' },
+    { name: 'Commits', value: roi.total_commits, color: 'var(--chart-1)' },
+    { name: 'PRs', value: roi.total_prs, color: 'var(--chart-4)' },
+    { name: 'LOC (÷100)', value: Math.round(roi.total_loc / 100), color: 'var(--chart-5)' },
   ] : [];
 
   return (
@@ -44,11 +44,11 @@ export function ProductivitySection({ taskId }: Props) {
           </div>
           <ResponsiveContainer width="100%" height={160}>
             <BarChart data={activityData} barSize={40}>
-              <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} />
+              <YAxis tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }} />
               <Tooltip
                 formatter={(v: number | undefined) => [v ?? 0, '']}
-                contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 6, fontSize: 12, color: 'hsl(var(--card-foreground))' }}
+                contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, color: 'var(--card-foreground)' }}
               />
               <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                 {activityData.map((entry) => (

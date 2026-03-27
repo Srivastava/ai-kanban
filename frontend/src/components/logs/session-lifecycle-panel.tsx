@@ -125,9 +125,9 @@ export function SessionLifecyclePanel({
                 <p className="text-xs text-muted-foreground mb-1">Tokens per session</p>
                 <ResponsiveContainer width="100%" height={120}>
                   <BarChart data={barData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-                    <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} width={36} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
+                    <YAxis tickFormatter={formatTokens} tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }} width={36} />
                     <Tooltip
                       contentStyle={TOOLTIP_STYLE}
                       content={({ active, payload }) => {

@@ -123,16 +123,16 @@ export function SessionTimelineChart({ taskId: externalTaskId }: Props) {
           {/* Bar chart: total tokens per session, colored by status */}
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={barData} margin={{ top: 5, right: 10, left: 10, bottom: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                label={{ value: 'Session (oldest → newest)', position: 'insideBottom', offset: -10, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }}
+                tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                label={{ value: 'Session (oldest → newest)', position: 'insideBottom', offset: -10, style: { fontSize: 10, fill: 'var(--muted-foreground)' } }}
               />
               <YAxis
                 tickFormatter={formatTokens}
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                label={{ value: 'Tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'hsl(var(--muted-foreground))' } }}
+                tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
+                label={{ value: 'Tokens', angle: -90, position: 'insideLeft', offset: 15, style: { fontSize: 10, fill: 'var(--muted-foreground)' } }}
               />
               <Tooltip
                 content={({ active, payload }) => {

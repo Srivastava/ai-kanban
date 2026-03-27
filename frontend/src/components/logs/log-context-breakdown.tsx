@@ -45,7 +45,7 @@ function BarRow({
           className={`h-full rounded-full transition-all ${isActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}`}
           style={{
             width: `${Math.max(4, (count / max) * 100)}%`,
-            background: color.includes('primary') ? 'hsl(var(--primary))' : color.includes('violet') ? '#8b5cf6' : '#8b5cf6',
+            background: color.includes('primary') ? 'var(--primary)' : 'var(--stage-review)',
           }}
         />
       </div>
@@ -96,7 +96,7 @@ export function LogContextBreakdown({ logs, onTaskClick, onSessionClick, activeT
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-2 px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide hover:bg-muted/40 transition-colors"
       >
-        <span className="w-2 h-2 rounded-full bg-violet-500/60" />
+        <span className="w-2 h-2 rounded-full bg-stage-review/60" />
         Log Context Breakdown
         <span className="text-muted-foreground/60 font-normal normal-case ml-1">
           {pctWithContext}% of logs have task/session context
@@ -147,7 +147,7 @@ export function LogContextBreakdown({ logs, onTaskClick, onSessionClick, activeT
                     id={id}
                     count={count}
                     max={maxSession}
-                    color="text-violet-400"
+                    color="text-stage-review-text"
                     isActive={activeSessionId === id}
                     onClick={() => onSessionClick(id)}
                   />
