@@ -82,11 +82,20 @@ function CollapsibleCard({
       >
         {icon && <span className="text-primary/70">{icon}</span>}
         <span className="flex-1">{title}</span>
-        {open
-          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+        <ChevronDown
+          className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? '' : '-rotate-90'}`}
+        />
       </button>
-      {open && <CardContent id={contentId} className={contentClassName ?? 'pt-4 px-5 pb-5'}>{children}</CardContent>}
+      <div
+        className="collapse-grid"
+        style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
+          <CardContent id={contentId} className={contentClassName ?? 'pt-4 px-5 pb-5'}>
+            {children}
+          </CardContent>
+        </div>
+      </div>
     </Card>
   );
 }
@@ -315,7 +324,7 @@ function EnrichmentBanner({ taskId }: { taskId: string }) {
   if (!enriching) return null;
 
   return (
-    <div className="mb-3 flex items-center gap-2 rounded-md border border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-3 py-2 text-sm text-indigo-800 dark:text-indigo-200">
+    <div className="mb-3 flex items-center gap-2 rounded-md border border-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-700 px-3 py-2 text-sm text-indigo-800 dark:text-indigo-200 motion-safe:animate-fade-in-down">
       <span className="h-2 w-2 rounded-full bg-indigo-500 motion-safe:animate-breathe shrink-0" />
       <span>Enriching task description with AI — instructions will appear shortly...</span>
     </div>
@@ -343,7 +352,7 @@ function PlanBanner({ taskId, sessionId }: { taskId: string; sessionId: string |
   if (!show) return null;
 
   return (
-    <div className="mb-3 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+    <div className="mb-3 flex items-center justify-between gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 px-3 py-2 text-sm text-amber-800 dark:text-amber-200 motion-safe:animate-fade-in-down">
       <span>✅ Implementation plan written by Claude. Ready to start working.</span>
       <button
         onClick={() => setShow(false)}
@@ -456,15 +465,17 @@ function ContextFilePreview({ taskId }: { taskId: string }) {
         <span className="text-[10px] bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded mr-1">
           .claude/ai-kanban.md
         </span>
-        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
       </button>
-      {open && (
-        <div className="border-t border-border px-3 py-3">
-          <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed max-h-96 overflow-y-auto">
-            {data.content}
-          </pre>
+      <div className="collapse-grid" style={{ gridTemplateRows: open ? '1fr' : '0fr' }}>
+        <div className="overflow-hidden">
+          <div className="border-t border-border px-3 py-3">
+            <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed max-h-96 overflow-y-auto">
+              {data.content}
+            </pre>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -668,7 +679,7 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
 
         {/* Metadata chips */}
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className={cn('font-medium text-xs', stage.className)}>
+          <Badge variant="outline" className={cn('font-medium text-xs motion-safe:animate-pop-in', stage.className)} style={{ animationDelay: '0ms' }}>
             {stage.label}
           </Badge>
           <QueueBadge taskId={task.id} sessionStatus={sessionStatus} />
@@ -676,12 +687,13 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
           {/* Feature 5: Project path — copy on click */}
           <button
             onClick={handleCopyPath}
-            className="flex items-center gap-1.5 text-muted-foreground text-xs bg-muted/60 rounded-md px-2.5 py-1 hover:bg-muted transition-colors"
+            className="flex items-center gap-1.5 text-muted-foreground text-xs bg-muted/60 rounded-md px-2.5 py-1 hover:bg-muted active:scale-95 transition-[colors,transform] duration-150"
             title="Click to copy path"
             aria-label={pathCopied ? 'Copied!' : 'Copy project path'}
+            style={{ animationDelay: '50ms' }}
           >
             {pathCopied ? (
-              <span aria-live="polite" className="text-green-600 dark:text-green-400">Copied!</span>
+              <span aria-live="polite" className="text-stage-done-text motion-safe:animate-pop-in">Copied!</span>
             ) : (
               <>
                 <FolderOpen className="h-3.5 w-3.5 shrink-0" />
@@ -691,35 +703,35 @@ export function TaskDetail({ task, onDelete = () => {}, isDeleting }: TaskDetail
             )}
           </button>
 
-          <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground text-xs motion-safe:animate-pop-in" style={{ animationDelay: '100ms' }}>
             <Clock className="h-3.5 w-3.5 shrink-0" />
             <UpdatedTime updatedAt={task.updated_at} />
           </div>
 
           {/* Feature 1 & 2: Session count + cost + token chips */}
           {sessionCount > 0 && (
-            <span className="text-xs bg-blue-500/10 rounded-md px-2.5 py-1 text-blue-600 dark:text-blue-400 font-medium">
+            <span className="text-xs bg-blue-500/10 rounded-md px-2.5 py-1 text-blue-600 dark:text-blue-400 font-medium motion-safe:animate-pop-in" style={{ animationDelay: '150ms' }}>
               {sessionCount} session{sessionCount !== 1 ? 's' : ''}
             </span>
           )}
           {totalCost > 0 && (
-            <span className="flex items-center gap-1 text-xs bg-green-500/10 rounded-md px-2.5 py-1 text-green-600 dark:text-green-400 font-medium">
+            <span className="flex items-center gap-1 text-xs bg-green-500/10 rounded-md px-2.5 py-1 text-green-600 dark:text-green-400 font-medium motion-safe:animate-pop-in" style={{ animationDelay: '200ms' }}>
               <DollarSign className="h-3 w-3 shrink-0" />
               {totalCost < 0.01 ? '<$0.01' : `$${totalCost.toFixed(2)}`}
             </span>
           )}
           {(totalInputTokens > 0 || totalOutputTokens > 0) && (
-            <span className="text-xs bg-indigo-500/10 rounded-md px-2.5 py-1 text-indigo-600 dark:text-indigo-400 font-medium">
+            <span className="text-xs bg-indigo-500/10 rounded-md px-2.5 py-1 text-indigo-600 dark:text-indigo-400 font-medium motion-safe:animate-pop-in" style={{ animationDelay: '250ms' }}>
               {formatTokens(totalInputTokens)} in · {formatTokens(totalOutputTokens)} out
             </span>
           )}
           {totalCacheRead > 0 && (
-            <span className="text-xs bg-amber-500/10 rounded-md px-2.5 py-1 text-amber-600 dark:text-amber-400 font-medium">
+            <span className="text-xs bg-amber-500/10 rounded-md px-2.5 py-1 text-amber-600 dark:text-amber-400 font-medium motion-safe:animate-pop-in" style={{ animationDelay: '300ms' }}>
               {formatTokens(totalCacheRead)} cached · {cacheHitPct}% hit
             </span>
           )}
           {totalComputeSecs > 0 && (
-            <span className="text-xs bg-red-500/10 rounded-md px-2.5 py-1 text-red-600 dark:text-red-400 font-medium">
+            <span className="text-xs bg-red-500/10 rounded-md px-2.5 py-1 text-red-600 dark:text-red-400 font-medium motion-safe:animate-pop-in" style={{ animationDelay: '350ms' }}>
               {formatDuration(totalComputeSecs)} compute
             </span>
           )}

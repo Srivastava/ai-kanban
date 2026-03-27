@@ -175,7 +175,7 @@ export function LogTable({ logs, filter }: Props) {
                 <tr
                   onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
                   className={cn(
-                    'cursor-pointer transition-colors border-b border-border/40',
+                    'cursor-pointer transition-colors border-b border-border/40 motion-safe:animate-fade-in-up',
                     i % 2 === 0 ? 'bg-background' : 'bg-muted/10',
                     'hover:bg-primary/5',
                     log.level === 'ERROR' &&
@@ -184,6 +184,7 @@ export function LogTable({ logs, filter }: Props) {
                       'border-l-2 !border-l-amber-400 bg-amber-500/5 hover:bg-amber-500/10',
                     expandedId === log.id && '!bg-primary/8'
                   )}
+                  style={{ animationDelay: `${Math.min(i * 18, 250)}ms` }}
                 >
                   <td className="px-3 py-1.5 font-mono text-muted-foreground whitespace-nowrap" title={formatFullTime(log.timestamp)}>
                     {formatLogTime(log.timestamp)}
@@ -223,7 +224,9 @@ export function LogTable({ logs, filter }: Props) {
                         title={`Click to copy: ${log.task_id}`}
                         onClick={(e) => handleCopy(log.task_id!, e)}
                       >
-                        {copiedId === log.task_id ? '✓' : `${log.task_id.slice(0, 8)}…`}
+                        {copiedId === log.task_id
+                          ? <span key="copied" className="text-stage-done-text motion-safe:animate-count-bump">✓</span>
+                          : `${log.task_id.slice(0, 8)}…`}
                       </button>
                     ) : '—'}
                   </td>
@@ -234,7 +237,9 @@ export function LogTable({ logs, filter }: Props) {
                         title={`Click to copy: ${log.session_id}`}
                         onClick={(e) => handleCopy(log.session_id!, e)}
                       >
-                        {copiedId === log.session_id ? '✓' : `${log.session_id.slice(0, 8)}…`}
+                        {copiedId === log.session_id
+                          ? <span key="copied" className="text-stage-done-text motion-safe:animate-count-bump">✓</span>
+                          : `${log.session_id.slice(0, 8)}…`}
                       </button>
                     ) : '—'}
                   </td>
@@ -250,7 +255,7 @@ export function LogTable({ logs, filter }: Props) {
                         log.level === 'ERROR' ? 'border-l-red-500' : 'border-l-primary/40'
                       )}
                     >
-                      <div className="space-y-2 text-xs">
+                      <div className="space-y-2 text-xs motion-safe:animate-fade-in-up">
                         <div className="flex flex-wrap gap-x-6 gap-y-1">
                           <div>
                             <span className="text-muted-foreground">Timestamp: </span>

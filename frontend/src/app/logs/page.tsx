@@ -221,9 +221,9 @@ export default function LogsPage() {
         {newCount > 0 && (
           <button
             onClick={() => { setIsLive(true); loadNewLogs(); }}
-            className="mx-6 mt-3 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-sm text-primary text-center hover:bg-primary/20 transition-colors"
+            className="mx-6 mt-3 rounded-lg bg-primary/10 border border-primary/20 px-4 py-2 text-sm text-primary text-center hover:bg-primary/20 active:scale-[0.98] transition-[colors,transform] duration-150 motion-safe:animate-fade-in-down"
           >
-            {newCount} new log{newCount > 1 ? 's' : ''} — click to load
+            ↓ {newCount} new log{newCount > 1 ? 's' : ''} — click to load
           </button>
         )}
 

@@ -36,14 +36,15 @@ interface SectionHeaderProps {
 
 function SectionHeader({ num, title, sub }: SectionHeaderProps) {
   return (
-    <div className="flex items-end gap-4 border-b-2 border-border pb-4">
+    <div className="flex items-end gap-4 border-b-2 border-border pb-4 overflow-hidden">
       <span
         aria-hidden
-        className="text-[52px] sm:text-[80px] font-black leading-none tracking-tighter text-primary/[0.10] select-none -mb-2 tabular-nums shrink-0"
+        className="text-[52px] sm:text-[80px] font-black leading-none tracking-tighter text-primary/[0.10] select-none -mb-2 tabular-nums shrink-0 motion-safe:animate-fade-in-up"
+        style={{ animationDuration: '0.5s' }}
       >
         {num}
       </span>
-      <div className="pb-1 min-w-0">
+      <div className="pb-1 min-w-0 motion-safe:animate-fade-in-up" style={{ animationDelay: '60ms' }}>
         <h2 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none">{title}</h2>
         {sub && (
           <p className="text-[11px] text-muted-foreground mt-1.5 uppercase tracking-widest font-medium">
@@ -104,7 +105,7 @@ export function AnalyticsPageInner() {
 
       <div className="p-4 sm:p-6 space-y-16">
         {/* ROI & Cost */}
-        <section className="space-y-6">
+        <section className="space-y-6 motion-safe:animate-fade-in-up" style={{ animationDelay: '80ms' }}>
           <SectionHeader
             num="01"
             title="ROI & Cost"
@@ -123,7 +124,7 @@ export function AnalyticsPageInner() {
         </section>
 
         {/* Usage Trends */}
-        <section className="space-y-6">
+        <section className="space-y-6 motion-safe:animate-fade-in-up" style={{ animationDelay: '160ms' }}>
           <SectionHeader num="02" title="Usage Trends" />
           {/* Heatmap + Hourly */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -141,7 +142,7 @@ export function AnalyticsPageInner() {
         </section>
 
         {/* Productivity */}
-        <section className="space-y-6">
+        <section className="space-y-6 motion-safe:animate-fade-in-up" style={{ animationDelay: '240ms' }}>
           <SectionHeader
             num="03"
             title="Productivity"
@@ -151,7 +152,7 @@ export function AnalyticsPageInner() {
         </section>
 
         {/* Session Deep Dive */}
-        <section className="space-y-6">
+        <section className="space-y-6 motion-safe:animate-fade-in-up" style={{ animationDelay: '320ms' }}>
           <SectionHeader
             num="04"
             title="Session Deep Dive"

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useTokensBySession } from '@/hooks/use-analytics';
 import type { SessionTokens } from '@/types/analytics';
 
@@ -52,41 +52,43 @@ export function ActiveSessionsPanel({ onSessionClick, activeSessionId }: Props) 
         <span className="text-muted-foreground/60 font-normal normal-case ml-1">
           {sorted.length} session{sorted.length !== 1 ? 's' : ''}
         </span>
-        {open ? <ChevronDown className="h-3.5 w-3.5 ml-auto" /> : <ChevronRight className="h-3.5 w-3.5 ml-auto" />}
+        <ChevronDown className={`h-3.5 w-3.5 ml-auto transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
       </button>
 
-      {open && (
-        <div className="border-t border-border">
-          {isLoading ? (
-            <div className="px-4 py-3 space-y-2">
-              {[1, 2, 3].map((i) => <div key={i} className="h-6 bg-muted rounded animate-shimmer" />)}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-muted-foreground border-b border-border/50 bg-muted/20">
-                    <th className="text-left px-4 py-1.5 font-medium">Session ID</th>
-                    <th className="text-left px-3 py-1.5 font-medium">Task</th>
-                    <th className="text-left px-3 py-1.5 font-medium">Started</th>
-                    <th className="text-right px-4 py-1.5 font-medium">in / cached / out</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {sorted.map((s) => (
-                    <SessionRow
-                      key={s.session_id}
-                      session={s}
-                      isActive={activeSessionId === s.session_id}
-                      onSessionClick={onSessionClick}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      <div className="collapse-grid" style={{ gridTemplateRows: open ? '1fr' : '0fr' }}>
+        <div className="overflow-hidden">
+          <div className="border-t border-border">
+            {isLoading ? (
+              <div className="px-4 py-3 space-y-2">
+                {[1, 2, 3].map((i) => <div key={i} className="h-6 bg-muted rounded animate-shimmer" />)}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted-foreground border-b border-border/50 bg-muted/20">
+                      <th className="text-left px-4 py-1.5 font-medium">Session ID</th>
+                      <th className="text-left px-3 py-1.5 font-medium">Task</th>
+                      <th className="text-left px-3 py-1.5 font-medium">Started</th>
+                      <th className="text-right px-4 py-1.5 font-medium">in / cached / out</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {sorted.map((s) => (
+                      <SessionRow
+                        key={s.session_id}
+                        session={s}
+                        isActive={activeSessionId === s.session_id}
+                        onSessionClick={onSessionClick}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

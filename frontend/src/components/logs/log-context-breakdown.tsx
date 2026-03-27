@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import type { LogEntry } from '@/types/log';
 
 interface Props {
@@ -101,10 +101,11 @@ export function LogContextBreakdown({ logs, onTaskClick, onSessionClick, activeT
         <span className="text-muted-foreground/60 font-normal normal-case ml-1">
           {pctWithContext}% of logs have task/session context
         </span>
-        {open ? <ChevronDown className="h-3.5 w-3.5 ml-auto" /> : <ChevronRight className="h-3.5 w-3.5 ml-auto" />}
+        <ChevronDown className={`h-3.5 w-3.5 ml-auto transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
       </button>
 
-      {open && (
+      <div className="collapse-grid" style={{ gridTemplateRows: open ? '1fr' : '0fr' }}>
+        <div className="overflow-hidden">
         <div className="border-t border-border grid grid-cols-2 divide-x divide-border">
           {/* Tasks */}
           <div className="p-4">
@@ -156,7 +157,8 @@ export function LogContextBreakdown({ logs, onTaskClick, onSessionClick, activeT
             )}
           </div>
         </div>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

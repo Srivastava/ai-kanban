@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, AlertCircle } from 'lucide-react';
+import { ChevronDown, AlertCircle } from 'lucide-react';
 import type { LogEntry } from '@/types/log';
 
 const TZ = 'America/Los_Angeles';
@@ -34,16 +34,18 @@ export function RecentErrorsPanel({ logs, onJumpToLog }: Props) {
       >
         <AlertCircle className="h-4 w-4 shrink-0" />
         <span>Recent Errors ({errors.length})</span>
-        {open ? <ChevronDown className="h-3.5 w-3.5 ml-auto" /> : <ChevronRight className="h-3.5 w-3.5 ml-auto" />}
+        <ChevronDown className={`h-3.5 w-3.5 ml-auto transition-transform duration-300 ease-out motion-reduce:transition-none ${open ? '' : '-rotate-90'}`} />
       </button>
 
-      {open && (
+      <div className="collapse-grid" style={{ gridTemplateRows: open ? '1fr' : '0fr' }}>
+        <div className="overflow-hidden">
         <div className="divide-y divide-red-500/10">
-          {errors.map((log) => (
+          {errors.map((log, i) => (
             <button
               key={log.id}
               onClick={() => onJumpToLog?.(log.id)}
-              className="w-full flex items-start gap-3 px-4 py-2 text-xs hover:bg-red-500/10 transition-colors text-left"
+              className="w-full flex items-start gap-3 px-4 py-2 text-xs hover:bg-red-500/10 transition-colors text-left motion-safe:animate-fade-in-up"
+              style={{ animationDelay: `${i * 40}ms` }}
             >
               <span className="font-mono text-muted-foreground shrink-0 mt-0.5">{fmtTime(log.timestamp)}</span>
               <span className="font-mono text-purple-400 shrink-0 mt-0.5">{log.source}</span>
@@ -56,7 +58,8 @@ export function RecentErrorsPanel({ logs, onJumpToLog }: Props) {
             </button>
           ))}
         </div>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
