@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO otel_metrics\n               (metric_name, value, unit, session_id, task_id, claude_session_id, attributes, otel_timestamp)\n               VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n               RETURNING id, metric_name, value, unit, session_id, task_id,\n                         claude_session_id, attributes, otel_timestamp,\n                         created_at as \"created_at: _\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "metric_name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "value",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "unit",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "session_id",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "task_id",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "claude_session_id",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "attributes",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "otel_timestamp",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 9,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "01a9938c5a090d522524db926284c92551600b9b0f53b670de124136b059fd2a"
+}

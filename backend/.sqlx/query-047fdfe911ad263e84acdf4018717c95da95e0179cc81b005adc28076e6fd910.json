@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n               COALESCE(SUM(input_tokens), 0.0) as \"input: f64\",\n               COALESCE(SUM(output_tokens), 0.0) as \"output: f64\",\n               COALESCE(SUM(cache_creation_tokens), 0.0) as \"cache_create: f64\",\n               COALESCE(SUM(cache_read_tokens), 0.0) as \"cache_read: f64\"\n               FROM token_events",
+  "describe": {
+    "columns": [
+      {
+        "name": "input: f64",
+        "ordinal": 0,
+        "type_info": "Float"
+      },
+      {
+        "name": "output: f64",
+        "ordinal": 1,
+        "type_info": "Float"
+      },
+      {
+        "name": "cache_create: f64",
+        "ordinal": 2,
+        "type_info": "Float"
+      },
+      {
+        "name": "cache_read: f64",
+        "ordinal": 3,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "047fdfe911ad263e84acdf4018717c95da95e0179cc81b005adc28076e6fd910"
+}

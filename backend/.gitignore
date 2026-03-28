@@ -2,5 +2,4 @@ target/
 *.db
 *.db-shm
 *.db-wal
-.sqlx/
 .env
