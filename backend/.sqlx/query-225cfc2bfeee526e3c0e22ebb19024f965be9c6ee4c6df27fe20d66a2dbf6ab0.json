@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE otel_metrics SET session_id = ?, task_id = ?\n             WHERE claude_session_id = ? AND session_id IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "225cfc2bfeee526e3c0e22ebb19024f965be9c6ee4c6df27fe20d66a2dbf6ab0"
+}

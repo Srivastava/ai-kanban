@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n               COALESCE(SUM(CASE WHEN json_extract(attributes, '$.type') = 'added'   THEN value ELSE 0 END), 0.0) as \"added: f64\",\n               COALESCE(SUM(CASE WHEN json_extract(attributes, '$.type') = 'removed' THEN value ELSE 0 END), 0.0) as \"removed: f64\"\n               FROM otel_metrics WHERE metric_name = 'claude_code.lines_of_code.count'",
+  "describe": {
+    "columns": [
+      {
+        "name": "added: f64",
+        "ordinal": 0,
+        "type_info": "Float"
+      },
+      {
+        "name": "removed: f64",
+        "ordinal": 1,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a034599194e2cbd040f020ec84ed2c5f337e93a7640bfbde5fec8112412e27d9"
+}

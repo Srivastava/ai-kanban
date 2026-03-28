@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT COALESCE(SUM(value), 0.0) as \"total: f64\" FROM otel_metrics WHERE metric_name = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "total: f64",
+        "ordinal": 0,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "544ce253b536ab4f22b108f653e03dcb6206f73ab8ae7f2e2975403f61dad43a"
+}
