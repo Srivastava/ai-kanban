@@ -1,0 +1,53 @@
+Business Source License 1.1
+
+License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
+"Business Source License" is a trademark of MariaDB Corporation Ab.
+
+-----------------------------------------------------------------------------
+
+Parameters
+
+Licensor:             Srivastava
+Licensed Work:        AI Kanban
+                      The Licensed Work is (c) 2026 Srivastava
+Additional Use Grant: You may make production use of the Licensed Work,
+                      provided that you are not using the Licensed Work to
+                      provide a commercial hosted service or to distribute
+                      it as a component of a commercial product.
+Change Date:          2030-03-27
+Change License:       Apache License, Version 2.0
+
+-----------------------------------------------------------------------------
+
+Terms
+
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-production use of the Licensed Work. The
+Licensor may make an Additional Use Grant, above, permitting limited
+production use.
+
+Effective on the Change Date, or the fourth anniversary of the first
+publicly available distribution of a specific version of the Licensed Work
+under this License, whichever comes first, the Licensor hereby grants you
+rights under the terms of the Change License, and the rights granted in the
+paragraph above terminate.
+
+If your use of the Licensed Work does not comply with the requirements
+currently in effect as described in this License, you must purchase a
+commercial license from the Licensor, its affiliated entities, or authorized
+resellers, or you must refrain from using the Licensed Work.
+
+All copies of the original and modified Licensed Work, and derivative works
+of the Licensed Work, are subject to this License. This License applies
+separately for each version of the Licensed Work and the Change Date may
+vary for each version of the Licensed Work released by Licensor.
+
+You must conspicuously display this License on each original or modified
+copy of the Licensed Work. If you receive a copy of the Licensed Work under
+a different license, the terms of that license do not apply. You will not
+use this License to circumvent intellectual property protections.
+
+To the extent permitted by applicable law, the Licensed Work is provided on
+an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+express or implied. If a copy of this License was not distributed with this
+file, you can obtain one at https://mariadb.com/bsl11.
