@@ -11,7 +11,14 @@ import { TaskDetailSkeleton } from '@/components/tasks/task-detail-skeleton';
 export default function TaskDetailPageClient() {
   const params = useParams();
   const router = useRouter();
-  const taskId = params.id as string;
+  // When the pre-rendered placeholder page is served for a real task URL,
+  // useParams() returns '__placeholder__'. Read the real ID from the browser URL instead.
+  // typeof window guard is required because this component is also pre-rendered at build time.
+  const rawId = params.id as string;
+  const taskId =
+    rawId === '__placeholder__' && typeof window !== 'undefined'
+      ? window.location.pathname.split('/').filter(Boolean).at(-1) ?? rawId
+      : rawId;
 
   const { data: task, isLoading, error } = useTask(taskId);
   const { mutate: deleteTask, isPending: isDeleting } = useDeleteTask();

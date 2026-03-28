@@ -28,7 +28,16 @@ pub async fn static_handler(uri: Uri) -> Response {
         return ([(header::CONTENT_TYPE, mime.as_ref())], file.data.to_vec()).into_response();
     }
 
-    // 3. SPA fallback → root index.html (handles /tasks/:id client-side routing)
+    // 3. Task detail fallback: serve the pre-rendered placeholder shell so Next.js
+    //    hydrates as the task detail page (not the root task list).
+    if path.starts_with("tasks/") {
+        if let Some(file) = FrontendAssets::get("tasks/__placeholder__/index.html") {
+            let mime = mime_guess::from_path("index.html").first_or_octet_stream();
+            return ([(header::CONTENT_TYPE, mime.as_ref())], file.data.to_vec()).into_response();
+        }
+    }
+
+    // 4. SPA fallback → root index.html
     match FrontendAssets::get("index.html") {
         Some(file) => {
             let mime = mime_guess::from_path("index.html").first_or_octet_stream();
