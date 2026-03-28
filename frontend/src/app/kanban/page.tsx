@@ -38,7 +38,7 @@ function KanbanContent({ onCreateTask }: KanbanContentProps) {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
-        <p className="text-sm font-medium text-destructive">Couldn't load tasks.</p>
+        <p className="text-sm font-medium text-destructive">Couldn&apos;t load tasks.</p>
         <p className="text-xs text-muted-foreground max-w-[240px]">
           The board is having a moment. Check your connection and try again.
         </p>

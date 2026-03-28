@@ -70,7 +70,9 @@ export default function LogsPage() {
   const { logs, isLoading, newCount, loadNewLogs, isLiveRef } = useLogs(serverFilter);
   const { logs: allLogs } = useLogs({});
 
-  isLiveRef.current = isLive;
+  useEffect(() => {
+    isLiveRef.current = isLive;
+  }, [isLive, isLiveRef]);
 
   const clientFilter: LogFilter = {
     level: levelFilter,
