@@ -1,6 +1,6 @@
+use sqlx::pool::PoolOptions;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqliteSynchronous};
 use sqlx::SqlitePool;
-use sqlx::pool::PoolOptions;
 use std::path::Path;
 use std::time::Duration;
 
