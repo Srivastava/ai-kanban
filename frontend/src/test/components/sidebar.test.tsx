@@ -60,9 +60,9 @@ describe('Sidebar', () => {
     // Initially open
     expect(screen.getByRole('link', { name: /all tasks/i })).toBeInTheDocument();
 
-    // Click to collapse
+    // Click to collapse — sidebar uses inert+CSS grid, link stays in DOM but button reflects collapsed state
     await user.click(screen.getByRole('button', { name: /tasks/i }));
-    expect(screen.queryByRole('link', { name: /all tasks/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /tasks/i })).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('re-expands task stage list when Tasks button is clicked again', async () => {

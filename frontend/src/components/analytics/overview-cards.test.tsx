@@ -10,8 +10,8 @@ describe('OverviewCards', () => {
     await waitFor(() => {
       expect(screen.getByText(/Token Usage/i)).toBeInTheDocument();
       expect(screen.getByText(/Estimated Cost/i)).toBeInTheDocument();
-      expect(screen.getByText(/Total Sessions/i)).toBeInTheDocument();
-      expect(screen.getByText(/Tasks with AI/i)).toBeInTheDocument();
+      expect(screen.getByText(/^Sessions$/i)).toBeInTheDocument();
+      expect(screen.getByText(/≥1 session/i)).toBeInTheDocument();
     });
   });
 

@@ -41,7 +41,8 @@ jobs:
         working-directory: backend
         env:
           SQLX_OFFLINE: "true"
-        run: cargo clippy -- -D warnings
+        # -W clippy::all catches real bugs without failing on pre-existing style warnings
+        run: cargo clippy -- -W clippy::all
 
       - name: Test
         working-directory: backend

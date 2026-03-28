@@ -137,12 +137,13 @@ describe('KanbanColumn', () => {
     renderWithProviders(
       <KanbanColumn stage="planning" tasks={[]} onCreateTask={onCreateTask} />
     );
-    expect(screen.getByRole('button', { name: /Add task to Planning/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Add task to Planning/i })[0]).toBeInTheDocument();
   });
 
   it('does not render add button in header when onCreateTask is not provided', () => {
-    renderWithProviders(<KanbanColumn stage="planning" tasks={[]} />);
-    expect(screen.queryByRole('button', { name: /Add task to Planning/i })).not.toBeInTheDocument();
+    // Pass a task so the empty-state button is not rendered; only the header button matters here
+    renderWithProviders(<KanbanColumn stage="planning" tasks={[makeTask('t1', 'Task 1', 'planning')]} />);
+    expect(screen.queryAllByRole('button', { name: /Add task to Planning/i })).toHaveLength(0);
   });
 
   it('calls onCreateTask when header add button is clicked', async () => {
@@ -151,7 +152,7 @@ describe('KanbanColumn', () => {
     renderWithProviders(
       <KanbanColumn stage="ready" tasks={[]} onCreateTask={onCreateTask} />
     );
-    await user.click(screen.getByRole('button', { name: /Add task to Ready/i }));
+    await user.click(screen.getAllByRole('button', { name: /Add task to Ready/i })[0]);
     expect(onCreateTask).toHaveBeenCalledWith('ready');
   });
 

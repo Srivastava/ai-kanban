@@ -35,6 +35,7 @@ vi.mock('@/hooks/use-tasks', () => ({
 
 vi.mock('@/hooks/use-attachments', () => ({
   useAttachments: () => ({ data: [], isLoading: false }),
+  useUploadAttachment: () => ({ mutate: vi.fn(), isPending: false }),
   attachmentFileUrl: (taskId: string, attId: string) => `/api/tasks/${taskId}/attachments/${attId}/file`,
 }));
 
