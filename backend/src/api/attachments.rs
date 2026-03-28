@@ -31,18 +31,14 @@ pub async fn upload_attachment(
     mut multipart: Multipart,
 ) -> Result<Json<TaskAttachment>, StatusCode> {
     // Verify task exists — return 404 for missing task, 500 for DB errors
-    state
-        .task_repo
-        .find(&task_id)
-        .await
-        .map_err(|e| {
-            let msg = e.to_string();
-            if msg.contains("not found") || msg.contains("no rows") {
-                StatusCode::NOT_FOUND
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        })?;
+    state.task_repo.find(&task_id).await.map_err(|e| {
+        let msg = e.to_string();
+        if msg.contains("not found") || msg.contains("no rows") {
+            StatusCode::NOT_FOUND
+        } else {
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
+    })?;
 
     // Sanitize task_id before using in filesystem path
     if task_id.contains("..") || task_id.contains('/') || task_id.contains('\\') {
@@ -54,15 +50,9 @@ pub async fn upload_attachment(
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?
     {
-        let filename: String = field
-            .file_name()
-            .unwrap_or("upload")
-            .to_string();
+        let filename: String = field.file_name().unwrap_or("upload").to_string();
 
-        let raw_mime: String = field
-            .content_type()
-            .unwrap_or("")
-            .to_string();
+        let raw_mime: String = field.content_type().unwrap_or("").to_string();
 
         let data: Vec<u8> = field
             .bytes()
@@ -80,12 +70,22 @@ pub async fn upload_attachment(
         // Strict allowlist sanitizer — keep only alphanumeric, dot, dash, underscore
         let safe_name: String = filename
             .chars()
-            .map(|c| if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' { c } else { '_' })
+            .map(|c| {
+                if c.is_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                    c
+                } else {
+                    '_'
+                }
+            })
             .collect::<String>()
             .chars()
             .take(255)
             .collect();
-        let safe_name = if safe_name.is_empty() { "upload".to_string() } else { safe_name };
+        let safe_name = if safe_name.is_empty() {
+            "upload".to_string()
+        } else {
+            safe_name
+        };
 
         // Write to disk: <attachments_dir>/<task_id>/<uuid>-<safe_name>
         let dir = format!("{}/{}", state.attachments_dir, task_id);
@@ -126,14 +126,14 @@ fn infer_mime_from_filename(filename: &str) -> &'static str {
         .unwrap_or("")
         .to_lowercase();
     match ext.as_str() {
-        "png"  => "image/png",
+        "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
-        "gif"  => "image/gif",
+        "gif" => "image/gif",
         "webp" => "image/webp",
-        "pdf"  => "application/pdf",
-        "txt"  => "text/plain",
-        "md"   => "text/markdown",
-        _      => "application/octet-stream",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        "md" => "text/markdown",
+        _ => "application/octet-stream",
     }
 }
 

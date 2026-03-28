@@ -1,8 +1,12 @@
 use ai_kanban_backend::api::AppState;
 use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
-use ai_kanban_backend::db::{AttachmentRepository, create_pool, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
-use axum_test::TestServer;
+use ai_kanban_backend::db::{
+    create_pool, AttachmentRepository, CommentRepository, LogRepository, OtelMetricsRepository,
+    SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository,
+    TokenEventRepository,
+};
 use axum_test::http::StatusCode;
+use axum_test::TestServer;
 use std::sync::Arc;
 
 async fn setup_test_server() -> TestServer {
@@ -18,12 +22,29 @@ async fn setup_test_server() -> TestServer {
     let otel_metrics_repo = OtelMetricsRepository::new(pool.clone());
     let attachment_repo = AttachmentRepository::new(pool.clone());
     let manager = Arc::new(ClaudeManager::new(
-        session_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone(),
-        comment_repo.clone(), task_repo.clone(), otel_metrics_repo.clone(), None, None,
+        session_repo.clone(),
+        token_event_repo.clone(),
+        session_metrics_repo.clone(),
+        comment_repo.clone(),
+        task_repo.clone(),
+        otel_metrics_repo.clone(),
+        None,
+        None,
         attachment_repo.clone(),
     ));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo).with_queue(queue);
+    let state = AppState::new(
+        task_repo,
+        log_repo,
+        session_repo,
+        comment_repo,
+        token_event_repo,
+        session_metrics_repo,
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    )
+    .with_queue(queue);
     TestServer::new(ai_kanban_backend::api::create_router(state)).unwrap()
 }
 
@@ -708,7 +729,9 @@ async fn test_api_delete_comment() {
     let comment_id = comment["id"].as_str().unwrap();
 
     // Delete the comment
-    let delete_response = server.delete(&format!("/api/comments/{}", comment_id)).await;
+    let delete_response = server
+        .delete(&format!("/api/comments/{}", comment_id))
+        .await;
     assert_eq!(delete_response.status_code(), StatusCode::NO_CONTENT);
 
     // Verify it's gone
@@ -807,7 +830,9 @@ async fn test_api_start_session_task_not_found() {
 #[tokio::test]
 async fn test_api_continue_session_task_not_found() {
     let server = setup_test_server().await;
-    let response = server.post("/api/tasks/nonexistent-id/sessions/continue").await;
+    let response = server
+        .post("/api/tasks/nonexistent-id/sessions/continue")
+        .await;
     assert_eq!(response.status_code(), StatusCode::NOT_FOUND);
 }
 

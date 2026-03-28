@@ -58,11 +58,10 @@ impl SessionRepository {
 
     #[instrument(skip(self))]
     pub async fn list(&self) -> Result<Vec<Session>> {
-        let sessions = sqlx::query_as::<_, Session>(
-            "SELECT * FROM sessions ORDER BY started_at DESC"
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let sessions =
+            sqlx::query_as::<_, Session>("SELECT * FROM sessions ORDER BY started_at DESC")
+                .fetch_all(&self.pool)
+                .await?;
         Ok(sessions)
     }
 
@@ -70,7 +69,7 @@ impl SessionRepository {
     pub async fn list_by_task(&self, task_id: &str) -> Result<Vec<Session>> {
         debug!(task_id = %task_id, "Listing sessions for task");
         let sessions = sqlx::query_as::<_, Session>(
-            "SELECT * FROM sessions WHERE task_id = ? ORDER BY started_at DESC"
+            "SELECT * FROM sessions WHERE task_id = ? ORDER BY started_at DESC",
         )
         .bind(task_id)
         .fetch_all(&self.pool)
@@ -135,7 +134,7 @@ impl SessionRepository {
 
     pub async fn list_by_status(&self, status: &str) -> Result<Vec<Session>> {
         let sessions = sqlx::query_as::<_, Session>(
-            "SELECT * FROM sessions WHERE status = ? ORDER BY started_at ASC"
+            "SELECT * FROM sessions WHERE status = ? ORDER BY started_at ASC",
         )
         .bind(status)
         .fetch_all(&self.pool)
@@ -147,7 +146,7 @@ impl SessionRepository {
     pub async fn list_recent(&self, statuses: &[&str], limit: i64) -> Result<Vec<Session>> {
         if statuses.is_empty() {
             let rows = sqlx::query_as::<_, Session>(
-                "SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?"
+                "SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?",
             )
             .bind(limit)
             .fetch_all(&self.pool)
@@ -169,9 +168,12 @@ impl SessionRepository {
         Ok(q.fetch_all(&self.pool).await?)
     }
 
-    pub async fn find_by_claude_session_id(&self, claude_session_id: &str) -> Result<Option<Session>> {
+    pub async fn find_by_claude_session_id(
+        &self,
+        claude_session_id: &str,
+    ) -> Result<Option<Session>> {
         let row = sqlx::query_as::<_, Session>(
-            "SELECT * FROM sessions WHERE claude_session_id = ? LIMIT 1"
+            "SELECT * FROM sessions WHERE claude_session_id = ? LIMIT 1",
         )
         .bind(claude_session_id)
         .fetch_optional(&self.pool)

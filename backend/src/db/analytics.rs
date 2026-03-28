@@ -1,13 +1,13 @@
 use crate::models::{
-    AnalyticsOverview, BurnRate, CostByTask, DailyTokens, WeeklyTokens, MonthlyTokens,
-    SessionSummary, TaskTokens, SessionTokens, ToolTokens, LanguageTokens,
-    EfficiencyRow, SessionTimelineEvent, TaskTimelineEvent, TokensByStage, UsageWindows,
-    LocHistoryEntry, HeatmapEntry, HourlyEntry, PeriodStats, PeriodChange, PeriodComparison,
+    AnalyticsOverview, BurnRate, CostByTask, DailyTokens, EfficiencyRow, HeatmapEntry, HourlyEntry,
+    LanguageTokens, LocHistoryEntry, MonthlyTokens, PeriodChange, PeriodComparison, PeriodStats,
+    SessionSummary, SessionTimelineEvent, SessionTokens, TaskTimelineEvent, TaskTokens,
+    TokensByStage, ToolTokens, UsageWindows, WeeklyTokens,
 };
 use anyhow::Result;
 use chrono::{Datelike, Duration, Utc};
+use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
 use std::collections::HashMap;
-use sqlx::{SqlitePool, sqlite::SqliteRow, Row};
 use tracing::{debug, instrument};
 
 /// Sonnet pricing per million tokens (USD).
@@ -28,14 +28,27 @@ pub struct TokenPrices {
 
 pub fn token_prices() -> TokenPrices {
     let input = std::env::var("CLAUDE_INPUT_PRICE_PER_MILLION")
-        .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(3.0);
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(3.0);
     let output = std::env::var("CLAUDE_OUTPUT_PRICE_PER_MILLION")
-        .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(15.0);
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(15.0);
     let cache_write = std::env::var("CLAUDE_CACHE_WRITE_PRICE_PER_MILLION")
-        .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(3.75);
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(3.75);
     let cache_read = std::env::var("CLAUDE_CACHE_READ_PRICE_PER_MILLION")
-        .ok().and_then(|v| v.parse::<f64>().ok()).unwrap_or(0.30);
-    TokenPrices { input, output, cache_write, cache_read }
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .unwrap_or(0.30);
+    TokenPrices {
+        input,
+        output,
+        cache_write,
+        cache_read,
+    }
 }
 
 #[derive(Clone)]
@@ -63,7 +76,7 @@ impl AnalyticsRepository {
                 COALESCE(SUM(cache_read_tokens), 0) as cache_read_tokens
             FROM token_events
             WHERE event_type = 'assistant'
-            "#
+            "#,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -100,7 +113,7 @@ impl AnalyticsRepository {
 
         // Get active sessions today
         let active_today: SqliteRow = sqlx::query(
-            "SELECT COUNT(*) as count FROM sessions WHERE DATE(started_at) = DATE('now')"
+            "SELECT COUNT(*) as count FROM sessions WHERE DATE(started_at) = DATE('now')",
         )
         .fetch_one(&self.pool)
         .await?;
@@ -124,7 +137,11 @@ impl AnalyticsRepository {
     pub async fn daily_tokens(&self, days: i64, task_id: Option<&str>) -> Result<Vec<DailyTokens>> {
         debug!(days = days, "Fetching daily tokens");
 
-        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            " AND task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
             SELECT
@@ -167,10 +184,18 @@ impl AnalyticsRepository {
 
     /// Get weekly token usage for the last N weeks
     #[instrument(skip(self))]
-    pub async fn weekly_tokens(&self, weeks: i64, task_id: Option<&str>) -> Result<Vec<WeeklyTokens>> {
+    pub async fn weekly_tokens(
+        &self,
+        weeks: i64,
+        task_id: Option<&str>,
+    ) -> Result<Vec<WeeklyTokens>> {
         debug!(weeks = weeks, "Fetching weekly tokens");
 
-        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            " AND task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
             SELECT
@@ -213,10 +238,18 @@ impl AnalyticsRepository {
 
     /// Get monthly token usage for the last N months
     #[instrument(skip(self))]
-    pub async fn monthly_tokens(&self, months: i64, task_id: Option<&str>) -> Result<Vec<MonthlyTokens>> {
+    pub async fn monthly_tokens(
+        &self,
+        months: i64,
+        task_id: Option<&str>,
+    ) -> Result<Vec<MonthlyTokens>> {
         debug!(months = months, "Fetching monthly tokens");
 
-        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            " AND task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
             SELECT
@@ -276,7 +309,7 @@ impl AnalyticsRepository {
             WHERE te.event_type = 'assistant'
             GROUP BY te.task_id
             ORDER BY (SUM(te.input_tokens) + SUM(te.output_tokens)) DESC
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -321,7 +354,7 @@ impl AnalyticsRepository {
             WHERE te.event_type = 'assistant'
             GROUP BY te.session_id, t.title
             ORDER BY started_at DESC
-            "#
+            "#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -353,7 +386,11 @@ impl AnalyticsRepository {
     pub async fn tokens_by_tool(&self, task_id: Option<&str>) -> Result<Vec<ToolTokens>> {
         debug!("Fetching tokens by tool");
 
-        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            " AND task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
             SELECT
@@ -390,7 +427,11 @@ impl AnalyticsRepository {
     pub async fn tokens_by_language(&self, task_id: Option<&str>) -> Result<Vec<LanguageTokens>> {
         debug!("Fetching tokens by language");
 
-        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            " AND task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
             SELECT
@@ -430,7 +471,11 @@ impl AnalyticsRepository {
         task_id: Option<&str>,
     ) -> Result<Vec<HeatmapEntry>> {
         debug!("Fetching daily heatmap");
-        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            " AND task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
             SELECT
@@ -444,7 +489,11 @@ impl AnalyticsRepository {
             task_filter = task_filter
         );
         let rows = if let Some(tid) = task_id {
-            sqlx::query(&sql).bind(days).bind(tid).fetch_all(&self.pool).await?
+            sqlx::query(&sql)
+                .bind(days)
+                .bind(tid)
+                .fetch_all(&self.pool)
+                .await?
         } else {
             sqlx::query(&sql).bind(days).fetch_all(&self.pool).await?
         };
@@ -459,12 +508,13 @@ impl AnalyticsRepository {
 
     /// Token activity per hour of day (0–23 UTC).
     #[instrument(skip(self))]
-    pub async fn hourly_breakdown(
-        &self,
-        task_id: Option<&str>,
-    ) -> Result<Vec<HourlyEntry>> {
+    pub async fn hourly_breakdown(&self, task_id: Option<&str>) -> Result<Vec<HourlyEntry>> {
         debug!("Fetching hourly breakdown");
-        let task_filter = if task_id.is_some() { " AND task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            " AND task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
             SELECT
@@ -493,10 +543,7 @@ impl AnalyticsRepository {
 
     /// Tool breakdown for a specific session (for drill-down).
     #[instrument(skip(self))]
-    pub async fn tokens_by_tool_for_session(
-        &self,
-        session_id: &str,
-    ) -> Result<Vec<ToolTokens>> {
+    pub async fn tokens_by_tool_for_session(&self, session_id: &str) -> Result<Vec<ToolTokens>> {
         debug!("Fetching tokens by tool for session");
         let rows = sqlx::query(
             r#"
@@ -531,7 +578,11 @@ impl AnalyticsRepository {
     pub async fn token_efficiency(&self, task_id: Option<&str>) -> Result<Vec<EfficiencyRow>> {
         debug!("Fetching token efficiency");
 
-        let task_filter = if task_id.is_some() { " AND te.task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            " AND te.task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
         SELECT
@@ -684,33 +735,44 @@ impl AnalyticsRepository {
         .fetch_all(&self.pool)
         .await?;
         let p = token_prices();
-        let mut results: Vec<CostByTask> = rows.into_iter().map(|row| {
-            let input_tokens: i64 = row.get("input_tokens");
-            let output_tokens: i64 = row.get("output_tokens");
-            let cache_creation: i64 = row.get("cache_creation_tokens");
-            let cache_read: i64 = row.get("cache_read_tokens");
-            let cost_usd = (input_tokens as f64 / 1_000_000.0) * p.input
-                + (output_tokens as f64 / 1_000_000.0) * p.output
-                + (cache_creation as f64 / 1_000_000.0) * p.cache_write
-                + (cache_read as f64 / 1_000_000.0) * p.cache_read;
-            CostByTask {
-                task_id: row.get("task_id"),
-                task_title: row.get("task_title"),
-                input_tokens,
-                output_tokens,
-                cache_creation_tokens: cache_creation,
-                cache_read_tokens: cache_read,
-                cost_usd,
-            }
-        }).collect();
-        results.sort_by(|a, b| b.cost_usd.partial_cmp(&a.cost_usd).unwrap_or(std::cmp::Ordering::Equal));
+        let mut results: Vec<CostByTask> = rows
+            .into_iter()
+            .map(|row| {
+                let input_tokens: i64 = row.get("input_tokens");
+                let output_tokens: i64 = row.get("output_tokens");
+                let cache_creation: i64 = row.get("cache_creation_tokens");
+                let cache_read: i64 = row.get("cache_read_tokens");
+                let cost_usd = (input_tokens as f64 / 1_000_000.0) * p.input
+                    + (output_tokens as f64 / 1_000_000.0) * p.output
+                    + (cache_creation as f64 / 1_000_000.0) * p.cache_write
+                    + (cache_read as f64 / 1_000_000.0) * p.cache_read;
+                CostByTask {
+                    task_id: row.get("task_id"),
+                    task_title: row.get("task_title"),
+                    input_tokens,
+                    output_tokens,
+                    cache_creation_tokens: cache_creation,
+                    cache_read_tokens: cache_read,
+                    cost_usd,
+                }
+            })
+            .collect();
+        results.sort_by(|a, b| {
+            b.cost_usd
+                .partial_cmp(&a.cost_usd)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         Ok(results)
     }
 
     #[instrument(skip(self))]
     pub async fn tokens_by_stage(&self, task_id: Option<&str>) -> Result<Vec<TokensByStage>> {
         debug!("Fetching tokens by stage");
-        let task_filter = if task_id.is_some() { "AND te.task_id = ?" } else { "" };
+        let task_filter = if task_id.is_some() {
+            "AND te.task_id = ?"
+        } else {
+            ""
+        };
         let sql = format!(
             r#"
             SELECT
@@ -738,11 +800,14 @@ impl AnalyticsRepository {
         } else {
             sqlx::query(&sql).fetch_all(&self.pool).await?
         };
-        Ok(rows.into_iter().map(|row| TokensByStage {
-            stage: row.get("stage"),
-            input_tokens: row.get("input_tokens"),
-            output_tokens: row.get("output_tokens"),
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| TokensByStage {
+                stage: row.get("stage"),
+                input_tokens: row.get("input_tokens"),
+                output_tokens: row.get("output_tokens"),
+            })
+            .collect())
     }
 
     #[instrument(skip(self))]
@@ -828,7 +893,7 @@ impl AnalyticsRepository {
             FROM token_events
             WHERE event_type = 'assistant' AND session_id = ?
             ORDER BY sequence_no ASC, id ASC
-            "#
+            "#,
         )
         .bind(session_id)
         .fetch_all(&self.pool)
@@ -882,17 +947,18 @@ impl AnalyticsRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        let total_input:          f64 = cost_row.get::<i64, _>("total_input")          as f64;
-        let total_output:         f64 = cost_row.get::<i64, _>("total_output")         as f64;
+        let total_input: f64 = cost_row.get::<i64, _>("total_input") as f64;
+        let total_output: f64 = cost_row.get::<i64, _>("total_output") as f64;
         let total_cache_creation: f64 = cost_row.get::<i64, _>("total_cache_creation") as f64;
-        let total_cache_read:     f64 = cost_row.get::<i64, _>("total_cache_read")     as f64;
+        let total_cache_read: f64 = cost_row.get::<i64, _>("total_cache_read") as f64;
         let avg_duration: f64 = cost_row.get("avg_duration_secs");
         let total_cost = (total_input / 1_000_000.0) * p.input
-                       + (total_output / 1_000_000.0) * p.output
-                       + (total_cache_creation / 1_000_000.0) * p.cache_write
-                       + (total_cache_read / 1_000_000.0) * p.cache_read;
+            + (total_output / 1_000_000.0) * p.output
+            + (total_cache_creation / 1_000_000.0) * p.cache_write
+            + (total_cache_read / 1_000_000.0) * p.cache_read;
 
-        let otel_row = sqlx::query(r#"
+        let otel_row = sqlx::query(
+            r#"
             SELECT
                 CAST(COALESCE(SUM(CASE WHEN metric_name = 'claude_code.commit.count'
                              THEN value ELSE 0 END), 0) AS REAL) AS total_commits,
@@ -902,7 +968,8 @@ impl AnalyticsRepository {
                              THEN value ELSE 0 END), 0) AS REAL) AS total_active_time
             FROM otel_metrics
             WHERE (? IS NULL OR task_id = ?)
-        "#)
+        "#,
+        )
         .bind(task_id)
         .bind(task_id)
         .fetch_one(&self.pool)
@@ -918,7 +985,8 @@ impl AnalyticsRepository {
         };
         let total_active: f64 = otel_row.get("total_active_time");
 
-        let loc_row = sqlx::query(r#"
+        let loc_row = sqlx::query(
+            r#"
             SELECT
                 CAST(
                     COALESCE(MAX(sm.project_loc), 0)
@@ -927,7 +995,8 @@ impl AnalyticsRepository {
             FROM session_metrics sm
             JOIN sessions s ON s.id = sm.session_id
             WHERE (? IS NULL OR s.task_id = ?)
-        "#)
+        "#,
+        )
         .bind(task_id)
         .bind(task_id)
         .fetch_one(&self.pool)
@@ -940,9 +1009,21 @@ impl AnalyticsRepository {
         };
 
         Ok(crate::models::RoiMetrics {
-            cost_per_commit:  if total_commits > 0 { Some(total_cost / total_commits as f64) } else { None },
-            cost_per_pr:      if total_prs > 0     { Some(total_cost / total_prs as f64)     } else { None },
-            cost_per_loc:     if total_loc > 0     { Some(total_cost / total_loc as f64)     } else { None },
+            cost_per_commit: if total_commits > 0 {
+                Some(total_cost / total_commits as f64)
+            } else {
+                None
+            },
+            cost_per_pr: if total_prs > 0 {
+                Some(total_cost / total_prs as f64)
+            } else {
+                None
+            },
+            cost_per_loc: if total_loc > 0 {
+                Some(total_cost / total_loc as f64)
+            } else {
+                None
+            },
             total_commits,
             total_prs,
             total_loc,
@@ -964,7 +1045,7 @@ impl AnalyticsRepository {
                FROM sessions s
                JOIN tasks t ON t.id = s.task_id
                WHERE s.status = 'running'
-               ORDER BY s.started_at DESC"#
+               ORDER BY s.started_at DESC"#,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -981,7 +1062,7 @@ impl AnalyticsRepository {
                 r#"SELECT input_tokens + cache_read_tokens + cache_creation_tokens AS ctx
                    FROM token_events
                    WHERE event_type = 'assistant' AND session_id = ?
-                   ORDER BY id ASC"#
+                   ORDER BY id ASC"#,
             )
             .bind(&session_id)
             .fetch_all(&self.pool)
@@ -989,9 +1070,7 @@ impl AnalyticsRepository {
 
             // Find last compaction boundary (ctx < 50% of previous)
             let mut boundary_idx = 0usize;
-            let ctxs: Vec<i64> = events.iter()
-                .map(|r| r.get::<i64, _>("ctx"))
-                .collect();
+            let ctxs: Vec<i64> = events.iter().map(|r| r.get::<i64, _>("ctx")).collect();
 
             for i in 1..ctxs.len() {
                 if ctxs[i] < ctxs[i - 1] / 2 {
@@ -1042,7 +1121,7 @@ impl AnalyticsRepository {
             LEFT JOIN sessions s ON te.session_id = s.id
             WHERE te.event_type = 'assistant' AND te.task_id = ?
             ORDER BY claude_session_id, te.sequence_no ASC, te.id ASC
-            "#
+            "#,
         )
         .bind(task_id)
         .fetch_all(&self.pool)
@@ -1100,13 +1179,27 @@ impl AnalyticsRepository {
         };
 
         let today = Utc::now().format("%Y-%m-%d").to_string();
-        let yesterday = (Utc::now() - Duration::days(1)).format("%Y-%m-%d").to_string();
-        let day_before = (Utc::now() - Duration::days(2)).format("%Y-%m-%d").to_string();
-        let week_ago = (Utc::now() - Duration::days(7)).format("%Y-%m-%d").to_string();
-        let two_weeks_ago = (Utc::now() - Duration::days(14)).format("%Y-%m-%d").to_string();
-        let month_ago = (Utc::now() - Duration::days(30)).format("%Y-%m-%d").to_string();
-        let two_months_ago = (Utc::now() - Duration::days(60)).format("%Y-%m-%d").to_string();
-        let tomorrow = (Utc::now() + Duration::days(1)).format("%Y-%m-%d").to_string();
+        let yesterday = (Utc::now() - Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string();
+        let day_before = (Utc::now() - Duration::days(2))
+            .format("%Y-%m-%d")
+            .to_string();
+        let week_ago = (Utc::now() - Duration::days(7))
+            .format("%Y-%m-%d")
+            .to_string();
+        let two_weeks_ago = (Utc::now() - Duration::days(14))
+            .format("%Y-%m-%d")
+            .to_string();
+        let month_ago = (Utc::now() - Duration::days(30))
+            .format("%Y-%m-%d")
+            .to_string();
+        let two_months_ago = (Utc::now() - Duration::days(60))
+            .format("%Y-%m-%d")
+            .to_string();
+        let tomorrow = (Utc::now() + Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string();
 
         let parse_row = |row: SqliteRow| -> PeriodStats {
             let input: i64 = row.get("input_tokens");
@@ -1119,18 +1212,28 @@ impl AnalyticsRepository {
                 + (output as f64 / 1_000_000.0) * p.output
                 + (cache_write as f64 / 1_000_000.0) * p.cache_write
                 + (cache_read as f64 / 1_000_000.0) * p.cache_read;
-            PeriodStats { cost_usd: cost, tokens, sessions }
+            PeriodStats {
+                cost_usd: cost,
+                tokens,
+                sessions,
+            }
         };
 
         let pct = |cur: f64, prev: f64| -> Option<f64> {
-            if prev == 0.0 { None } else { Some((cur - prev) / prev * 100.0) }
+            if prev == 0.0 {
+                None
+            } else {
+                Some((cur - prev) / prev * 100.0)
+            }
         };
 
         // Day: today vs yesterday
         let day_cur_row = sqlx::query(&query_period(&today, &tomorrow))
-            .fetch_one(&self.pool).await?;
+            .fetch_one(&self.pool)
+            .await?;
         let day_prev_row = sqlx::query(&query_period(&yesterday, &today))
-            .fetch_one(&self.pool).await?;
+            .fetch_one(&self.pool)
+            .await?;
         let day_cur = parse_row(day_cur_row);
         let day_prev = parse_row(day_prev_row);
         let day = PeriodChange {
@@ -1143,9 +1246,11 @@ impl AnalyticsRepository {
 
         // Week: last 7 days vs prior 7 days
         let week_cur_row = sqlx::query(&query_period(&week_ago, &tomorrow))
-            .fetch_one(&self.pool).await?;
+            .fetch_one(&self.pool)
+            .await?;
         let week_prev_row = sqlx::query(&query_period(&two_weeks_ago, &week_ago))
-            .fetch_one(&self.pool).await?;
+            .fetch_one(&self.pool)
+            .await?;
         let week_cur = parse_row(week_cur_row);
         let week_prev = parse_row(week_prev_row);
         let week = PeriodChange {
@@ -1158,9 +1263,11 @@ impl AnalyticsRepository {
 
         // Month: last 30 days vs prior 30 days
         let month_cur_row = sqlx::query(&query_period(&month_ago, &tomorrow))
-            .fetch_one(&self.pool).await?;
+            .fetch_one(&self.pool)
+            .await?;
         let month_prev_row = sqlx::query(&query_period(&two_months_ago, &month_ago))
-            .fetch_one(&self.pool).await?;
+            .fetch_one(&self.pool)
+            .await?;
         let month_cur = parse_row(month_cur_row);
         let month_prev = parse_row(month_prev_row);
         let month = PeriodChange {
@@ -1189,17 +1296,20 @@ impl AnalyticsRepository {
             JOIN sessions s ON s.id = sm.session_id
             WHERE s.task_id = ? AND sm.project_loc > 0
             ORDER BY s.started_at ASC
-            "#
+            "#,
         )
         .bind(task_id)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|row| LocHistoryEntry {
-            session_id: row.get("session_id"),
-            session_index: row.get("session_index"),
-            project_loc: row.get("project_loc"),
-            started_at: row.get("started_at"),
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| LocHistoryEntry {
+                session_id: row.get("session_id"),
+                session_index: row.get("session_index"),
+                project_loc: row.get("project_loc"),
+                started_at: row.get("started_at"),
+            })
+            .collect())
     }
 }

@@ -2,7 +2,11 @@ use ai_kanban_backend::ai::context_manager::ContextManager;
 use ai_kanban_backend::ai::litellm::LitellmClient;
 use ai_kanban_backend::api::{create_router, otlp_router, AppState, OtlpState};
 use ai_kanban_backend::claude::ClaudeManager;
-use ai_kanban_backend::db::{AttachmentRepository, create_pool, CommentRepository, LogRepository, OtelLogsRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
+use ai_kanban_backend::db::{
+    create_pool, AttachmentRepository, CommentRepository, LogRepository, OtelLogsRepository,
+    OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository,
+    TaskRepository, TokenEventRepository,
+};
 use ai_kanban_backend::logging::DbLayer;
 use axum::Extension;
 use std::net::SocketAddr;
@@ -35,13 +39,18 @@ async fn main() -> anyhow::Result<()> {
         session_repo: session_repo.clone(),
     };
     let otlp_app = otlp_router(otlp_state).layer(
-        CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any),
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any),
     );
     let otlp_addr = std::net::SocketAddr::from(([0, 0, 0, 0], 4318));
     let otlp_listener = tokio::net::TcpListener::bind(otlp_addr).await?;
     tracing::info!("OTLP receiver listening on {}", otlp_addr);
     tokio::spawn(async move {
-        axum::serve(otlp_listener, otlp_app).await.expect("OTLP server failed");
+        axum::serve(otlp_listener, otlp_app)
+            .await
+            .expect("OTLP server failed");
     });
 
     // Initialize context manager (LiteLLM-backed summarization)
@@ -51,7 +60,12 @@ async fn main() -> anyhow::Result<()> {
         model = %litellm.model,
         "LiteLLM context manager configured"
     );
-    let context_manager = Arc::new(ContextManager::new(litellm, comment_repo.clone(), task_repo.clone(), attachment_repo.clone()));
+    let context_manager = Arc::new(ContextManager::new(
+        litellm,
+        comment_repo.clone(),
+        task_repo.clone(),
+        attachment_repo.clone(),
+    ));
 
     // Initialize Claude manager and session queue
     let claude_manager = Arc::new(ClaudeManager::new(
@@ -86,9 +100,15 @@ async fn main() -> anyhow::Result<()> {
     // Startup recovery: any session still "pending" after a restart was orphaned mid-start.
     // Mark them failed so the UI doesn't show them as stuck indefinitely.
     {
-        let pending = session_repo.list_by_status("pending").await.unwrap_or_default();
+        let pending = session_repo
+            .list_by_status("pending")
+            .await
+            .unwrap_or_default();
         if !pending.is_empty() {
-            tracing::warn!(count = pending.len(), "Recovering orphaned pending sessions from prior run");
+            tracing::warn!(
+                count = pending.len(),
+                "Recovering orphaned pending sessions from prior run"
+            );
             for s in &pending {
                 let _ = session_repo.update(&s.id, ai_kanban_backend::models::UpdateSession {
                     status: Some("failed".to_string()),
@@ -109,9 +129,14 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             loop {
                 match event_rx.recv().await {
-                    Ok(ai_kanban_backend::claude::ClaudeEvent::SessionStatus { session_id, status }) => {
+                    Ok(ai_kanban_backend::claude::ClaudeEvent::SessionStatus {
+                        session_id,
+                        status,
+                    }) => {
                         if status == "completed" || status == "failed" {
-                            if let Err(e) = queue_for_completion.on_session_complete(&session_id).await {
+                            if let Err(e) =
+                                queue_for_completion.on_session_complete(&session_id).await
+                            {
                                 tracing::error!(
                                     session_id = %session_id,
                                     status = %status,
@@ -137,16 +162,21 @@ async fn main() -> anyhow::Result<()> {
             loop {
                 match event_rx.recv().await {
                     Ok(ai_kanban_backend::claude::ClaudeEvent::RateLimited {
-                        session_id, task_id, stage, claude_session_id, reset_at,
+                        session_id,
+                        task_id,
+                        stage,
+                        claude_session_id,
+                        reset_at,
                     }) => {
                         // Advance queue for other waiting tasks (slot is now free)
                         if let Err(e) = queue_for_rl.on_session_complete(&session_id).await {
                             tracing::warn!(session_id = %session_id, error = %e, "Queue advance after rate-limit failed");
                         }
                         // Schedule retry for the rate-limited task itself
-                        queue_for_rl.clone().schedule_rate_limit_retry(
-                            task_id, stage, claude_session_id, reset_at,
-                        ).await;
+                        queue_for_rl
+                            .clone()
+                            .schedule_rate_limit_retry(task_id, stage, claude_session_id, reset_at)
+                            .await;
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
                     _ => {}
@@ -166,7 +196,8 @@ async fn main() -> anyhow::Result<()> {
         settings_repo,
         otel_repo,
         attachment_repo,
-    ).with_queue(queue);
+    )
+    .with_queue(queue);
     tracing::debug!("Application state created");
 
     // Build app with CORS and Extension for WebSocket

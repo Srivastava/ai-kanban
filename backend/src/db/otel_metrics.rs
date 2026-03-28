@@ -30,11 +30,18 @@ impl OtelMetricsRepository {
         Ok(row)
     }
 
-    pub async fn correlate(&self, claude_session_id: &str, session_id: &str, task_id: &str) -> Result<()> {
+    pub async fn correlate(
+        &self,
+        claude_session_id: &str,
+        session_id: &str,
+        task_id: &str,
+    ) -> Result<()> {
         sqlx::query!(
             "UPDATE otel_metrics SET session_id = ?, task_id = ?
              WHERE claude_session_id = ? AND session_id IS NULL",
-            session_id, task_id, claude_session_id
+            session_id,
+            task_id,
+            claude_session_id
         )
         .execute(&self.pool)
         .await?;
@@ -133,17 +140,20 @@ impl OtelMetricsRepository {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(|row| DevActivityRow {
-            task_id:                row.get("task_id"),
-            task_title:             row.get("task_title"),
-            session_count:          row.get("session_count"),
-            lines_added:            row.get::<f64, _>("loc_written"),
-            lines_deleted:          0.0, // net growth metric — deletions absorbed into loc_written
-            input_tokens:           row.get::<f64, _>("input_tokens"),
-            output_tokens:          row.get::<f64, _>("output_tokens"),
-            cache_creation_tokens:  row.get::<f64, _>("cache_creation_tokens"),
-            cache_read_tokens:      row.get::<f64, _>("cache_read_tokens"),
-            cost_usd:               row.get::<f64, _>("cost_usd"),
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| DevActivityRow {
+                task_id: row.get("task_id"),
+                task_title: row.get("task_title"),
+                session_count: row.get("session_count"),
+                lines_added: row.get::<f64, _>("loc_written"),
+                lines_deleted: 0.0, // net growth metric — deletions absorbed into loc_written
+                input_tokens: row.get::<f64, _>("input_tokens"),
+                output_tokens: row.get::<f64, _>("output_tokens"),
+                cache_creation_tokens: row.get::<f64, _>("cache_creation_tokens"),
+                cache_read_tokens: row.get::<f64, _>("cache_read_tokens"),
+                cost_usd: row.get::<f64, _>("cost_usd"),
+            })
+            .collect())
     }
 }

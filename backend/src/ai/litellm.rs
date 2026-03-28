@@ -44,8 +44,8 @@ pub struct CompletionResult {
     pub content: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
-    pub latency_ms: u64,       // wall-clock ms for the HTTP round-trip
-    pub tokens_per_sec: f64,   // output_tokens / (latency_ms / 1000)
+    pub latency_ms: u64,     // wall-clock ms for the HTTP round-trip
+    pub tokens_per_sec: f64, // output_tokens / (latency_ms / 1000)
 }
 
 /// Encode an image file as a base64 data URL for the LiteLLM vision API.
@@ -71,9 +71,8 @@ pub fn build_user_message(text: &str, image_data_urls: &[&str]) -> serde_json::V
             "content": text,
         })
     } else {
-        let mut parts: Vec<serde_json::Value> = vec![
-            serde_json::json!({"type": "text", "text": text}),
-        ];
+        let mut parts: Vec<serde_json::Value> =
+            vec![serde_json::json!({"type": "text", "text": text})];
         for url in image_data_urls {
             parts.push(serde_json::json!({
                 "type": "image_url",
@@ -106,10 +105,8 @@ impl LitellmClient {
     pub fn from_env() -> Self {
         let base_url = std::env::var("LITELLM_BASE_URL")
             .unwrap_or_else(|_| "http://192.168.4.118:14000".to_string());
-        let api_key = std::env::var("LITELLM_API_KEY")
-            .unwrap_or_else(|_| "litellm".to_string());
-        let model = std::env::var("LITELLM_MODEL")
-            .unwrap_or_else(|_| "smart-router".to_string());
+        let api_key = std::env::var("LITELLM_API_KEY").unwrap_or_else(|_| "litellm".to_string());
+        let model = std::env::var("LITELLM_MODEL").unwrap_or_else(|_| "smart-router".to_string());
         Self::new(base_url, api_key, model)
     }
 
@@ -123,7 +120,10 @@ impl LitellmClient {
 
     /// Send a completion request with pre-built JSON message values.
     /// Use this when messages contain multimodal content (images).
-    pub async fn complete_json(&self, messages: Vec<serde_json::Value>) -> Result<CompletionResult> {
+    pub async fn complete_json(
+        &self,
+        messages: Vec<serde_json::Value>,
+    ) -> Result<CompletionResult> {
         let url = format!("{}/v1/chat/completions", self.base_url);
 
         let body = serde_json::json!({
@@ -139,7 +139,8 @@ impl LitellmClient {
         );
 
         let t_start = std::time::Instant::now();
-        let response = self.client
+        let response = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
@@ -158,14 +159,18 @@ impl LitellmClient {
         let resp: CompletionResponse = response.json().await?;
         let latency_ms = t_start.elapsed().as_millis() as u64;
 
-        let first = resp.choices
+        let first = resp
+            .choices
             .into_iter()
             .next()
             .ok_or_else(|| anyhow::anyhow!("LiteLLM returned empty choices"))?;
-        let content = first.message.content
+        let content = first
+            .message
+            .content
             .ok_or_else(|| anyhow::anyhow!("LiteLLM returned null content"))?;
 
-        let (input_tokens, output_tokens) = resp.usage
+        let (input_tokens, output_tokens) = resp
+            .usage
             .map(|u| (u.prompt_tokens, u.completion_tokens))
             .unwrap_or((0, 0));
 
@@ -185,6 +190,12 @@ impl LitellmClient {
             "LiteLLM completion received"
         );
 
-        Ok(CompletionResult { content, input_tokens, output_tokens, latency_ms, tokens_per_sec })
+        Ok(CompletionResult {
+            content,
+            input_tokens,
+            output_tokens,
+            latency_ms,
+            tokens_per_sec,
+        })
     }
 }

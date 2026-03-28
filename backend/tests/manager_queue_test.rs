@@ -1,7 +1,8 @@
 use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
 use ai_kanban_backend::db::{
-    create_pool, AttachmentRepository, CommentRepository, OtelMetricsRepository, SessionMetricsRepository,
-    SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository,
+    create_pool, AttachmentRepository, CommentRepository, OtelMetricsRepository,
+    SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository,
+    TokenEventRepository,
 };
 use ai_kanban_backend::models::CreateTask;
 use std::sync::Arc;
@@ -46,7 +47,10 @@ async fn test_manager_is_active_returns_false_for_unknown() {
 #[tokio::test]
 async fn test_manager_get_active_session_for_task_returns_none() {
     let (manager, _, _) = setup().await;
-    assert!(manager.get_active_session_for_task("some-task-id").await.is_none());
+    assert!(manager
+        .get_active_session_for_task("some-task-id")
+        .await
+        .is_none());
 }
 
 #[tokio::test]
@@ -109,13 +113,18 @@ async fn test_queue_stop_nonexistent_session_ok() {
 #[tokio::test]
 async fn test_queue_enqueue_fails_gracefully_without_claude_binary() {
     let (_, queue, task_repo) = setup().await;
-    let task = task_repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/nonexistent/path/that/does/not/exist".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/nonexistent/path/that/does/not/exist".to_string(),
+        })
+        .await
+        .unwrap();
     // Will error (no Claude binary / bad path) — must not panic
-    let _result = queue.enqueue(task, "planning".to_string(), None, None).await;
+    let _result = queue
+        .enqueue(task, "planning".to_string(), None, None)
+        .await;
 }
 
 #[tokio::test]
@@ -132,39 +141,54 @@ async fn test_queue_enqueue_with_resume_claude_session_id_does_not_panic() {
     // Verifies the queue accepts a resume_claude_session_id without panicking.
     // Claude binary won't be found in test env — we only test the enqueue path, not actual execution.
     let (_, queue, task_repo) = setup().await;
-    let task = task_repo.create(CreateTask {
-        title: "Resume Test".to_string(),
-        description: None,
-        project_path: "/nonexistent/path".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Resume Test".to_string(),
+            description: None,
+            project_path: "/nonexistent/path".to_string(),
+        })
+        .await
+        .unwrap();
     let resume_id = Some("claude-session-abc-123".to_string());
-    let _result = queue.enqueue(task, "planning".to_string(), None, resume_id).await;
+    let _result = queue
+        .enqueue(task, "planning".to_string(), None, resume_id)
+        .await;
     // Must not panic regardless of Claude binary availability
 }
 
 #[tokio::test]
 async fn test_queue_enqueue_with_none_resume_id_does_not_panic() {
     let (_, queue, task_repo) = setup().await;
-    let task = task_repo.create(CreateTask {
-        title: "Fresh Session Test".to_string(),
-        description: None,
-        project_path: "/nonexistent/path".to_string(),
-    }).await.unwrap();
-    let _result = queue.enqueue(task, "planning".to_string(), None, None).await;
+    let task = task_repo
+        .create(CreateTask {
+            title: "Fresh Session Test".to_string(),
+            description: None,
+            project_path: "/nonexistent/path".to_string(),
+        })
+        .await
+        .unwrap();
+    let _result = queue
+        .enqueue(task, "planning".to_string(), None, None)
+        .await;
 }
 
 #[tokio::test]
 async fn test_queue_enqueue_with_conversation_context_and_resume_id() {
     // Verifies both conversation_context and resume_id can be passed together.
     let (_, queue, task_repo) = setup().await;
-    let task = task_repo.create(CreateTask {
-        title: "Context + Resume".to_string(),
-        description: None,
-        project_path: "/nonexistent/path".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Context + Resume".to_string(),
+            description: None,
+            project_path: "/nonexistent/path".to_string(),
+        })
+        .await
+        .unwrap();
     let context = Some("Previous conversation context here".to_string());
     let resume_id = Some("claude-prior-session-id".to_string());
-    let _result = queue.enqueue(task, "review".to_string(), context, resume_id).await;
+    let _result = queue
+        .enqueue(task, "review".to_string(), context, resume_id)
+        .await;
 }
 
 #[tokio::test]
@@ -179,32 +203,50 @@ async fn test_session_claude_id_stored_and_retrievable_via_repo() {
     let task_repo = TaskRepository::new(pool.clone());
     let session_repo = SessionRepository::new(pool.clone());
 
-    let task = task_repo.create(CreateTask {
-        title: "Resume flow task".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Resume flow task".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     // 1. Create session (simulates start_session)
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
     assert!(session.claude_session_id.is_none());
 
     // 2. Store claude_session_id (simulates extract from JSONL init line)
     let expected_claude_id = "550e8400-e29b-41d4-a716-446655440000";
-    session_repo.update(&session.id, UpdateSession {
-        claude_session_id: Some(expected_claude_id.to_string()),
-        status: Some("completed".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                claude_session_id: Some(expected_claude_id.to_string()),
+                status: Some("completed".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     // 3. Look up by claude_session_id (simulates continue_session path)
     let found = session_repo.find(&session.id).await.unwrap();
-    assert_eq!(found.claude_session_id, Some(expected_claude_id.to_string()));
+    assert_eq!(
+        found.claude_session_id,
+        Some(expected_claude_id.to_string())
+    );
 
     // 4. Also verify find_by_claude_session_id works
-    let by_claude_id = session_repo.find_by_claude_session_id(expected_claude_id).await.unwrap();
+    let by_claude_id = session_repo
+        .find_by_claude_session_id(expected_claude_id)
+        .await
+        .unwrap();
     assert!(by_claude_id.is_some());
     assert_eq!(by_claude_id.unwrap().id, session.id);
 }

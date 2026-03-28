@@ -16,23 +16,22 @@ impl TaskRepository {
     #[instrument(skip(self), fields(stage = ?stage))]
     pub async fn list(&self, stage: Option<&str>) -> Result<Vec<Task>> {
         debug!(stage = ?stage, "Listing tasks");
-        let tasks = match stage {
-            Some(s) => {
-                sqlx::query_as::<_, Task>(
-                    "SELECT * FROM tasks WHERE stage = ? ORDER BY priority DESC, created_at ASC"
+        let tasks =
+            match stage {
+                Some(s) => sqlx::query_as::<_, Task>(
+                    "SELECT * FROM tasks WHERE stage = ? ORDER BY priority DESC, created_at ASC",
                 )
                 .bind(s)
                 .fetch_all(&self.pool)
-                .await?
-            }
-            None => {
-                sqlx::query_as::<_, Task>(
-                    "SELECT * FROM tasks ORDER BY stage, priority DESC, created_at ASC"
-                )
-                .fetch_all(&self.pool)
-                .await?
-            }
-        };
+                .await?,
+                None => {
+                    sqlx::query_as::<_, Task>(
+                        "SELECT * FROM tasks ORDER BY stage, priority DESC, created_at ASC",
+                    )
+                    .fetch_all(&self.pool)
+                    .await?
+                }
+            };
         info!(count = tasks.len(), stage = ?stage, "Tasks retrieved");
         Ok(tasks)
     }
@@ -182,15 +181,17 @@ impl TaskRepository {
         Ok(())
     }
 
-    pub async fn update_compressed_context(&self, id: &str, compressed_context: &str) -> Result<()> {
-        sqlx::query(
-            "UPDATE tasks SET compressed_context = ?, updated_at = ? WHERE id = ?",
-        )
-        .bind(compressed_context)
-        .bind(chrono::Utc::now().to_rfc3339())
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+    pub async fn update_compressed_context(
+        &self,
+        id: &str,
+        compressed_context: &str,
+    ) -> Result<()> {
+        sqlx::query("UPDATE tasks SET compressed_context = ?, updated_at = ? WHERE id = ?")
+            .bind(compressed_context)
+            .bind(chrono::Utc::now().to_rfc3339())
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -217,14 +218,12 @@ impl TaskRepository {
             .await?;
 
         // Record stage history
-        sqlx::query(
-            "INSERT INTO stage_history (task_id, from_stage, to_stage) VALUES (?, ?, ?)",
-        )
-        .bind(id)
-        .bind(&old_stage)
-        .bind(new_stage)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT INTO stage_history (task_id, from_stage, to_stage) VALUES (?, ?, ?)")
+            .bind(id)
+            .bind(&old_stage)
+            .bind(new_stage)
+            .execute(&self.pool)
+            .await?;
 
         info!(
             task_id = %id,

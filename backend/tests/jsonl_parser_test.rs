@@ -76,7 +76,10 @@ fn test_display_read_tool() {
 fn test_display_write_tool() {
     let line = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"frontend/src/app/page.tsx"}}],"usage":{"input_tokens":100,"output_tokens":10}}}"#;
     let (text, has_tool) = parse_for_display(line);
-    assert_eq!(text, Some("✏️ Write: frontend/src/app/page.tsx".to_string()));
+    assert_eq!(
+        text,
+        Some("✏️ Write: frontend/src/app/page.tsx".to_string())
+    );
     assert!(has_tool);
 }
 
@@ -124,14 +127,20 @@ fn test_display_other_tool() {
 fn test_display_assistant_text() {
     let line = r#"{"type":"assistant","message":{"content":[{"type":"text","text":"I'll start by reading the existing code to understand the structure."}],"usage":{"input_tokens":100,"output_tokens":20}}}"#;
     let (text, has_tool) = parse_for_display(line);
-    assert_eq!(text, Some("🤔 I'll start by reading the existing code to understand the structure.".to_string()));
+    assert_eq!(
+        text,
+        Some("🤔 I'll start by reading the existing code to understand the structure.".to_string())
+    );
     assert!(!has_tool);
 }
 
 #[test]
 fn test_display_assistant_text_truncated() {
     let long_text = "a".repeat(200);
-    let line = format!(r#"{{"type":"assistant","message":{{"content":[{{"type":"text","text":"{}"}}],"usage":{{"input_tokens":100,"output_tokens":20}}}}}}"#, long_text);
+    let line = format!(
+        r#"{{"type":"assistant","message":{{"content":[{{"type":"text","text":"{}"}}],"usage":{{"input_tokens":100,"output_tokens":20}}}}}}"#,
+        long_text
+    );
     let (text, _) = parse_for_display(&line);
     let text = text.unwrap();
     assert!(text.starts_with("🤔 "));
@@ -176,7 +185,10 @@ fn test_display_assistant_text_truncated_unicode_safe() {
     // 119 ASCII bytes + a 4-byte emoji that straddles the 120-byte boundary
     // Without char-boundary checking, &text[..120] would panic here
     let text = format!("{}🎉rest", "a".repeat(119));
-    let line = format!(r#"{{"type":"assistant","message":{{"content":[{{"type":"text","text":"{}"}}],"usage":{{"input_tokens":100,"output_tokens":20}}}}}}"#, text);
+    let line = format!(
+        r#"{{"type":"assistant","message":{{"content":[{{"type":"text","text":"{}"}}],"usage":{{"input_tokens":100,"output_tokens":20}}}}}}"#,
+        text
+    );
     let (result, _) = parse_for_display(&line);
     let result = result.unwrap();
     assert!(result.starts_with("🤔 "));

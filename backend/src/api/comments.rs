@@ -11,14 +11,12 @@ use tracing::{debug, error, info, instrument};
 
 /// Routes for comments nested under /api/tasks/:task_id/comments
 pub fn comment_routes() -> Router<CommentApiState> {
-    Router::new()
-        .route("/", get(list_comments).post(create_comment))
+    Router::new().route("/", get(list_comments).post(create_comment))
 }
 
 /// Routes for standalone comment operations (delete by ID)
 pub fn comment_standalone_routes() -> Router<CommentApiState> {
-    Router::new()
-        .route("/:id", delete(delete_comment))
+    Router::new().route("/:id", delete(delete_comment))
 }
 
 #[instrument(skip(state))]

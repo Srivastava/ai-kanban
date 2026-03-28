@@ -49,23 +49,28 @@ async fn list_all_sessions(
     State(state): State<SessionApiState>,
     Query(q): Query<SessionListQuery>,
 ) -> impl IntoResponse {
-    let statuses: Vec<&str> = q.status.as_deref()
+    let statuses: Vec<&str> = q
+        .status
+        .as_deref()
         .map(|s| s.split(',').map(|x| x.trim()).collect())
         .unwrap_or_default();
 
-    match state.session_repo.list_recent(statuses.as_slice(), q.limit.unwrap_or(100)).await {
+    match state
+        .session_repo
+        .list_recent(statuses.as_slice(), q.limit.unwrap_or(100))
+        .await
+    {
         Ok(sessions) => Json(sessions).into_response(),
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e.to_string() })),
-        ).into_response(),
+        )
+            .into_response(),
     }
 }
 
 #[instrument(skip(state))]
-async fn list_sessions(
-    State(state): State<SessionApiState>,
-) -> impl IntoResponse {
+async fn list_sessions(State(state): State<SessionApiState>) -> impl IntoResponse {
     let queued = state.queue.get_queued_tasks().await;
     let active_count = state.queue.active_count().await;
     let queue_info: Vec<QueueInfo> = queued
@@ -83,7 +88,8 @@ async fn list_sessions(
     Json(serde_json::json!({
         "active_count": active_count,
         "queued": queue_info
-    })).into_response()
+    }))
+    .into_response()
 }
 
 #[instrument(skip(state))]
@@ -96,7 +102,8 @@ async fn get_session(
         Err(_) => (
             StatusCode::NOT_FOUND,
             Json(serde_json::json!({ "error": "Session not found" })),
-        ).into_response(),
+        )
+            .into_response(),
     }
 }
 
@@ -114,7 +121,8 @@ async fn stop_session(
         Err(e) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({ "error": e.to_string() })),
-        ).into_response(),
+        )
+            .into_response(),
     }
 }
 
@@ -123,10 +131,22 @@ async fn get_by_claude_id(
     State(state): State<SessionApiState>,
     Path(claude_id): Path<String>,
 ) -> impl IntoResponse {
-    match state.session_repo.find_by_claude_session_id(&claude_id).await {
+    match state
+        .session_repo
+        .find_by_claude_session_id(&claude_id)
+        .await
+    {
         Ok(Some(session)) => Json(session).into_response(),
-        Ok(None) => (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Not found" }))).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "Not found" })),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": e.to_string() })),
+        )
+            .into_response(),
     }
 }
 

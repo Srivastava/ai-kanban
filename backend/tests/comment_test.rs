@@ -3,9 +3,7 @@ use ai_kanban_backend::models::{CreateComment, CreateTask};
 
 async fn setup_test_db() -> (TaskRepository, CommentRepository) {
     let db_path = format!("/tmp/test-comment-{}.db", uuid::Uuid::new_v4());
-    let pool = create_pool(&db_path)
-        .await
-        .expect("Failed to create pool");
+    let pool = create_pool(&db_path).await.expect("Failed to create pool");
     (
         TaskRepository::new(pool.clone()),
         CommentRepository::new(pool),
@@ -30,10 +28,14 @@ async fn test_comment_create() {
 
     // Create a comment
     let comment = comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "This is a test comment".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "This is a test comment".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
@@ -59,19 +61,27 @@ async fn test_comment_create_with_parent() {
 
     // Create parent comment
     let parent = comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "Parent comment".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "Parent comment".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
     // Create reply
     let reply = comment_repo
-        .create(&task.id, "claude", CreateComment {
-            content: "Reply comment".to_string(),
-            parent_id: Some(parent.id.clone()),
-        })
+        .create(
+            &task.id,
+            "claude",
+            CreateComment {
+                content: "Reply comment".to_string(),
+                parent_id: Some(parent.id.clone()),
+            },
+        )
         .await
         .unwrap();
 
@@ -94,18 +104,26 @@ async fn test_comment_list_for_task() {
 
     // Create multiple comments
     comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "Comment 1".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "Comment 1".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
     comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "Comment 2".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "Comment 2".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
@@ -129,27 +147,39 @@ async fn test_comment_with_reply() {
 
     // Create parent comment
     let parent = comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "Parent comment".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "Parent comment".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
     // Create two replies
     comment_repo
-        .create(&task.id, "claude", CreateComment {
-            content: "Reply 1".to_string(),
-            parent_id: Some(parent.id.clone()),
-        })
+        .create(
+            &task.id,
+            "claude",
+            CreateComment {
+                content: "Reply 1".to_string(),
+                parent_id: Some(parent.id.clone()),
+            },
+        )
         .await
         .unwrap();
 
     comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "Reply 2".to_string(),
-            parent_id: Some(parent.id.clone()),
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "Reply 2".to_string(),
+                parent_id: Some(parent.id.clone()),
+            },
+        )
         .await
         .unwrap();
 
@@ -192,10 +222,14 @@ async fn test_comment_delete() {
         .unwrap();
 
     let comment = comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "To be deleted".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "To be deleted".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
@@ -239,18 +273,26 @@ async fn test_comments_only_for_specific_task() {
 
     // Create comments for both tasks
     comment_repo
-        .create(&task1.id, "user", CreateComment {
-            content: "Task 1 comment".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task1.id,
+            "user",
+            CreateComment {
+                content: "Task 1 comment".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
     comment_repo
-        .create(&task2.id, "user", CreateComment {
-            content: "Task 2 comment".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task2.id,
+            "user",
+            CreateComment {
+                content: "Task 2 comment".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
@@ -279,20 +321,28 @@ async fn test_comment_ordering() {
 
     // Create multiple comments with small delays to ensure ordering
     let c1 = comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "First".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "First".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
     let c2 = comment_repo
-        .create(&task.id, "user", CreateComment {
-            content: "Second".to_string(),
-            parent_id: None,
-        })
+        .create(
+            &task.id,
+            "user",
+            CreateComment {
+                content: "Second".to_string(),
+                parent_id: None,
+            },
+        )
         .await
         .unwrap();
 

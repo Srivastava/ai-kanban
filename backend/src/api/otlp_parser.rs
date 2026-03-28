@@ -48,22 +48,30 @@ pub fn parse_otlp_metrics(body: &Value) -> Vec<CreateOtelMetric> {
                     Some(n) if TRACKED_METRICS.contains(&n) => n.to_string(),
                     _ => continue,
                 };
-                let unit = metric.get("unit").and_then(|v| v.as_str()).map(|s| s.to_string());
+                let unit = metric
+                    .get("unit")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
                 let data_points = metric
-                    .get("sum").and_then(|s| s.get("dataPoints"))
+                    .get("sum")
+                    .and_then(|s| s.get("dataPoints"))
                     .or_else(|| metric.get("gauge").and_then(|g| g.get("dataPoints")))
                     .and_then(|dp| dp.as_array());
 
                 if let Some(dps) = data_points {
                     for dp in dps {
-                        let value = dp.get("asInt")
-                            .and_then(|v| v.as_f64()
-                                .or_else(|| v.as_str().and_then(|s| s.parse().ok())))
+                        let value = dp
+                            .get("asInt")
+                            .and_then(|v| {
+                                v.as_f64()
+                                    .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+                            })
                             .or_else(|| dp.get("asDouble").and_then(|v| v.as_f64()))
                             .unwrap_or(0.0);
 
-                        let otel_timestamp = dp.get("timeUnixNano")
+                        let otel_timestamp = dp
+                            .get("timeUnixNano")
                             .and_then(|v| v.as_str())
                             .and_then(|s| s.parse::<i64>().ok())
                             .or_else(|| dp.get("timeUnixNano").and_then(|v| v.as_i64()))
@@ -71,7 +79,9 @@ pub fn parse_otlp_metrics(body: &Value) -> Vec<CreateOtelMetric> {
 
                         let mut attrs = resource_attrs.clone();
                         let dp_attrs = build_attrs(dp.get("attributes"));
-                        if let (Some(merged), Some(extra)) = (attrs.as_object_mut(), dp_attrs.as_object()) {
+                        if let (Some(merged), Some(extra)) =
+                            (attrs.as_object_mut(), dp_attrs.as_object())
+                        {
                             for (k, v) in extra {
                                 merged.insert(k.clone(), v.clone());
                             }
@@ -125,31 +135,37 @@ pub fn parse_otlp_logs(body: &Value) -> Vec<CreateOtelLog> {
             };
 
             for record in log_records {
-                let otel_timestamp = record.get("timeUnixNano")
+                let otel_timestamp = record
+                    .get("timeUnixNano")
                     .and_then(|v| v.as_str())
                     .and_then(|s| s.parse::<i64>().ok())
                     .or_else(|| record.get("timeUnixNano").and_then(|v| v.as_i64()))
                     .unwrap_or(0);
 
-                let severity_text = record.get("severityText")
+                let severity_text = record
+                    .get("severityText")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
                 let severity_number = record.get("severityNumber").and_then(|v| v.as_i64());
 
-                let body_str = record.get("body")
+                let body_str = record
+                    .get("body")
                     .and_then(|b| b.get("stringValue"))
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
 
                 let mut attrs = resource_attrs.clone();
                 let record_attrs = build_attrs(record.get("attributes"));
-                if let (Some(merged), Some(extra)) = (attrs.as_object_mut(), record_attrs.as_object()) {
+                if let (Some(merged), Some(extra)) =
+                    (attrs.as_object_mut(), record_attrs.as_object())
+                {
                     for (k, v) in extra {
                         merged.insert(k.clone(), v.clone());
                     }
                 }
 
-                let event_name = attrs.get("event.name")
+                let event_name = attrs
+                    .get("event.name")
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string())
                     .unwrap_or_default();
@@ -176,12 +192,13 @@ fn build_attrs(attrs: Option<&Value>) -> Value {
     let mut map = serde_json::Map::new();
     if let Some(arr) = attrs.and_then(|a| a.as_array()) {
         for a in arr {
-            if let (Some(key), Some(val)) = (
-                a.get("key").and_then(|k| k.as_str()),
-                a.get("value"),
-            ) {
-                let scalar = val.get("stringValue").or_else(|| val.get("intValue"))
-                    .or_else(|| val.get("doubleValue")).or_else(|| val.get("boolValue"))
+            if let (Some(key), Some(val)) = (a.get("key").and_then(|k| k.as_str()), a.get("value"))
+            {
+                let scalar = val
+                    .get("stringValue")
+                    .or_else(|| val.get("intValue"))
+                    .or_else(|| val.get("doubleValue"))
+                    .or_else(|| val.get("boolValue"))
                     .cloned()
                     .unwrap_or(Value::Null);
                 map.insert(key.to_string(), scalar);
@@ -244,7 +261,11 @@ mod tests {
         let body = sample_body_string_int("claude_code.commit.count", "42", "sess-abc");
         let results = parse_otlp_metrics(&body);
         assert_eq!(results.len(), 1);
-        assert!((results[0].value - 42.0).abs() < 0.01, "expected 42.0 got {}", results[0].value);
+        assert!(
+            (results[0].value - 42.0).abs() < 0.01,
+            "expected 42.0 got {}",
+            results[0].value
+        );
     }
 
     #[test]

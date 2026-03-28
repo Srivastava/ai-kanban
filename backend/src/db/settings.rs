@@ -17,7 +17,11 @@ struct FlagRow {
 
 impl From<FlagRow> for FeatureFlag {
     fn from(r: FlagRow) -> Self {
-        FeatureFlag { key: r.key, enabled: r.enabled != 0, updated_at: r.updated_at }
+        FeatureFlag {
+            key: r.key,
+            enabled: r.enabled != 0,
+            updated_at: r.updated_at,
+        }
     }
 }
 
@@ -36,12 +40,10 @@ impl SettingsRepository {
     }
 
     pub async fn get_flag(&self, key: &str) -> Result<bool> {
-        let row = sqlx::query_as::<_, (i64,)>(
-            "SELECT enabled FROM feature_flags WHERE key = ?",
-        )
-        .bind(key)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row = sqlx::query_as::<_, (i64,)>("SELECT enabled FROM feature_flags WHERE key = ?")
+            .bind(key)
+            .fetch_optional(&self.pool)
+            .await?;
         Ok(row.map(|(v,)| v != 0).unwrap_or(false))
     }
 
@@ -57,6 +59,10 @@ impl SettingsRepository {
         .bind(&now)
         .execute(&self.pool)
         .await?;
-        Ok(FeatureFlag { key: key.to_string(), enabled, updated_at: now })
+        Ok(FeatureFlag {
+            key: key.to_string(),
+            enabled,
+            updated_at: now,
+        })
     }
 }

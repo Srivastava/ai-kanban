@@ -1,5 +1,5 @@
 use ai_kanban_backend::db::{
-    AnalyticsRepository, SessionRepository, TaskRepository, TokenEventRepository, create_pool,
+    create_pool, AnalyticsRepository, SessionRepository, TaskRepository, TokenEventRepository,
 };
 use ai_kanban_backend::models::{CreateSession, CreateTask, CreateTokenEvent};
 
@@ -36,7 +36,9 @@ async fn seed_one_event(
         .unwrap();
 
     let session = session_repo
-        .create(CreateSession { task_id: task.id.clone() })
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
         .await
         .unwrap();
 
@@ -115,7 +117,10 @@ async fn test_tokens_by_stage_groups_correctly() {
 #[tokio::test]
 async fn test_session_summary_zero_sessions() {
     let pool = setup_db().await;
-    let summary = AnalyticsRepository::new(pool).session_summary().await.unwrap();
+    let summary = AnalyticsRepository::new(pool)
+        .session_summary()
+        .await
+        .unwrap();
     assert_eq!(summary.total_sessions, 0);
     assert_eq!(summary.total_cost_usd, 0.0);
 }
@@ -125,7 +130,10 @@ async fn test_session_summary_aggregates() {
     let pool = setup_db().await;
     seed_one_event(&pool, "backlog", None, 1000, 0).await;
     seed_one_event(&pool, "backlog", None, 0, 500).await;
-    let summary = AnalyticsRepository::new(pool).session_summary().await.unwrap();
+    let summary = AnalyticsRepository::new(pool)
+        .session_summary()
+        .await
+        .unwrap();
     assert_eq!(summary.total_sessions, 2);
     assert_eq!(summary.max_tokens_per_session, 1000);
     assert!((summary.avg_tokens_per_session - 750.0).abs() < 0.01);

@@ -22,7 +22,11 @@ pub async fn receive_metrics(
 
     for mut m in metrics {
         if !m.claude_session_id.is_empty() {
-            match state.session_repo.find_by_claude_session_id(&m.claude_session_id).await {
+            match state
+                .session_repo
+                .find_by_claude_session_id(&m.claude_session_id)
+                .await
+            {
                 Ok(Some(session)) => {
                     m.session_id = Some(session.id.clone());
                     m.task_id = Some(session.task_id.clone());
@@ -58,7 +62,11 @@ pub async fn receive_logs(
 
     for mut log in logs {
         if !log.claude_session_id.is_empty() {
-            match state.session_repo.find_by_claude_session_id(&log.claude_session_id).await {
+            match state
+                .session_repo
+                .find_by_claude_session_id(&log.claude_session_id)
+                .await
+            {
                 Ok(Some(session)) => {
                     log.session_id = Some(session.id.clone());
                     log.task_id = Some(session.task_id.clone());

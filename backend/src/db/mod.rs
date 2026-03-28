@@ -11,7 +11,7 @@ mod settings;
 pub mod tasks;
 mod token_events;
 
-pub use analytics::{AnalyticsRepository, token_prices};
+pub use analytics::{token_prices, AnalyticsRepository};
 pub use attachments::AttachmentRepository;
 pub use comments::CommentRepository;
 pub use logs::LogRepository;

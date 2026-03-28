@@ -53,7 +53,10 @@ impl CommentRepository {
             .into_iter()
             .map(|c| {
                 let replies = replies_by_parent.remove(&c.id).unwrap_or_default();
-                CommentWithReplies { comment: c, replies }
+                CommentWithReplies {
+                    comment: c,
+                    replies,
+                }
             })
             .collect();
 

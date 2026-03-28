@@ -1,4 +1,4 @@
-use crate::ai::litellm::{ChatMessage, LitellmClient, image_to_data_url};
+use crate::ai::litellm::{image_to_data_url, ChatMessage, LitellmClient};
 use crate::db::{AttachmentRepository, CommentRepository, TaskRepository};
 use crate::models::CreateComment;
 use anyhow::Result;
@@ -18,7 +18,12 @@ impl ContextManager {
         task_repo: TaskRepository,
         attachment_repo: AttachmentRepository,
     ) -> Self {
-        Self { litellm, comment_repo, task_repo, attachment_repo }
+        Self {
+            litellm,
+            comment_repo,
+            task_repo,
+            attachment_repo,
+        }
     }
 
     /// Fetch image data URLs for all image attachments of a task.
@@ -32,13 +37,18 @@ impl ContextManager {
             }
         };
         let mut urls = Vec::new();
-        for att in attachments.iter().filter(|a| a.mime_type.starts_with("image/")) {
+        for att in attachments
+            .iter()
+            .filter(|a| a.mime_type.starts_with("image/"))
+        {
             match image_to_data_url(&att.storage_path, &att.mime_type).await {
                 Some(url) => {
                     debug!(attachment_id = %att.id, "Encoded image for LiteLLM");
                     urls.push(url);
                 }
-                None => warn!(attachment_id = %att.id, path = %att.storage_path, "Could not read attachment for LiteLLM"),
+                None => {
+                    warn!(attachment_id = %att.id, path = %att.storage_path, "Could not read attachment for LiteLLM")
+                }
             }
         }
         urls
@@ -80,15 +90,14 @@ impl ContextManager {
             return Ok(());
         }
 
-        let file_edits: Vec<&str> = display_lines.iter()
+        let file_edits: Vec<&str> = display_lines
+            .iter()
             .filter(|l| l.contains("✏️") || l.starts_with("📖"))
             .map(|s| s.as_str())
             .collect();
 
-        let activity_lines: Vec<&str> = display_lines.iter()
-            .take(500)
-            .map(|s| s.as_str())
-            .collect();
+        let activity_lines: Vec<&str> =
+            display_lines.iter().take(500).map(|s| s.as_str()).collect();
         let activity = activity_lines.join("\n");
 
         let result_section = match result_text {
@@ -129,9 +138,9 @@ impl ContextManager {
         let system_msg = serde_json::json!({
             "role": "system",
             "content": "You are a technical project assistant that writes structured session summaries for an AI-assisted development tool. \
-Write in clear, specific language. Use exact file names and function names when they appear in the activity log. \
-Never use vague phrases like 'various changes' or 'several files'. \
-Format output as markdown with the three sections below — fill each one thoroughly. Aim for 200-300 words total."
+        Write in clear, specific language. Use exact file names and function names when they appear in the activity log. \
+        Never use vague phrases like 'various changes' or 'several files'. \
+        Format output as markdown with the three sections below — fill each one thoroughly. Aim for 200-300 words total."
         });
 
         let image_urls = self.task_image_data_urls(task_id).await;
@@ -185,11 +194,18 @@ Format output as markdown with the three sections below — fill each one thorou
                     perf_line,
                 );
 
-                match self.comment_repo.create(
-                    task_id,
-                    "litellm",
-                    CreateComment { content: comment_content, parent_id: None },
-                ).await {
+                match self
+                    .comment_repo
+                    .create(
+                        task_id,
+                        "litellm",
+                        CreateComment {
+                            content: comment_content,
+                            parent_id: None,
+                        },
+                    )
+                    .await
+                {
                     Ok(comment) => info!(
                         session_id = %session_id,
                         task_id = %task_id,
@@ -227,7 +243,12 @@ Format output as markdown with the three sections below — fill each one thorou
         display_lines: &[String],
         result_text: Option<&str>,
     ) -> Result<()> {
-        let activity = display_lines.iter().take(400).cloned().collect::<Vec<_>>().join("\n");
+        let activity = display_lines
+            .iter()
+            .take(400)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n");
         let result_section = result_text
             .filter(|r| !r.is_empty())
             .map(|r| {
@@ -269,9 +290,15 @@ Format output as markdown with the three sections below — fill each one thorou
             Ok(result) => {
                 let compressed = format!(
                     "*(Context compressed by LiteLLM — {} in / {} out tokens)*\n\n{}",
-                    result.input_tokens, result.output_tokens, result.content.trim()
+                    result.input_tokens,
+                    result.output_tokens,
+                    result.content.trim()
                 );
-                match self.task_repo.update_compressed_context(task_id, &compressed).await {
+                match self
+                    .task_repo
+                    .update_compressed_context(task_id, &compressed)
+                    .await
+                {
                     Ok(()) => info!(
                         session_id = %session_id,
                         task_id = %task_id,
@@ -407,10 +434,17 @@ Format output as markdown with the three sections below — fill each one thorou
                 );
                 // Persist the enriched text as instructions (never overwrites user's description)
                 use crate::models::UpdateTask;
-                if let Err(e) = self.task_repo.update(task_id, UpdateTask {
-                    instructions: Some(Some(enriched.clone())),
-                    ..Default::default()
-                }).await {
+                if let Err(e) = self
+                    .task_repo
+                    .update(
+                        task_id,
+                        UpdateTask {
+                            instructions: Some(Some(enriched.clone())),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                {
                     warn!(task_id = %task_id, error = %e, "Failed to persist enriched task instructions");
                 }
                 Ok(Some(enriched))

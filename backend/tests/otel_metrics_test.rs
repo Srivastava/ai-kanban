@@ -1,4 +1,6 @@
-use ai_kanban_backend::db::{create_pool, OtelMetricsRepository, SessionRepository, TaskRepository};
+use ai_kanban_backend::db::{
+    create_pool, OtelMetricsRepository, SessionRepository, TaskRepository,
+};
 use ai_kanban_backend::models::{CreateOtelMetric, CreateSession, CreateTask};
 
 async fn setup() -> (OtelMetricsRepository, SessionRepository, TaskRepository) {
@@ -23,7 +25,9 @@ async fn test_insert_and_query_unaffiliated() {
         claude_session_id: "external-session-abc".to_string(),
         attributes: serde_json::json!({"type": "input"}),
         otel_timestamp: 1709000000000000000,
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
     let rows = repo.dev_activity(None).await.unwrap();
     // Unaffiliated session (no task_id) should NOT appear in dev_activity
@@ -34,13 +38,21 @@ async fn test_insert_and_query_unaffiliated() {
 async fn test_dev_activity_correlated_session() {
     let (repo, session_repo, task_repo) = setup().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Dev Task".to_string(),
-        description: None,
-        project_path: "/tmp".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Dev Task".to_string(),
+            description: None,
+            project_path: "/tmp".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
     repo.insert(CreateOtelMetric {
         metric_name: "claude_code.commit.count".to_string(),
@@ -51,7 +63,9 @@ async fn test_dev_activity_correlated_session() {
         claude_session_id: "acto-session-xyz".to_string(),
         attributes: serde_json::json!({}),
         otel_timestamp: 1709000000000000000,
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
     let rows = repo.dev_activity(None).await.unwrap();
     assert_eq!(rows.len(), 1);
@@ -65,13 +79,21 @@ async fn test_dev_activity_correlated_session() {
 async fn test_correlate_by_claude_session_id() {
     let (repo, session_repo, task_repo) = setup().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Corr Task".to_string(),
-        description: None,
-        project_path: "/tmp".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Corr Task".to_string(),
+            description: None,
+            project_path: "/tmp".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
     let claude_sid = "known-claude-session-id";
     repo.insert(CreateOtelMetric {
@@ -83,10 +105,14 @@ async fn test_correlate_by_claude_session_id() {
         claude_session_id: claude_sid.to_string(),
         attributes: serde_json::json!({}),
         otel_timestamp: 1709000000000000000,
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
     // Correlate after the fact
-    repo.correlate(claude_sid, &session.id, &task.id).await.unwrap();
+    repo.correlate(claude_sid, &session.id, &task.id)
+        .await
+        .unwrap();
 
     let rows = repo.dev_activity(None).await.unwrap();
     assert_eq!(rows.len(), 1);

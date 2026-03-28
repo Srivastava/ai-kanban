@@ -69,10 +69,7 @@ mod tests {
     #[tokio::test]
     async fn root_returns_200_or_404() {
         let app = test_router();
-        let req = Request::builder()
-            .uri("/")
-            .body(Body::empty())
-            .unwrap();
+        let req = Request::builder().uri("/").body(Body::empty()).unwrap();
         let resp = app.oneshot(req).await.unwrap();
         assert!(
             resp.status() == StatusCode::OK || resp.status() == StatusCode::NOT_FOUND,

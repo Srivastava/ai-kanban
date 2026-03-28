@@ -1,5 +1,9 @@
-use crate::db::{AttachmentRepository, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
 use crate::claude::SessionQueue;
+use crate::db::{
+    AttachmentRepository, CommentRepository, LogRepository, OtelMetricsRepository,
+    SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository,
+    TokenEventRepository,
+};
 use std::sync::Arc;
 
 // Define state types first before the submodules
@@ -125,13 +129,13 @@ impl From<AppState> for SettingsApiState {
 
 mod analytics;
 pub mod attachments;
+pub mod claude_jsonl;
+pub mod claude_usage_cli;
 mod comments;
 pub mod fs;
 mod logs;
-mod otlp_parser;
-pub mod claude_jsonl;
-pub mod claude_usage_cli;
 pub mod otlp;
+mod otlp_parser;
 pub mod plan_tier;
 pub mod prometheus;
 mod routes;

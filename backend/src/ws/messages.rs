@@ -29,10 +29,7 @@ pub enum ServerMessage {
     },
 
     #[serde(rename = "session_status")]
-    SessionStatus {
-        session_id: String,
-        status: String,
-    },
+    SessionStatus { session_id: String, status: String },
 
     #[serde(rename = "session_heartbeat")]
     SessionHeartbeat {
@@ -50,7 +47,7 @@ pub enum ServerMessage {
     RateLimited {
         session_id: String,
         task_id: String,
-        reset_at: String,   // ISO 8601 string
+        reset_at: String, // ISO 8601 string
     },
 
     #[serde(rename = "stage_context_set")]
@@ -61,10 +58,7 @@ pub enum ServerMessage {
     },
 
     #[serde(rename = "context_file_updated")]
-    ContextFileUpdated {
-        session_id: String,
-        task_id: String,
-    },
+    ContextFileUpdated { session_id: String, task_id: String },
 
     #[serde(rename = "plan_created")]
     PlanCreated {
@@ -103,7 +97,10 @@ impl ServerMessage {
     }
 
     pub fn session_heartbeat(session_id: String, elapsed_secs: u64) -> Self {
-        ServerMessage::SessionHeartbeat { session_id, elapsed_secs }
+        ServerMessage::SessionHeartbeat {
+            session_id,
+            elapsed_secs,
+        }
     }
 
     pub fn pong() -> Self {

@@ -38,11 +38,18 @@ impl OtelLogsRepository {
         Ok(row)
     }
 
-    pub async fn correlate(&self, claude_session_id: &str, session_id: &str, task_id: &str) -> Result<()> {
+    pub async fn correlate(
+        &self,
+        claude_session_id: &str,
+        session_id: &str,
+        task_id: &str,
+    ) -> Result<()> {
         sqlx::query!(
             "UPDATE otel_logs SET session_id = ?, task_id = ?
              WHERE claude_session_id = ? AND session_id IS NULL",
-            session_id, task_id, claude_session_id
+            session_id,
+            task_id,
+            claude_session_id
         )
         .execute(&self.pool)
         .await?;

@@ -34,7 +34,13 @@ impl SessionQueue {
     }
 
     #[instrument(skip(self, task))]
-    pub async fn enqueue(&self, task: Task, stage: String, conversation_context: Option<String>, resume_claude_session_id: Option<String>) -> Result<()> {
+    pub async fn enqueue(
+        &self,
+        task: Task,
+        stage: String,
+        conversation_context: Option<String>,
+        resume_claude_session_id: Option<String>,
+    ) -> Result<()> {
         let active_count = self.manager.active_count().await;
 
         if active_count < self.max_concurrent {
@@ -45,7 +51,9 @@ impl SessionQueue {
                 active_sessions = active_count,
                 "Starting task immediately"
             );
-            self.manager.start_session(task, &stage, conversation_context, resume_claude_session_id).await?;
+            self.manager
+                .start_session(task, &stage, conversation_context, resume_claude_session_id)
+                .await?;
         } else {
             let queue_len = self.pending.lock().await.len();
             info!(
@@ -85,12 +93,16 @@ impl SessionQueue {
                 "Starting next queued task"
             );
             drop(pending);
-            if let Err(e) = self.manager.start_session(
-                queued.task.clone(),
-                &queued.stage,
-                queued.conversation_context,
-                queued.resume_claude_session_id,
-            ).await {
+            if let Err(e) = self
+                .manager
+                .start_session(
+                    queued.task.clone(),
+                    &queued.stage,
+                    queued.conversation_context,
+                    queued.resume_claude_session_id,
+                )
+                .await
+            {
                 tracing::error!(
                     task_id = %queued.task.id,
                     task_title = %queued.task.title,
@@ -171,7 +183,9 @@ impl SessionQueue {
                         tracing::error!(task_id = %task_id, error = %e, "Failed to re-queue rate-limited task");
                     }
                 }
-                Err(e) => tracing::error!(task_id = %task_id, error = %e, "Failed to find task for rate-limit retry"),
+                Err(e) => {
+                    tracing::error!(task_id = %task_id, error = %e, "Failed to find task for rate-limit retry")
+                }
             }
         });
     }

@@ -37,7 +37,11 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                 let subscribed_id = sub.as_deref();
 
                 match &event {
-                    ClaudeEvent::Output { session_id, text, is_error } => {
+                    ClaudeEvent::Output {
+                        session_id,
+                        text,
+                        is_error,
+                    } => {
                         let should_send = subscribed_id.map_or(true, |id| id == session_id);
                         if should_send {
                             Some(ServerMessage::session_output(
@@ -49,7 +53,10 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             None
                         }
                     }
-                    ClaudeEvent::Heartbeat { session_id, elapsed_secs } => {
+                    ClaudeEvent::Heartbeat {
+                        session_id,
+                        elapsed_secs,
+                    } => {
                         let should_send = subscribed_id.map_or(true, |id| id == session_id);
                         if should_send {
                             Some(ServerMessage::session_heartbeat(
@@ -73,9 +80,14 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                     }
                     ClaudeEvent::TaskStageChanged { task_json, .. } => {
                         // Broadcast to all — no session filter
-                        Some(ServerMessage::TaskUpdated { task: task_json.clone() })
+                        Some(ServerMessage::TaskUpdated {
+                            task: task_json.clone(),
+                        })
                     }
-                    ClaudeEvent::SessionIdAssigned { session_id, claude_session_id } => {
+                    ClaudeEvent::SessionIdAssigned {
+                        session_id,
+                        claude_session_id,
+                    } => {
                         let should_send = subscribed_id.map_or(true, |id| id == session_id);
                         if should_send {
                             Some(ServerMessage::SessionIdAssigned {
@@ -86,7 +98,12 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             None
                         }
                     }
-                    ClaudeEvent::RateLimited { session_id, task_id, reset_at, .. } => {
+                    ClaudeEvent::RateLimited {
+                        session_id,
+                        task_id,
+                        reset_at,
+                        ..
+                    } => {
                         let should_send = subscribed_id.map_or(true, |id| id == session_id);
                         if should_send {
                             Some(ServerMessage::RateLimited {
@@ -98,7 +115,11 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             None
                         }
                     }
-                    ClaudeEvent::StageContextSet { session_id, task_id, mode } => {
+                    ClaudeEvent::StageContextSet {
+                        session_id,
+                        task_id,
+                        mode,
+                    } => {
                         // Broadcast to all clients — frontend filters by task_id
                         Some(ServerMessage::StageContextSet {
                             session_id: session_id.clone(),
@@ -106,14 +127,21 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             mode: mode.clone(),
                         })
                     }
-                    ClaudeEvent::ContextFileUpdated { session_id, task_id } => {
+                    ClaudeEvent::ContextFileUpdated {
+                        session_id,
+                        task_id,
+                    } => {
                         // Broadcast to all clients — frontend filters by task_id
                         Some(ServerMessage::ContextFileUpdated {
                             session_id: session_id.clone(),
                             task_id: task_id.clone(),
                         })
                     }
-                    ClaudeEvent::PlanCreated { session_id, task_id, preview } => {
+                    ClaudeEvent::PlanCreated {
+                        session_id,
+                        task_id,
+                        preview,
+                    } => {
                         // Broadcast to all clients — frontend filters by task_id
                         Some(ServerMessage::PlanCreated {
                             session_id: session_id.clone(),
@@ -122,10 +150,14 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                         })
                     }
                     ClaudeEvent::EnrichmentStarted { task_id } => {
-                        Some(ServerMessage::EnrichmentStarted { task_id: task_id.clone() })
+                        Some(ServerMessage::EnrichmentStarted {
+                            task_id: task_id.clone(),
+                        })
                     }
                     ClaudeEvent::EnrichmentCompleted { task_id } => {
-                        Some(ServerMessage::EnrichmentCompleted { task_id: task_id.clone() })
+                        Some(ServerMessage::EnrichmentCompleted {
+                            task_id: task_id.clone(),
+                        })
                     }
                 }
             };

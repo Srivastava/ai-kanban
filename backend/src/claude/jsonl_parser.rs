@@ -38,11 +38,21 @@ fn parse_assistant_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> 
 
     let input_tokens = usage.get("input_tokens")?.as_i64().unwrap_or(0);
     let output_tokens = usage.get("output_tokens")?.as_i64().unwrap_or(0);
-    let cache_read_tokens = usage.get("cache_read_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
-    let cache_creation_tokens = usage.get("cache_creation_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+    let cache_read_tokens = usage
+        .get("cache_read_input_tokens")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    let cache_creation_tokens = usage
+        .get("cache_creation_input_tokens")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
 
     // Only record events that actually have tokens (including cache)
-    if input_tokens == 0 && output_tokens == 0 && cache_read_tokens == 0 && cache_creation_tokens == 0 {
+    if input_tokens == 0
+        && output_tokens == 0
+        && cache_read_tokens == 0
+        && cache_creation_tokens == 0
+    {
         return None;
     }
 
@@ -75,10 +85,20 @@ fn parse_result_event(value: &serde_json::Value) -> Option<ParsedTokenEvent> {
     let usage = value.get("usage")?;
     let input_tokens = usage.get("input_tokens")?.as_i64().unwrap_or(0);
     let output_tokens = usage.get("output_tokens")?.as_i64().unwrap_or(0);
-    let cache_read_tokens = usage.get("cache_read_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
-    let cache_creation_tokens = usage.get("cache_creation_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+    let cache_read_tokens = usage
+        .get("cache_read_input_tokens")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
+    let cache_creation_tokens = usage
+        .get("cache_creation_input_tokens")
+        .and_then(|v| v.as_i64())
+        .unwrap_or(0);
 
-    if input_tokens == 0 && output_tokens == 0 && cache_read_tokens == 0 && cache_creation_tokens == 0 {
+    if input_tokens == 0
+        && output_tokens == 0
+        && cache_read_tokens == 0
+        && cache_creation_tokens == 0
+    {
         return None;
     }
 
@@ -309,13 +329,13 @@ fn get_first_string_value(input: Option<&serde_json::Value>) -> Option<String> {
 /// from code that Claude writes (e.g. "capacity", "token limit", "overloaded" are
 /// all common in normal code and must NOT be in this list).
 const RATE_LIMIT_KEYWORDS: &[&str] = &[
-    "usage limit",           // "Your usage limit resets at..."
-    "hit your limit",        // "You've hit your limit · resets 10pm"
-    "too many requests",     // HTTP 429 standard text
-    "quota exceeded",        // API quota message
+    "usage limit",             // "Your usage limit resets at..."
+    "hit your limit",          // "You've hit your limit · resets 10pm"
+    "too many requests",       // HTTP 429 standard text
+    "quota exceeded",          // API quota message
     "usage has been exceeded", // Anthropic-specific phrasing
-    "daily usage limit",     // specific enough
-    "monthly usage limit",   // specific enough
+    "daily usage limit",       // specific enough
+    "monthly usage limit",     // specific enough
 ];
 
 fn contains_rate_limit_keyword(s: &str) -> bool {
@@ -326,11 +346,7 @@ fn contains_rate_limit_keyword(s: &str) -> bool {
 /// Broader keywords that are only reliable when accompanied by an ISO 8601 timestamp.
 /// "rate limit" alone could appear in code comments, but combined with a parseable
 /// reset timestamp it's strong evidence of an actual Anthropic API rate limit.
-const RATE_LIMIT_KEYWORDS_WITH_TIMESTAMP: &[&str] = &[
-    "rate limit",
-    "rate-limit",
-    "ratelimit",
-];
+const RATE_LIMIT_KEYWORDS_WITH_TIMESTAMP: &[&str] = &["rate limit", "rate-limit", "ratelimit"];
 
 /// Detect a Claude usage-limit message in a line and parse the reset timestamp.
 /// Matches patterns like "resets at 2026-03-04T03:00:00.000Z" (case-insensitive).
@@ -338,14 +354,16 @@ const RATE_LIMIT_KEYWORDS_WITH_TIMESTAMP: &[&str] = &[
 pub fn extract_rate_limit_reset_at(line: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     let lower = line.to_lowercase();
     let has_keyword = RATE_LIMIT_KEYWORDS.iter().any(|kw| lower.contains(kw))
-        || RATE_LIMIT_KEYWORDS_WITH_TIMESTAMP.iter().any(|kw| lower.contains(kw));
+        || RATE_LIMIT_KEYWORDS_WITH_TIMESTAMP
+            .iter()
+            .any(|kw| lower.contains(kw));
     if !has_keyword {
         return None;
     }
     // Find an ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS with optional ms and Z/offset)
-    let re = regex::Regex::new(
-        r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})"
-    ).ok()?;
+    let re =
+        regex::Regex::new(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})")
+            .ok()?;
     let mat = re.find(line)?;
     chrono::DateTime::parse_from_rfc3339(mat.as_str())
         .ok()

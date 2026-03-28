@@ -1,8 +1,6 @@
 use ai_kanban_backend::ai::context_manager::ContextManager;
 use ai_kanban_backend::ai::litellm::LitellmClient;
-use ai_kanban_backend::db::{
-    AttachmentRepository, CommentRepository, TaskRepository, create_pool,
-};
+use ai_kanban_backend::db::{create_pool, AttachmentRepository, CommentRepository, TaskRepository};
 use ai_kanban_backend::models::CreateTask;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -69,12 +67,16 @@ async fn summarize_session_empty_lines_skips_llm() {
             Some(30),
             0,
             0,
-            &[], // empty lines
+            &[],  // empty lines
             None, // no result_text
         )
         .await;
 
-    assert!(result.is_ok(), "expected Ok when lines are empty, got {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "expected Ok when lines are empty, got {:?}",
+        result.err()
+    );
     // wiremock will verify 0 requests on drop
 }
 
@@ -181,12 +183,10 @@ async fn enrich_task_valid_response_updates_task() {
     let mock_server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "choices": [{"message": {"content": "enriched instructions here"}}],
-                "usage": {"prompt_tokens": 20, "completion_tokens": 8}
-            })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{"message": {"content": "enriched instructions here"}}],
+            "usage": {"prompt_tokens": 20, "completion_tokens": 8}
+        })))
         .mount(&mock_server)
         .await;
 
@@ -239,12 +239,10 @@ async fn compress_context_stores_result() {
     let mock_server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "choices": [{"message": {"content": "compressed context content"}}],
-                "usage": {"prompt_tokens": 30, "completion_tokens": 12}
-            })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{"message": {"content": "compressed context content"}}],
+            "usage": {"prompt_tokens": 30, "completion_tokens": 12}
+        })))
         .mount(&mock_server)
         .await;
 
@@ -274,7 +272,9 @@ async fn compress_context_stores_result() {
     assert!(result.is_ok(), "expected Ok, got {:?}", result.err());
 
     let updated = task_repo.find(&task.id).await.expect("find task");
-    let compressed = updated.compressed_context.expect("compressed_context should be set");
+    let compressed = updated
+        .compressed_context
+        .expect("compressed_context should be set");
     assert!(
         compressed.contains("compressed context content"),
         "compressed_context should contain LLM response"
@@ -290,12 +290,10 @@ async fn generate_briefing_returns_content() {
     let mock_server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "choices": [{"message": {"content": "briefing content here"}}],
-                "usage": {"prompt_tokens": 15, "completion_tokens": 6}
-            })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{"message": {"content": "briefing content here"}}],
+            "usage": {"prompt_tokens": 15, "completion_tokens": 6}
+        })))
         .mount(&mock_server)
         .await;
 

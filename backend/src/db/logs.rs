@@ -53,9 +53,7 @@ impl LogRepository {
         let limit = filter.limit.unwrap_or(100).min(1000);
         let offset = filter.offset.unwrap_or(0);
 
-        let mut query = String::from(
-            "SELECT * FROM logs WHERE 1=1"
-        );
+        let mut query = String::from("SELECT * FROM logs WHERE 1=1");
         let mut binds: Vec<String> = Vec::new();
 
         if let Some(level) = &filter.level {
@@ -94,7 +92,7 @@ impl LogRepository {
     pub async fn list_by_task(&self, task_id: &str, limit: Option<i32>) -> Result<Vec<Log>> {
         let limit = limit.unwrap_or(100).min(1000);
         let logs = sqlx::query_as::<_, Log>(
-            "SELECT * FROM logs WHERE task_id = ? ORDER BY timestamp DESC LIMIT ?"
+            "SELECT * FROM logs WHERE task_id = ? ORDER BY timestamp DESC LIMIT ?",
         )
         .bind(task_id)
         .bind(limit)

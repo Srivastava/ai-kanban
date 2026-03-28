@@ -11,7 +11,7 @@ pub struct OtelMetric {
     pub session_id: Option<String>,
     pub task_id: Option<String>,
     pub claude_session_id: String,
-    pub attributes: String,  // JSON text
+    pub attributes: String, // JSON text
     pub otel_timestamp: i64,
     pub created_at: DateTime<Utc>,
 }

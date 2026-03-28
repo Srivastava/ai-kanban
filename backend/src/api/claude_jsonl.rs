@@ -35,7 +35,12 @@ pub fn read_claude_usage() -> ClaudeUsage {
 
     let mut usage = ClaudeUsage::default();
 
-    collect_jsonl_files(&projects_dir, window_5hr_start, window_week_start, &mut usage);
+    collect_jsonl_files(
+        &projects_dir,
+        window_5hr_start,
+        window_week_start,
+        &mut usage,
+    );
 
     usage
 }
@@ -47,7 +52,9 @@ fn collect_jsonl_files(
     window_week_start: DateTime<Utc>,
     usage: &mut ClaudeUsage,
 ) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -81,11 +88,17 @@ fn parse_jsonl_file(
         };
 
         // Only assistant messages carry usage data
-        let Some(msg) = v.get("message") else { continue };
-        let Some(usage_obj) = msg.get("usage") else { continue };
+        let Some(msg) = v.get("message") else {
+            continue;
+        };
+        let Some(usage_obj) = msg.get("usage") else {
+            continue;
+        };
 
         // Need a message ID for deduplication
-        let Some(msg_id) = msg.get("id").and_then(|id| id.as_str()) else { continue };
+        let Some(msg_id) = msg.get("id").and_then(|id| id.as_str()) else {
+            continue;
+        };
 
         let ts_str = match v.get("timestamp").and_then(|t| t.as_str()) {
             Some(s) => s,
@@ -96,10 +109,22 @@ fn parse_jsonl_file(
         };
 
         // Sum ALL token types — matches ccusage methodology
-        let input = usage_obj.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
-        let output = usage_obj.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
-        let cache_create = usage_obj.get("cache_creation_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
-        let cache_read = usage_obj.get("cache_read_input_tokens").and_then(|v| v.as_i64()).unwrap_or(0);
+        let input = usage_obj
+            .get("input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let output = usage_obj
+            .get("output_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let cache_create = usage_obj
+            .get("cache_creation_input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let cache_read = usage_obj
+            .get("cache_read_input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
         let total = input + output + cache_create + cache_read;
 
         if total == 0 {
@@ -145,7 +170,11 @@ pub fn reset_week_from_earliest(earliest: Option<DateTime<Utc>>) -> String {
     // Fallback: next Monday 00:00 UTC
     let now = Utc::now();
     let days_until_monday = (7 - now.weekday().num_days_from_monday() as i64) % 7;
-    let days_until_monday = if days_until_monday == 0 { 7 } else { days_until_monday };
+    let days_until_monday = if days_until_monday == 0 {
+        7
+    } else {
+        days_until_monday
+    };
     (now + Duration::days(days_until_monday))
         .date_naive()
         .and_hms_opt(0, 0, 0)

@@ -51,10 +51,19 @@ fn test_prompt_no_description() {
 
 #[test]
 fn test_prompt_description_appears_before_context() {
-    let prompt = build_prompt("Task", Some("The desc"), "planning", Some("Some ctx"), false);
+    let prompt = build_prompt(
+        "Task",
+        Some("The desc"),
+        "planning",
+        Some("Some ctx"),
+        false,
+    );
     let desc_pos = prompt.find("The desc").unwrap();
     let ctx_pos = prompt.find("Some ctx").unwrap();
-    assert!(desc_pos < ctx_pos, "description must appear before context for prompt cache efficiency");
+    assert!(
+        desc_pos < ctx_pos,
+        "description must appear before context for prompt cache efficiency"
+    );
 }
 
 #[test]
@@ -64,10 +73,7 @@ fn test_prompt_planning_saves_plan_instruction() {
         prompt.contains("ai-kanban-plan.md"),
         "planning prompt must instruct Claude to save plan to ai-kanban-plan.md"
     );
-    assert!(
-        prompt.contains("PLANNING mode"),
-        "must be in PLANNING mode"
-    );
+    assert!(prompt.contains("PLANNING mode"), "must be in PLANNING mode");
     assert!(
         prompt.contains("Do NOT make any code changes"),
         "planning mode must prohibit code changes"
@@ -77,10 +83,7 @@ fn test_prompt_planning_saves_plan_instruction() {
 #[test]
 fn test_prompt_review_with_plan_references_plan() {
     let prompt = build_prompt("My Task", None, "review", None, true);
-    assert!(
-        prompt.contains("REVIEW mode"),
-        "must be in REVIEW mode"
-    );
+    assert!(prompt.contains("REVIEW mode"), "must be in REVIEW mode");
     assert!(
         prompt.contains("ai-kanban-plan.md"),
         "review+has_plan prompt must reference the plan file to verify completeness"
@@ -90,10 +93,7 @@ fn test_prompt_review_with_plan_references_plan() {
 #[test]
 fn test_prompt_review_without_plan_does_not_mention_plan_file() {
     let prompt = build_prompt("My Task", None, "review", None, false);
-    assert!(
-        prompt.contains("REVIEW mode"),
-        "must be in REVIEW mode"
-    );
+    assert!(prompt.contains("REVIEW mode"), "must be in REVIEW mode");
     assert!(
         !prompt.contains("ai-kanban-plan.md"),
         "review without plan should not reference plan file"

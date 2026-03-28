@@ -92,6 +92,13 @@ impl Stage {
     }
 
     pub fn all() -> &'static [&'static str] {
-        &["backlog", "planning", "ready", "in_progress", "review", "done"]
+        &[
+            "backlog",
+            "planning",
+            "ready",
+            "in_progress",
+            "review",
+            "done",
+        ]
     }
 }

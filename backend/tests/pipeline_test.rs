@@ -2,8 +2,8 @@
 ///
 /// Tests exercise the interaction between attachments, tasks, context files,
 /// and data URLs using a real SQLite DB and temp directories.
-use ai_kanban_backend::claude::{ClaudeEvent, write_task_context_file};
-use ai_kanban_backend::db::{AttachmentRepository, CommentRepository, TaskRepository, create_pool};
+use ai_kanban_backend::claude::{write_task_context_file, ClaudeEvent};
+use ai_kanban_backend::db::{create_pool, AttachmentRepository, CommentRepository, TaskRepository};
 use ai_kanban_backend::models::{CreateComment, CreateTask, TaskAttachment};
 use chrono::Utc;
 use tokio::sync::broadcast;
@@ -31,7 +31,12 @@ fn unique_tmp_dir(prefix: &str) -> String {
     format!("/tmp/{}-{}", prefix, Uuid::new_v4())
 }
 
-fn make_attachment(task_id: &str, filename: &str, mime_type: &str, storage_path: &str) -> TaskAttachment {
+fn make_attachment(
+    task_id: &str,
+    filename: &str,
+    mime_type: &str,
+    storage_path: &str,
+) -> TaskAttachment {
     TaskAttachment {
         id: Uuid::new_v4().to_string(),
         task_id: task_id.to_string(),
@@ -65,13 +70,27 @@ async fn context_file_has_attached_files_section() {
         .await
         .expect("create task");
 
-    let img_att = make_attachment(&task.id, "screenshot.png", "image/png", "/uploads/screenshot.png");
+    let img_att = make_attachment(
+        &task.id,
+        "screenshot.png",
+        "image/png",
+        "/uploads/screenshot.png",
+    );
     let pdf_att = make_attachment(&task.id, "spec.pdf", "application/pdf", "/uploads/spec.pdf");
 
-    attachment_repo.create(&img_att).await.expect("create image attachment");
-    attachment_repo.create(&pdf_att).await.expect("create pdf attachment");
+    attachment_repo
+        .create(&img_att)
+        .await
+        .expect("create image attachment");
+    attachment_repo
+        .create(&pdf_att)
+        .await
+        .expect("create pdf attachment");
 
-    let attachments = attachment_repo.list_for_task(&task.id).await.expect("list attachments");
+    let attachments = attachment_repo
+        .list_for_task(&task.id)
+        .await
+        .expect("list attachments");
     assert_eq!(attachments.len(), 2);
 
     let project_path = unique_tmp_dir("pipeline-test1");
@@ -83,7 +102,8 @@ async fn context_file_has_attached_files_section() {
 
     assert!(
         content.contains("## Attached Files"),
-        "context file should have '## Attached Files' section, got:\n{}", content
+        "context file should have '## Attached Files' section, got:\n{}",
+        content
     );
     assert!(
         content.contains("screenshot.png"),
@@ -123,9 +143,15 @@ async fn image_attachment_uses_id_filename_in_context() {
     let att = make_attachment(&task.id, "photo.png", "image/png", "/uploads/photo.png");
     let att_id = att.id.clone();
 
-    attachment_repo.create(&att).await.expect("create attachment");
+    attachment_repo
+        .create(&att)
+        .await
+        .expect("create attachment");
 
-    let attachments = attachment_repo.list_for_task(&task.id).await.expect("list attachments");
+    let attachments = attachment_repo
+        .list_for_task(&task.id)
+        .await
+        .expect("list attachments");
 
     let project_path = unique_tmp_dir("pipeline-test2");
     let tx = make_broadcast();
@@ -138,7 +164,9 @@ async fn image_attachment_uses_id_filename_in_context() {
     let expected_ref = format!(".claude/attachments/{}-photo.png", att_id);
     assert!(
         content.contains(&expected_ref),
-        "context file should reference '{}' but got:\n{}", expected_ref, content
+        "context file should reference '{}' but got:\n{}",
+        expected_ref,
+        content
     );
 
     // Should NOT contain bare filename without ID prefix
@@ -204,7 +232,10 @@ async fn litellm_comment_excluded_from_discussion() {
         .await
         .expect("create litellm comment");
 
-    let comments = comment_repo.list_for_task(&task.id).await.expect("list comments");
+    let comments = comment_repo
+        .list_for_task(&task.id)
+        .await
+        .expect("list comments");
     assert_eq!(comments.len(), 3, "should have 3 comments total");
 
     let project_path = unique_tmp_dir("pipeline-test3");
@@ -228,7 +259,8 @@ async fn litellm_comment_excluded_from_discussion() {
     );
     assert!(
         !content.contains("litellm summary comment"),
-        "litellm comment should NOT be in Discussion, but got:\n{}", content
+        "litellm comment should NOT be in Discussion, but got:\n{}",
+        content
     );
 }
 
@@ -261,7 +293,8 @@ async fn instructions_section_present_when_set() {
 
     assert!(
         content.contains("## Implementation Plan"),
-        "context file should have '## Implementation Plan' section, got:\n{}", content
+        "context file should have '## Implementation Plan' section, got:\n{}",
+        content
     );
     assert!(
         content.contains("Step 1: Do the thing"),
@@ -290,7 +323,8 @@ async fn compressed_context_section_present() {
         .await
         .expect("create task");
 
-    task.compressed_context = Some("Previously, Claude refactored the DB layer and added tests.".to_string());
+    task.compressed_context =
+        Some("Previously, Claude refactored the DB layer and added tests.".to_string());
 
     let project_path = unique_tmp_dir("pipeline-test5");
     let tx = make_broadcast();
@@ -301,7 +335,8 @@ async fn compressed_context_section_present() {
 
     assert!(
         content.contains("## Prior Session Context"),
-        "context file should have '## Prior Session Context' section, got:\n{}", content
+        "context file should have '## Prior Session Context' section, got:\n{}",
+        content
     );
     assert!(
         content.contains("Claude refactored the DB layer"),
@@ -328,15 +363,19 @@ async fn image_to_data_url_returns_base64() {
         0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, // IDAT data
         0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC, // IDAT data + CRC
         0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, // IEND chunk
-        0x44, 0xAE, 0x42, 0x60, 0x82,                   // IEND CRC
+        0x44, 0xAE, 0x42, 0x60, 0x82, // IEND CRC
     ];
 
     std::fs::write(&tmp_img_path, png_bytes).expect("write test PNG");
 
     // Call image_to_data_url directly (it's the same function task_image_data_urls uses)
-    let result = ai_kanban_backend::ai::litellm::image_to_data_url(&tmp_img_path, "image/png").await;
+    let result =
+        ai_kanban_backend::ai::litellm::image_to_data_url(&tmp_img_path, "image/png").await;
 
-    assert!(result.is_some(), "image_to_data_url should return Some for a valid image file");
+    assert!(
+        result.is_some(),
+        "image_to_data_url should return Some for a valid image file"
+    );
     let data_url = result.unwrap();
 
     assert!(
@@ -370,12 +409,10 @@ async fn task_image_data_urls_via_context_manager_includes_base64() {
     let mock_server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/v1/chat/completions"))
-        .respond_with(
-            ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "choices": [{"message": {"content": "summary text"}}],
-                "usage": {"prompt_tokens": 10, "completion_tokens": 5}
-            })),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "choices": [{"message": {"content": "summary text"}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5}
+        })))
         .mount(&mock_server)
         .await;
 
@@ -393,21 +430,20 @@ async fn task_image_data_urls_via_context_manager_includes_base64() {
     // Write a real PNG file to disk
     let tmp_img_path = format!("/tmp/test-pipeline-img2-{}.png", Uuid::new_v4());
     let png_bytes: &[u8] = &[
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
-        0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41,
-        0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
-        0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC,
-        0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
-        0x44, 0xAE, 0x42, 0x60, 0x82,
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8,
+        0xCF, 0xC0, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC, 0x33, 0x00, 0x00, 0x00,
+        0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
     ];
     std::fs::write(&tmp_img_path, png_bytes).expect("write test PNG");
 
     // Create attachment with real storage_path
     let att = make_attachment(&task.id, "photo.png", "image/png", &tmp_img_path);
-    attachment_repo.create(&att).await.expect("create attachment");
+    attachment_repo
+        .create(&att)
+        .await
+        .expect("create attachment");
 
     let litellm = LitellmClient::new(&mock_server.uri(), "test-key", "test-model");
     let ctx = ContextManager::new(litellm, comment_repo, task_repo, attachment_repo);
@@ -427,7 +463,11 @@ async fn task_image_data_urls_via_context_manager_includes_base64() {
         )
         .await;
 
-    assert!(result.is_ok(), "summarize_session should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "summarize_session should succeed: {:?}",
+        result.err()
+    );
 
     // Check request body sent to mock server contained an image_url part
     let received = mock_server.received_requests().await.expect("get requests");
@@ -437,7 +477,9 @@ async fn task_image_data_urls_via_context_manager_includes_base64() {
         serde_json::from_slice(&received[0].body).expect("parse request body");
 
     // The messages array should contain an image_url content part with base64 data
-    let messages = body["messages"].as_array().expect("messages should be array");
+    let messages = body["messages"]
+        .as_array()
+        .expect("messages should be array");
     let has_image = messages.iter().any(|msg| {
         if let Some(content) = msg["content"].as_array() {
             content.iter().any(|part| {

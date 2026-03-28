@@ -16,15 +16,21 @@ async fn setup_test_db() -> (TaskRepository, SessionRepository) {
 async fn test_session_create() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Test Task".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test Task".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
     assert!(!session.id.is_empty());
     assert_eq!(session.task_id, task.id);
@@ -35,15 +41,21 @@ async fn test_session_create() {
 async fn test_session_find() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
     let found = session_repo.find(&session.id).await.unwrap();
     assert_eq!(found.id, session.id);
@@ -61,17 +73,23 @@ async fn test_session_find_not_found() {
 async fn test_session_list() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     // Create multiple sessions
     for _ in 0..3 {
-        session_repo.create(CreateSession {
-            task_id: task.id.clone(),
-        }).await.unwrap();
+        session_repo
+            .create(CreateSession {
+                task_id: task.id.clone(),
+            })
+            .await
+            .unwrap();
     }
 
     let sessions = session_repo.list().await.unwrap();
@@ -82,21 +100,42 @@ async fn test_session_list() {
 async fn test_session_list_by_task() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task1 = task_repo.create(CreateTask {
-        title: "Task 1".to_string(),
-        description: None,
-        project_path: "/tmp/test1".to_string(),
-    }).await.unwrap();
+    let task1 = task_repo
+        .create(CreateTask {
+            title: "Task 1".to_string(),
+            description: None,
+            project_path: "/tmp/test1".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let task2 = task_repo.create(CreateTask {
-        title: "Task 2".to_string(),
-        description: None,
-        project_path: "/tmp/test2".to_string(),
-    }).await.unwrap();
+    let task2 = task_repo
+        .create(CreateTask {
+            title: "Task 2".to_string(),
+            description: None,
+            project_path: "/tmp/test2".to_string(),
+        })
+        .await
+        .unwrap();
 
-    session_repo.create(CreateSession { task_id: task1.id.clone() }).await.unwrap();
-    session_repo.create(CreateSession { task_id: task1.id.clone() }).await.unwrap();
-    session_repo.create(CreateSession { task_id: task2.id.clone() }).await.unwrap();
+    session_repo
+        .create(CreateSession {
+            task_id: task1.id.clone(),
+        })
+        .await
+        .unwrap();
+    session_repo
+        .create(CreateSession {
+            task_id: task1.id.clone(),
+        })
+        .await
+        .unwrap();
+    session_repo
+        .create(CreateSession {
+            task_id: task2.id.clone(),
+        })
+        .await
+        .unwrap();
 
     let task1_sessions = session_repo.list_by_task(&task1.id).await.unwrap();
     assert_eq!(task1_sessions.len(), 2);
@@ -109,20 +148,32 @@ async fn test_session_list_by_task() {
 async fn test_session_update_status() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
-    let updated = session_repo.update(&session.id, UpdateSession {
-        status: Some("running".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let updated = session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                status: Some("running".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     assert_eq!(updated.status, "running");
 }
@@ -131,21 +182,33 @@ async fn test_session_update_status() {
 async fn test_session_update_ended_at() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
     let now = chrono::Utc::now();
-    let updated = session_repo.update(&session.id, UpdateSession {
-        ended_at: Some(now),
-        ..Default::default()
-    }).await.unwrap();
+    let updated = session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                ended_at: Some(now),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     assert!(updated.ended_at.is_some());
 }
@@ -154,20 +217,39 @@ async fn test_session_update_ended_at() {
 async fn test_session_list_by_status() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let s1 = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
-    let s2 = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
+    let s1 = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+    let s2 = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
     // Update s1 to running
-    session_repo.update(&s1.id, UpdateSession {
-        status: Some("running".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    session_repo
+        .update(
+            &s1.id,
+            UpdateSession {
+                status: Some("running".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     let running = session_repo.list_by_status("running").await.unwrap();
     assert_eq!(running.len(), 1);
@@ -182,15 +264,21 @@ async fn test_session_list_by_status() {
 async fn test_session_delete() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
     session_repo.delete(&session.id).await.unwrap();
 
@@ -219,11 +307,26 @@ fn test_session_status_as_str() {
 
 #[test]
 fn test_session_status_from_str() {
-    assert_eq!(SessionStatus::from_str("pending"), Some(SessionStatus::Pending));
-    assert_eq!(SessionStatus::from_str("running"), Some(SessionStatus::Running));
-    assert_eq!(SessionStatus::from_str("stopped"), Some(SessionStatus::Stopped));
-    assert_eq!(SessionStatus::from_str("completed"), Some(SessionStatus::Completed));
-    assert_eq!(SessionStatus::from_str("failed"), Some(SessionStatus::Failed));
+    assert_eq!(
+        SessionStatus::from_str("pending"),
+        Some(SessionStatus::Pending)
+    );
+    assert_eq!(
+        SessionStatus::from_str("running"),
+        Some(SessionStatus::Running)
+    );
+    assert_eq!(
+        SessionStatus::from_str("stopped"),
+        Some(SessionStatus::Stopped)
+    );
+    assert_eq!(
+        SessionStatus::from_str("completed"),
+        Some(SessionStatus::Completed)
+    );
+    assert_eq!(
+        SessionStatus::from_str("failed"),
+        Some(SessionStatus::Failed)
+    );
     assert_eq!(SessionStatus::from_str("invalid"), None);
 }
 
@@ -251,37 +354,58 @@ fn test_session_status_roundtrip() {
 #[tokio::test]
 async fn test_session_claude_session_id_default_null() {
     let (task_repo, session_repo) = setup_test_db().await;
-    let task = task_repo.create(CreateTask {
-        title: "Claude ID Default Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Claude ID Default Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
     assert!(session.claude_session_id.is_none());
 }
 
 #[tokio::test]
 async fn test_session_update_claude_session_id() {
     let (task_repo, session_repo) = setup_test_db().await;
-    let task = task_repo.create(CreateTask {
-        title: "Claude ID Update Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Claude ID Update Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
-    let updated = session_repo.update(&session.id, UpdateSession {
-        claude_session_id: Some("claude-abc-123".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let updated = session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                claude_session_id: Some("claude-abc-123".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
-    assert_eq!(updated.claude_session_id, Some("claude-abc-123".to_string()));
+    assert_eq!(
+        updated.claude_session_id,
+        Some("claude-abc-123".to_string())
+    );
 }
 
 #[tokio::test]
@@ -295,27 +419,48 @@ async fn test_session_list_by_status_empty() {
 async fn test_session_list_by_status_filters_correctly() {
     let (task_repo, session_repo) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Status Filter Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Status Filter Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let s1 = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
-    session_repo.update(&s1.id, UpdateSession {
-        status: Some("running".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let s1 = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+    session_repo
+        .update(
+            &s1.id,
+            UpdateSession {
+                status: Some("running".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
-    let s2 = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
-    session_repo.update(&s2.id, UpdateSession {
-        status: Some("completed".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let s2 = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+    session_repo
+        .update(
+            &s2.id,
+            UpdateSession {
+                status: Some("completed".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     let running = session_repo.list_by_status("running").await.unwrap();
     assert_eq!(running.len(), 1);
@@ -327,23 +472,38 @@ async fn test_session_list_by_status_filters_correctly() {
 #[tokio::test]
 async fn test_find_by_claude_session_id_found() {
     let (task_repo, session_repo) = setup_test_db().await;
-    let task = task_repo.create(CreateTask {
-        title: "Find by Claude ID".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Find by Claude ID".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let session = session_repo.create(CreateSession {
-        task_id: task.id.clone(),
-    }).await.unwrap();
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
     let claude_id = "claude-uuid-find-me-123";
-    session_repo.update(&session.id, UpdateSession {
-        claude_session_id: Some(claude_id.to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                claude_session_id: Some(claude_id.to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
-    let found = session_repo.find_by_claude_session_id(claude_id).await.unwrap();
+    let found = session_repo
+        .find_by_claude_session_id(claude_id)
+        .await
+        .unwrap();
     assert!(found.is_some());
     let found = found.unwrap();
     assert_eq!(found.id, session.id);
@@ -353,7 +513,10 @@ async fn test_find_by_claude_session_id_found() {
 #[tokio::test]
 async fn test_find_by_claude_session_id_not_found() {
     let (_, session_repo) = setup_test_db().await;
-    let found = session_repo.find_by_claude_session_id("nonexistent-claude-id").await.unwrap();
+    let found = session_repo
+        .find_by_claude_session_id("nonexistent-claude-id")
+        .await
+        .unwrap();
     assert!(found.is_none());
 }
 
@@ -361,27 +524,60 @@ async fn test_find_by_claude_session_id_not_found() {
 async fn test_find_by_claude_session_id_returns_correct_session() {
     // Two sessions with different claude_session_ids — lookup returns the right one
     let (task_repo, session_repo) = setup_test_db().await;
-    let task = task_repo.create(CreateTask {
-        title: "Multi Claude ID".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Multi Claude ID".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let s1 = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
-    let s2 = session_repo.create(CreateSession { task_id: task.id.clone() }).await.unwrap();
+    let s1 = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+    let s2 = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
 
-    session_repo.update(&s1.id, UpdateSession {
-        claude_session_id: Some("claude-aaa".to_string()),
-        ..Default::default()
-    }).await.unwrap();
-    session_repo.update(&s2.id, UpdateSession {
-        claude_session_id: Some("claude-bbb".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    session_repo
+        .update(
+            &s1.id,
+            UpdateSession {
+                claude_session_id: Some("claude-aaa".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    session_repo
+        .update(
+            &s2.id,
+            UpdateSession {
+                claude_session_id: Some("claude-bbb".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
-    let found_a = session_repo.find_by_claude_session_id("claude-aaa").await.unwrap().unwrap();
+    let found_a = session_repo
+        .find_by_claude_session_id("claude-aaa")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(found_a.id, s1.id);
 
-    let found_b = session_repo.find_by_claude_session_id("claude-bbb").await.unwrap().unwrap();
+    let found_b = session_repo
+        .find_by_claude_session_id("claude-bbb")
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(found_b.id, s2.id);
 }

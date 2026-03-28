@@ -74,7 +74,9 @@ struct HeatmapQuery {
     task_id: Option<String>,
 }
 
-fn default_heatmap_days() -> i64 { 365 }
+fn default_heatmap_days() -> i64 {
+    365
+}
 
 pub fn analytics_routes() -> Router<AnalyticsApiState> {
     Router::new()
@@ -107,9 +109,7 @@ pub fn analytics_routes() -> Router<AnalyticsApiState> {
 }
 
 #[instrument(skip(state))]
-async fn overview(
-    State(state): State<AnalyticsApiState>,
-) -> impl IntoResponse {
+async fn overview(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
     info!("API: Getting analytics overview");
     match state.analytics.overview().await {
         Ok(overview) => {
@@ -134,7 +134,11 @@ async fn usage_windows(State(state): State<AnalyticsApiState>) -> impl IntoRespo
     let cache_guard = state.usage_cache.read();
     let (cli, last_poll_no_data, has_prior_data) = match cache_guard {
         Ok(c) => (c.data.clone(), c.last_poll_no_data, c.fetched_at.is_some()),
-        Err(_) => (crate::api::claude_usage_cli::ClaudeCliUsage::default(), false, false),
+        Err(_) => (
+            crate::api::claude_usage_cli::ClaudeCliUsage::default(),
+            false,
+            false,
+        ),
     };
 
     // no_data = true only when: last poll failed AND we had a prior successful poll
@@ -143,10 +147,12 @@ async fn usage_windows(State(state): State<AnalyticsApiState>) -> impl IntoRespo
 
     let (tokens_5hr, tokens_week, reset_5hr, reset_week) =
         if cli.pct_5hr.is_some() || cli.pct_week.is_some() {
-            let t5 = cli.pct_5hr
+            let t5 = cli
+                .pct_5hr
                 .map(|p| ((p / 100.0) * plan.limit_5hr as f64).round() as i64)
                 .unwrap_or(0);
-            let tw = cli.pct_week
+            let tw = cli
+                .pct_week
                 .map(|p| ((p / 100.0) * plan.limit_week as f64).round() as i64)
                 .unwrap_or(0);
             let r5 = cli.reset_5hr;
@@ -181,7 +187,11 @@ async fn daily_tokens(
     Query(query): Query<DaysQuery>,
 ) -> impl IntoResponse {
     info!(days = query.days, "API: Getting daily tokens");
-    match state.analytics.daily_tokens(query.days, query.task_id.as_deref()).await {
+    match state
+        .analytics
+        .daily_tokens(query.days, query.task_id.as_deref())
+        .await
+    {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Daily tokens retrieved");
             Json(tokens).into_response()
@@ -203,7 +213,11 @@ async fn weekly_tokens(
     Query(query): Query<WeeksQuery>,
 ) -> impl IntoResponse {
     info!(weeks = query.weeks, "API: Getting weekly tokens");
-    match state.analytics.weekly_tokens(query.weeks, query.task_id.as_deref()).await {
+    match state
+        .analytics
+        .weekly_tokens(query.weeks, query.task_id.as_deref())
+        .await
+    {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Weekly tokens retrieved");
             Json(tokens).into_response()
@@ -225,7 +239,11 @@ async fn monthly_tokens(
     Query(query): Query<MonthsQuery>,
 ) -> impl IntoResponse {
     info!(months = query.months, "API: Getting monthly tokens");
-    match state.analytics.monthly_tokens(query.months, query.task_id.as_deref()).await {
+    match state
+        .analytics
+        .monthly_tokens(query.months, query.task_id.as_deref())
+        .await
+    {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Monthly tokens retrieved");
             Json(tokens).into_response()
@@ -242,9 +260,7 @@ async fn monthly_tokens(
 }
 
 #[instrument(skip(state))]
-async fn tokens_by_task(
-    State(state): State<AnalyticsApiState>,
-) -> impl IntoResponse {
+async fn tokens_by_task(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
     info!("API: Getting tokens by task");
     match state.analytics.tokens_by_task().await {
         Ok(tokens) => {
@@ -263,9 +279,7 @@ async fn tokens_by_task(
 }
 
 #[instrument(skip(state))]
-async fn tokens_by_session(
-    State(state): State<AnalyticsApiState>,
-) -> impl IntoResponse {
+async fn tokens_by_session(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
     info!("API: Getting tokens by session");
     match state.analytics.tokens_by_session().await {
         Ok(tokens) => {
@@ -289,7 +303,11 @@ async fn tokens_by_tool(
     Query(query): Query<TaskFilterQuery>,
 ) -> impl IntoResponse {
     info!("API: Getting tokens by tool");
-    match state.analytics.tokens_by_tool(query.task_id.as_deref()).await {
+    match state
+        .analytics
+        .tokens_by_tool(query.task_id.as_deref())
+        .await
+    {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Tokens by tool retrieved");
             Json(tokens).into_response()
@@ -311,7 +329,11 @@ async fn tokens_by_language(
     Query(query): Query<TaskFilterQuery>,
 ) -> impl IntoResponse {
     info!("API: Getting tokens by language");
-    match state.analytics.tokens_by_language(query.task_id.as_deref()).await {
+    match state
+        .analytics
+        .tokens_by_language(query.task_id.as_deref())
+        .await
+    {
         Ok(tokens) => {
             debug!(count = tokens.len(), "API: Tokens by language retrieved");
             Json(tokens).into_response()
@@ -333,7 +355,11 @@ async fn token_efficiency(
     Query(query): Query<TaskFilterQuery>,
 ) -> impl IntoResponse {
     info!("API: Getting token efficiency");
-    match state.analytics.token_efficiency(query.task_id.as_deref()).await {
+    match state
+        .analytics
+        .token_efficiency(query.task_id.as_deref())
+        .await
+    {
         Ok(efficiency) => {
             debug!(count = efficiency.len(), "API: Token efficiency retrieved");
             Json(efficiency).into_response()
@@ -375,8 +401,18 @@ async fn session_timeline(
 async fn cost_by_task(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
     info!("API: Getting cost by task");
     match state.analytics.cost_by_task().await {
-        Ok(data) => { debug!(count = data.len(), "retrieved"); Json(data).into_response() }
-        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+        Ok(data) => {
+            debug!(count = data.len(), "retrieved");
+            Json(data).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -386,9 +422,23 @@ async fn tokens_by_stage(
     Query(query): Query<TaskFilterQuery>,
 ) -> impl IntoResponse {
     info!("API: Getting tokens by stage");
-    match state.analytics.tokens_by_stage(query.task_id.as_deref()).await {
-        Ok(data) => { debug!(count = data.len(), "retrieved"); Json(data).into_response() }
-        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+    match state
+        .analytics
+        .tokens_by_stage(query.task_id.as_deref())
+        .await
+    {
+        Ok(data) => {
+            debug!(count = data.len(), "retrieved");
+            Json(data).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -396,8 +446,18 @@ async fn tokens_by_stage(
 async fn session_summary(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
     info!("API: Getting session summary");
     match state.analytics.session_summary().await {
-        Ok(data) => { debug!("retrieved"); Json(data).into_response() }
-        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+        Ok(data) => {
+            debug!("retrieved");
+            Json(data).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -405,8 +465,18 @@ async fn session_summary(State(state): State<AnalyticsApiState>) -> impl IntoRes
 async fn burn_rate(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
     info!("API: Getting burn rate");
     match state.analytics.burn_rate().await {
-        Ok(data) => { debug!("retrieved"); Json(data).into_response() }
-        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+        Ok(data) => {
+            debug!("retrieved");
+            Json(data).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -417,8 +487,18 @@ async fn task_timeline(
 ) -> impl IntoResponse {
     info!(task_id = %task_id, "API: Getting task timeline");
     match state.analytics.task_timeline(&task_id).await {
-        Ok(data) => { debug!(count = data.len(), "retrieved"); Json(data).into_response() }
-        Err(e) => { error!(error = %e, "failed"); (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response() }
+        Ok(data) => {
+            debug!(count = data.len(), "retrieved");
+            Json(data).into_response()
+        }
+        Err(e) => {
+            error!(error = %e, "failed");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
+        }
     }
 }
 
@@ -469,23 +549,27 @@ async fn roi_metrics_handler(
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(error = %e, "API: Failed to get ROI metrics");
-            (StatusCode::INTERNAL_SERVER_ERROR,
-             Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
 
 #[instrument(skip(state))]
-async fn context_usage_handler(
-    State(state): State<AnalyticsApiState>,
-) -> impl IntoResponse {
+async fn context_usage_handler(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
     info!("API: Getting context window usage");
     match state.analytics.context_window_usage().await {
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(error = %e, "API: Failed to get context usage");
-            (StatusCode::INTERNAL_SERVER_ERROR,
-             Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -495,11 +579,19 @@ async fn daily_heatmap(
     State(state): State<AnalyticsApiState>,
     Query(q): Query<HeatmapQuery>,
 ) -> impl IntoResponse {
-    match state.analytics.daily_heatmap(q.days, q.task_id.as_deref()).await {
+    match state
+        .analytics
+        .daily_heatmap(q.days, q.task_id.as_deref())
+        .await
+    {
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(error = %e, "daily_heatmap failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -513,7 +605,11 @@ async fn hourly_breakdown(
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(error = %e, "hourly_breakdown failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -523,11 +619,19 @@ async fn session_tools(
     State(state): State<AnalyticsApiState>,
     Path(session_id): Path<String>,
 ) -> impl IntoResponse {
-    match state.analytics.tokens_by_tool_for_session(&session_id).await {
+    match state
+        .analytics
+        .tokens_by_tool_for_session(&session_id)
+        .await
+    {
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(session_id = %session_id, error = %e, "session_tools failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -540,21 +644,26 @@ async fn loc_history(
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(error = %e, "API: Failed to get LOC history");
-            (StatusCode::INTERNAL_SERVER_ERROR,
-             Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
 
 #[instrument(skip(state))]
-async fn period_comparison_handler(
-    State(state): State<AnalyticsApiState>,
-) -> impl IntoResponse {
+async fn period_comparison_handler(State(state): State<AnalyticsApiState>) -> impl IntoResponse {
     match state.analytics.period_comparison().await {
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(error = %e, "period_comparison failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }

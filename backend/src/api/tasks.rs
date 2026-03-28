@@ -1,6 +1,5 @@
 use super::TaskApiState;
 use crate::models::{CommentWithReplies, CreateTask, UpdateTask};
-use std::collections::HashSet;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -9,6 +8,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
+use std::collections::HashSet;
 use tracing::{debug, error, info, instrument, warn};
 
 #[derive(Deserialize, Debug)]
@@ -55,10 +55,7 @@ async fn list_tasks(
 }
 
 #[instrument(skip(state))]
-async fn get_task(
-    State(state): State<TaskApiState>,
-    Path(id): Path<String>,
-) -> impl IntoResponse {
+async fn get_task(State(state): State<TaskApiState>, Path(id): Path<String>) -> impl IntoResponse {
     debug!(task_id = %id, "Getting task");
     match state.repo.find(&id).await {
         Ok(task) => {
@@ -197,7 +194,8 @@ async fn start_session(
             return (
                 StatusCode::NOT_FOUND,
                 Json(serde_json::json!({ "error": e.to_string() })),
-            ).into_response();
+            )
+                .into_response();
         }
     };
 
@@ -208,7 +206,8 @@ async fn start_session(
             return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": "Session queue not available" })),
-            ).into_response();
+            )
+                .into_response();
         }
     };
 
@@ -224,7 +223,8 @@ async fn start_session(
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({ "error": e.to_string() })),
-            ).into_response()
+            )
+                .into_response()
         }
     }
 }
@@ -241,7 +241,11 @@ pub fn build_comment_history(
     cutoff: Option<chrono::DateTime<chrono::Utc>>,
 ) -> Option<String> {
     fn fmt(author: &str, content: &str) -> String {
-        let prefix = if author == "claude" { "[Claude]" } else { "[You]" };
+        let prefix = if author == "claude" {
+            "[Claude]"
+        } else {
+            "[You]"
+        };
         format!("{}: {}", prefix, content)
     }
 
@@ -285,7 +289,10 @@ pub fn build_comment_history(
                     .filter(|r| r.author != "litellm" && r.created_at > cutoff_dt)
                     .collect();
                 if !new_replies.is_empty() {
-                    ls.push(format!("[context] {}", fmt(&c.comment.author, &c.comment.content)));
+                    ls.push(format!(
+                        "[context] {}",
+                        fmt(&c.comment.author, &c.comment.content)
+                    ));
                     for r in &new_replies {
                         ls.push(format!("  {}", fmt(&r.author, &r.content)));
                     }
@@ -296,7 +303,11 @@ pub fn build_comment_history(
         }
     };
 
-    if lines.is_empty() { None } else { Some(lines.join("\n")) }
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
+    }
 }
 
 #[instrument(skip(state))]
@@ -310,7 +321,11 @@ async fn continue_session(
         Ok(t) => t,
         Err(e) => {
             error!(task_id = %id, error = %e, "Task not found for continue session");
-            return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response();
         }
     };
 
@@ -318,14 +333,20 @@ async fn continue_session(
         Some(q) => q.clone(),
         None => {
             error!(task_id = %id, "Session queue not available for continue session");
-            return (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": "Queue not available" }))).into_response();
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": "Queue not available" })),
+            )
+                .into_response();
         }
     };
 
     // Look up prior session for true resume.
     // When --resume is used, Claude restores its full internal conversation state,
     // so we only need to inject comments added AFTER that session ended (not the whole history).
-    let (resume_claude_session_id, prior_session_ended_at) = if let Some(ref prior_session_id) = task.session_id {
+    let (resume_claude_session_id, prior_session_ended_at) = if let Some(ref prior_session_id) =
+        task.session_id
+    {
         match state.session_repo.find(prior_session_id).await {
             Ok(prior_session) => {
                 if let Some(ref csid) = prior_session.claude_session_id {
@@ -349,14 +370,25 @@ async fn continue_session(
     // Filter out litellm-authored summaries — Claude doesn't need to read its own summaries.
     // When doing a true --resume, only include comments added AFTER the prior session ended,
     // because Claude's internal state (via --resume) already has everything up to that point.
-    let comments = state.comment_repo.list_for_task(&id).await.unwrap_or_default();
+    let comments = state
+        .comment_repo
+        .list_for_task(&id)
+        .await
+        .unwrap_or_default();
     let total_comments = comments.len();
     let total_replies: usize = comments.iter().map(|c| c.replies.len()).sum();
 
-    let cutoff = if resume_claude_session_id.is_some() { prior_session_ended_at } else { None };
+    let cutoff = if resume_claude_session_id.is_some() {
+        prior_session_ended_at
+    } else {
+        None
+    };
 
     let comment_history = build_comment_history(&comments, cutoff);
-    let new_comment_count = comment_history.as_ref().map(|h| h.lines().count()).unwrap_or(0);
+    let new_comment_count = comment_history
+        .as_ref()
+        .map(|h| h.lines().count())
+        .unwrap_or(0);
 
     // Prepend compressed context if available (from prior high-token sessions).
     // Only include compressed context when NOT doing a true --resume (avoid duplication).
@@ -389,14 +421,21 @@ async fn continue_session(
         has_resume = resume_claude_session_id.is_some(),
         "Enqueuing continue session"
     );
-    match queue.enqueue(task, stage, conversation_context, resume_claude_session_id).await {
+    match queue
+        .enqueue(task, stage, conversation_context, resume_claude_session_id)
+        .await
+    {
         Ok(()) => {
             info!(task_id = %id, "Continue session enqueued");
             Json(serde_json::json!({ "status": "queued" })).into_response()
         }
         Err(e) => {
             error!(task_id = %id, error = %e, "Failed to enqueue continue session");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -411,7 +450,11 @@ async fn task_sessions_detail(
         Ok(data) => Json(data).into_response(),
         Err(e) => {
             error!(task_id = %id, error = %e, "Failed to get sessions detail");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -456,7 +499,11 @@ async fn get_context_file(
     let task = match state.repo.find(&id).await {
         Ok(t) => t,
         Err(e) => {
-            return (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": e.to_string() }))).into_response();
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response();
         }
     };
     let expanded = if task.project_path.starts_with("~/") {
@@ -465,15 +512,28 @@ async fn get_context_file(
     } else {
         task.project_path.clone()
     };
-    let file_path = std::path::Path::new(&expanded).join(".claude").join("ai-kanban.md");
+    let file_path = std::path::Path::new(&expanded)
+        .join(".claude")
+        .join("ai-kanban.md");
     match std::fs::read_to_string(&file_path) {
-        Ok(content) => Json(serde_json::json!({ "content": content, "path": file_path.to_string_lossy() })).into_response(),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Context file not found — session not yet started" }))).into_response()
+        Ok(content) => {
+            Json(serde_json::json!({ "content": content, "path": file_path.to_string_lossy() }))
+                .into_response()
         }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => (
+            StatusCode::NOT_FOUND,
+            Json(
+                serde_json::json!({ "error": "Context file not found — session not yet started" }),
+            ),
+        )
+            .into_response(),
         Err(e) => {
             error!(task_id = %id, error = %e, "Failed to read context file");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))).into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+                .into_response()
         }
     }
 }
@@ -495,7 +555,13 @@ mod tests {
         }
     }
 
-    fn make_reply(id: &str, parent_id: &str, author: &str, content: &str, ts: DateTime<Utc>) -> Comment {
+    fn make_reply(
+        id: &str,
+        parent_id: &str,
+        author: &str,
+        content: &str,
+        ts: DateTime<Utc>,
+    ) -> Comment {
         Comment {
             id: id.to_string(),
             task_id: "t1".to_string(),
@@ -509,12 +575,10 @@ mod tests {
     #[test]
     fn test_no_cutoff_includes_all_comments_and_replies() {
         let t = Utc.with_ymd_and_hms(2026, 3, 1, 10, 0, 0).unwrap();
-        let comments = vec![
-            CommentWithReplies {
-                comment: make_comment("c1", "user", "hello", t),
-                replies: vec![make_reply("r1", "c1", "claude", "hi", t)],
-            },
-        ];
+        let comments = vec![CommentWithReplies {
+            comment: make_comment("c1", "user", "hello", t),
+            replies: vec![make_reply("r1", "c1", "claude", "hi", t)],
+        }];
         let result = build_comment_history(&comments, None).unwrap();
         assert!(result.contains("[You]: hello"));
         assert!(result.contains("[Claude]: hi"));
@@ -524,12 +588,10 @@ mod tests {
     fn test_cutoff_excludes_old_parent_with_no_new_replies() {
         let old = Utc.with_ymd_and_hms(2026, 3, 1, 10, 0, 0).unwrap();
         let cutoff = Utc.with_ymd_and_hms(2026, 3, 2, 0, 0, 0).unwrap();
-        let comments = vec![
-            CommentWithReplies {
-                comment: make_comment("c1", "user", "old comment", old),
-                replies: vec![],
-            },
-        ];
+        let comments = vec![CommentWithReplies {
+            comment: make_comment("c1", "user", "old comment", old),
+            replies: vec![],
+        }];
         let result = build_comment_history(&comments, Some(cutoff));
         assert!(result.is_none());
     }
@@ -539,14 +601,15 @@ mod tests {
         let old = Utc.with_ymd_and_hms(2026, 3, 1, 10, 0, 0).unwrap();
         let new_ts = Utc.with_ymd_and_hms(2026, 3, 3, 10, 0, 0).unwrap();
         let cutoff = Utc.with_ymd_and_hms(2026, 3, 2, 0, 0, 0).unwrap();
-        let comments = vec![
-            CommentWithReplies {
-                comment: make_comment("c1", "user", "old parent", old),
-                replies: vec![make_reply("r1", "c1", "user", "new reply", new_ts)],
-            },
-        ];
+        let comments = vec![CommentWithReplies {
+            comment: make_comment("c1", "user", "old parent", old),
+            replies: vec![make_reply("r1", "c1", "user", "new reply", new_ts)],
+        }];
         let result = build_comment_history(&comments, Some(cutoff)).unwrap();
-        assert!(result.contains("[context]"), "Should include parent as context");
+        assert!(
+            result.contains("[context]"),
+            "Should include parent as context"
+        );
         assert!(result.contains("old parent"));
         assert!(result.contains("new reply"));
     }
@@ -555,12 +618,10 @@ mod tests {
     fn test_cutoff_excludes_old_reply_on_old_parent() {
         let old = Utc.with_ymd_and_hms(2026, 3, 1, 10, 0, 0).unwrap();
         let cutoff = Utc.with_ymd_and_hms(2026, 3, 2, 0, 0, 0).unwrap();
-        let comments = vec![
-            CommentWithReplies {
-                comment: make_comment("c1", "user", "old parent", old),
-                replies: vec![make_reply("r1", "c1", "user", "old reply", old)],
-            },
-        ];
+        let comments = vec![CommentWithReplies {
+            comment: make_comment("c1", "user", "old parent", old),
+            replies: vec![make_reply("r1", "c1", "user", "old reply", old)],
+        }];
         let result = build_comment_history(&comments, Some(cutoff));
         assert!(result.is_none());
     }
@@ -568,12 +629,10 @@ mod tests {
     #[test]
     fn test_litellm_comments_excluded() {
         let t = Utc.with_ymd_and_hms(2026, 3, 3, 10, 0, 0).unwrap();
-        let comments = vec![
-            CommentWithReplies {
-                comment: make_comment("c1", "litellm", "summary", t),
-                replies: vec![],
-            },
-        ];
+        let comments = vec![CommentWithReplies {
+            comment: make_comment("c1", "litellm", "summary", t),
+            replies: vec![],
+        }];
         let result = build_comment_history(&comments, None);
         assert!(result.is_none());
     }

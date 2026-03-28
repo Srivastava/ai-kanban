@@ -10,3 +10,15 @@ logs/archive-*/
 .DS_Store
 .worktrees/
 data/
+
+# Internal AI/dev workflow docs
+docs/plans/
+docs/superpowers/
+.claude/
+.impeccable.md
+
+# Dev screenshots and notes
+analytics-dark-mode.png
+analytics-dark-scroll.png
+analytics_page.md
+spec.md

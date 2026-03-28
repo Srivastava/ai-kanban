@@ -1,7 +1,13 @@
 use crate::ai::context_manager::ContextManager;
-use crate::claude::jsonl_parser::{detect_rate_limit_in_stdout, extract_claude_session_id, extract_rate_limit_reset_at, extract_result_text, parse_for_display, parse_jsonl_line};
+use crate::claude::jsonl_parser::{
+    detect_rate_limit_in_stdout, extract_claude_session_id, extract_rate_limit_reset_at,
+    extract_result_text, parse_for_display, parse_jsonl_line,
+};
 use crate::claude::prompts::build_prompt;
-use crate::db::{AttachmentRepository, CommentRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
+use crate::db::{
+    AttachmentRepository, CommentRepository, OtelMetricsRepository, SessionMetricsRepository,
+    SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository,
+};
 use crate::models::{CreateTokenEvent, Session, Task, UpdateSession, UpdateTask};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
@@ -40,8 +46,8 @@ pub enum ClaudeEvent {
     RateLimited {
         session_id: String,
         task_id: String,
-        stage: String,                        // current task stage at time of limit
-        claude_session_id: Option<String>,    // for --resume on retry
+        stage: String,                     // current task stage at time of limit
+        claude_session_id: Option<String>, // for --resume on retry
         reset_at: chrono::DateTime<chrono::Utc>,
     },
     /// Emitted at session start — tells frontend which mode Claude is operating in
@@ -135,10 +141,19 @@ impl ClaudeManager {
     }
 
     #[instrument(skip(self, task))]
-    pub async fn start_session(&self, mut task: Task, stage: &str, conversation_context: Option<String>, resume_claude_session_id: Option<String>) -> Result<String> {
-        let session = self.session_repo.create(crate::models::CreateSession {
-            task_id: task.id.clone(),
-        }).await?;
+    pub async fn start_session(
+        &self,
+        mut task: Task,
+        stage: &str,
+        conversation_context: Option<String>,
+        resume_claude_session_id: Option<String>,
+    ) -> Result<String> {
+        let session = self
+            .session_repo
+            .create(crate::models::CreateSession {
+                task_id: task.id.clone(),
+            })
+            .await?;
 
         info!(
             session_id = %session.id,
@@ -165,13 +180,15 @@ impl ClaudeManager {
         }
 
         // Fetch task attachments
-        let attachments = self.attachment_repo
+        let attachments = self
+            .attachment_repo
             .list_for_task(&task.id)
             .await
             .unwrap_or_default();
 
         // Fetch comments/discussion for context
-        let comments = self.comment_repo
+        let comments = self
+            .comment_repo
             .list_for_task(&task.id)
             .await
             .unwrap_or_default();
@@ -179,28 +196,39 @@ impl ClaudeManager {
         // Write persistent task context to .claude/ai-kanban.md in the project directory.
         // Claude reads the entire .claude/ directory at startup and after compaction, so this
         // survives context resets without needing to re-inject via the prompt.
-        write_task_context_file(&project_path, &task, &attachments, &comments, &self.output_tx, &session.id);
+        write_task_context_file(
+            &project_path,
+            &task,
+            &attachments,
+            &comments,
+            &self.output_tx,
+            &session.id,
+        );
 
         let mut cmd = Command::new(&claude_bin);
         cmd.arg("--print")
-           .arg("--verbose")
-           .arg("--dangerously-skip-permissions")
-           .arg("--output-format").arg("stream-json")
-           .current_dir(&project_path)
-           // Unset CLAUDECODE so the CLI doesn't refuse to run inside another Claude session
-           .env_remove("CLAUDECODE")
-           .env("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
-           .env("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
-           .env("OTEL_EXPORTER_OTLP_PROTOCOL", "http/json")
-           .env("OTEL_METRICS_EXPORTER", "otlp")
-           .env("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")
-           .env("OTEL_LOGS_EXPORTER", "otlp")
-           .env("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "http/json")
-           .env("OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "http://localhost:4318/v1/logs")
-           .env("OTEL_LOG_TOOL_DETAILS", "1")
-           .env("OTEL_LOG_USER_PROMPTS", "1")
-           .stdout(Stdio::piped())
-           .stderr(Stdio::piped());
+            .arg("--verbose")
+            .arg("--dangerously-skip-permissions")
+            .arg("--output-format")
+            .arg("stream-json")
+            .current_dir(&project_path)
+            // Unset CLAUDECODE so the CLI doesn't refuse to run inside another Claude session
+            .env_remove("CLAUDECODE")
+            .env("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
+            .env("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
+            .env("OTEL_EXPORTER_OTLP_PROTOCOL", "http/json")
+            .env("OTEL_METRICS_EXPORTER", "otlp")
+            .env("OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE", "delta")
+            .env("OTEL_LOGS_EXPORTER", "otlp")
+            .env("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "http/json")
+            .env(
+                "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+                "http://localhost:4318/v1/logs",
+            )
+            .env("OTEL_LOG_TOOL_DETAILS", "1")
+            .env("OTEL_LOG_USER_PROMPTS", "1")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         // Copy image attachments into project's .claude/attachments/ and add --image args
         {
@@ -221,7 +249,10 @@ impl ClaudeManager {
         // Task enrichment: on the very first session (no prior history), expand a terse description
         // into structured instructions. Runs in the background so Claude spawns immediately.
         // The enriched instructions are persisted for future sessions and pushed to the frontend via WS.
-        if conversation_context.is_none() && resume_claude_session_id.is_none() && task.session_id.is_none() {
+        if conversation_context.is_none()
+            && resume_claude_session_id.is_none()
+            && task.session_id.is_none()
+        {
             if self.flag_enabled("litellm_task_enrichment").await {
                 if let Some(ref cm) = self.context_manager {
                     let cm_bg = cm.clone();
@@ -231,12 +262,19 @@ impl ClaudeManager {
                     let tx_bg = self.output_tx.clone();
                     let task_repo_bg = self.task_repo.clone();
                     info!(task_id = %task.id, "Spawning async task enrichment");
-                    let _ = tx_bg.send(ClaudeEvent::EnrichmentStarted { task_id: task_id_bg.clone() });
+                    let _ = tx_bg.send(ClaudeEvent::EnrichmentStarted {
+                        task_id: task_id_bg.clone(),
+                    });
                     tokio::spawn(async move {
-                        match cm_bg.enrich_task(&task_id_bg, &task_title_bg, task_desc_bg.as_deref()).await {
+                        match cm_bg
+                            .enrich_task(&task_id_bg, &task_title_bg, task_desc_bg.as_deref())
+                            .await
+                        {
                             Ok(Some(_enriched)) => {
                                 info!(task_id = %task_id_bg, "Async task enrichment complete");
-                                let _ = tx_bg.send(ClaudeEvent::EnrichmentCompleted { task_id: task_id_bg.clone() });
+                                let _ = tx_bg.send(ClaudeEvent::EnrichmentCompleted {
+                                    task_id: task_id_bg.clone(),
+                                });
                                 // Push updated task to frontend
                                 if let Ok(updated) = task_repo_bg.find(&task_id_bg).await {
                                     if let Ok(task_json) = serde_json::to_value(&updated) {
@@ -287,7 +325,13 @@ impl ClaudeManager {
         // .claude/ai-kanban-plan.md file, so the in_progress/review prompt can reference that file.
         let has_plan = task.instructions.is_some();
         let prompt_instructions = task.instructions.as_deref().or(task.description.as_deref());
-        let prompt = build_prompt(&task.title, prompt_instructions, stage, conversation_context.as_deref(), has_plan);
+        let prompt = build_prompt(
+            &task.title,
+            prompt_instructions,
+            stage,
+            conversation_context.as_deref(),
+            has_plan,
+        );
 
         // Emit StageContextSet before spawning — tells the frontend which mode Claude is in
         let _ = self.output_tx.send(ClaudeEvent::StageContextSet {
@@ -311,12 +355,18 @@ impl ClaudeManager {
             Err(e) => {
                 let err_msg = format!("Failed to spawn Claude (bin={}): {}", claude_bin, e);
                 tracing::error!(session_id = %session.id, task_id = %task.id, error = %e, "Claude spawn failed");
-                let _ = self.session_repo.update(&session.id, crate::models::UpdateSession {
-                    status: Some("failed".to_string()),
-                    error_message: Some(err_msg.clone()),
-                    ended_at: Some(chrono::Utc::now()),
-                    ..Default::default()
-                }).await;
+                let _ = self
+                    .session_repo
+                    .update(
+                        &session.id,
+                        crate::models::UpdateSession {
+                            status: Some("failed".to_string()),
+                            error_message: Some(err_msg.clone()),
+                            ended_at: Some(chrono::Utc::now()),
+                            ..Default::default()
+                        },
+                    )
+                    .await;
                 return Err(anyhow!(err_msg));
             }
         };
@@ -325,8 +375,9 @@ impl ClaudeManager {
         let stderr = child.stderr.take().ok_or_else(|| anyhow!("No stderr"))?;
 
         // Shared flag: stdout or stderr reader sets this if it detects a rate-limit message
-        let rate_limit_reset: std::sync::Arc<std::sync::Mutex<Option<chrono::DateTime<chrono::Utc>>>> =
-            std::sync::Arc::new(std::sync::Mutex::new(None));
+        let rate_limit_reset: std::sync::Arc<
+            std::sync::Mutex<Option<chrono::DateTime<chrono::Utc>>>,
+        > = std::sync::Arc::new(std::sync::Mutex::new(None));
         let rate_limit_reset_for_stdout = rate_limit_reset.clone();
         let rate_limit_reset_for_stderr = rate_limit_reset.clone();
         let rate_limit_reset_for_completion = rate_limit_reset.clone();
@@ -335,17 +386,25 @@ impl ClaudeManager {
         let task_title = task.title.clone();
         {
             let mut sessions = self.active_sessions.write().await;
-            sessions.insert(session.id.clone(), RunningSession {
-                session: session.clone(),
-                child,
-                task,
-            });
+            sessions.insert(
+                session.id.clone(),
+                RunningSession {
+                    session: session.clone(),
+                    child,
+                    task,
+                },
+            );
         }
 
-        self.session_repo.update(&session.id, crate::models::UpdateSession {
-            status: Some("running".to_string()),
-            ..Default::default()
-        }).await?;
+        self.session_repo
+            .update(
+                &session.id,
+                crate::models::UpdateSession {
+                    status: Some("running".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await?;
 
         // Link session to task and advance to planning — single sequential spawn to avoid race
         let task_repo_init = self.task_repo.clone();
@@ -354,17 +413,29 @@ impl ClaudeManager {
         let output_tx_init = self.output_tx.clone();
         tokio::spawn(async move {
             // Step 1: link session_id to task
-            if let Err(e) = task_repo_init.update(&task_id_init, UpdateTask {
-                session_id: Some(session_id_init),
-                ..Default::default()
-            }).await {
+            if let Err(e) = task_repo_init
+                .update(
+                    &task_id_init,
+                    UpdateTask {
+                        session_id: Some(session_id_init),
+                        ..Default::default()
+                    },
+                )
+                .await
+            {
                 warn!(task_id = %task_id_init, error = %e, "Failed to link session_id to task");
             }
             // Step 2: advance to planning
-            if let Err(e) = task_repo_init.update(&task_id_init, UpdateTask {
-                stage: Some("planning".to_string()),
-                ..Default::default()
-            }).await {
+            if let Err(e) = task_repo_init
+                .update(
+                    &task_id_init,
+                    UpdateTask {
+                        stage: Some("planning".to_string()),
+                        ..Default::default()
+                    },
+                )
+                .await
+            {
                 warn!(task_id = %task_id_init, error = %e, "Failed to set task stage to planning");
                 return;
             }
@@ -378,7 +449,9 @@ impl ClaudeManager {
                         });
                     }
                 }
-                Err(e) => warn!(task_id = %task_id_init, error = %e, "Failed to fetch task after planning update"),
+                Err(e) => {
+                    warn!(task_id = %task_id_init, error = %e, "Failed to fetch task after planning update")
+                }
             }
         });
 
@@ -408,7 +481,13 @@ impl ClaudeManager {
         let metrics_repo = self.session_metrics_repo.clone();
         let session_id_for_metrics = session.id.clone();
         tokio::spawn(async move {
-            let _ = metrics_repo.upsert(&session_id_for_metrics, project_metrics.0, project_metrics.1).await;
+            let _ = metrics_repo
+                .upsert(
+                    &session_id_for_metrics,
+                    project_metrics.0,
+                    project_metrics.1,
+                )
+                .await;
         });
 
         // Process stdout with JSONL parsing
@@ -460,13 +539,21 @@ impl ClaudeManager {
                             let claude_sid_c = claude_sid.clone();
                             let output_tx_c = output_tx.clone();
                             rt.spawn(async move {
-                                let _ = session_repo_c.update(&session_id_c, crate::models::UpdateSession {
-                                    claude_session_id: Some(claude_sid_c.clone()),
-                                    ..Default::default()
-                                }).await;
+                                let _ = session_repo_c
+                                    .update(
+                                        &session_id_c,
+                                        crate::models::UpdateSession {
+                                            claude_session_id: Some(claude_sid_c.clone()),
+                                            ..Default::default()
+                                        },
+                                    )
+                                    .await;
                                 // Backfill any OTel metrics that arrived before the session
                                 // was assigned its claude_session_id (timing race at startup)
-                                match otel_repo_c.correlate(&claude_sid_c, &session_id_c, &task_id_c).await {
+                                match otel_repo_c
+                                    .correlate(&claude_sid_c, &session_id_c, &task_id_c)
+                                    .await
+                                {
                                     Ok(()) => tracing::debug!(
                                         session_id = %session_id_c,
                                         claude_session_id = %claude_sid_c,
@@ -494,7 +581,9 @@ impl ClaudeManager {
                         // We must use the full context size, not just input_tokens, because
                         // in long sessions almost all context is cache-read (e.g. 695K tokens)
                         // while non-cached input is tiny (< 100 tokens).
-                        let total_context = parsed.input_tokens + parsed.cache_read_tokens + parsed.cache_creation_tokens;
+                        let total_context = parsed.input_tokens
+                            + parsed.cache_read_tokens
+                            + parsed.cache_creation_tokens;
                         if total_context > peak_input_tokens {
                             peak_input_tokens = total_context;
                         }
@@ -525,7 +614,8 @@ impl ClaudeManager {
                                 // result event — cumulative session totals, would double-count.
                                 // Flush all buffered assistant events instead.
                                 let rt = tokio::runtime::Handle::current();
-                                for (pending_event, _seq) in pending_events.drain().map(|(_, v)| v) {
+                                for (pending_event, _seq) in pending_events.drain().map(|(_, v)| v)
+                                {
                                     let repo = token_event_repo.clone();
                                     rt.spawn(async move {
                                         let _ = repo.create(pending_event).await;
@@ -643,7 +733,9 @@ impl ClaudeManager {
             // Take the child out of active_sessions
             let child_opt = {
                 let mut sessions = active_sessions_for_completion.write().await;
-                let child = sessions.remove(&session_id_for_completion).map(|rs| rs.child);
+                let child = sessions
+                    .remove(&session_id_for_completion)
+                    .map(|rs| rs.child);
                 if let Ok(mut ts) = last_ended_for_completion.write() {
                     *ts = Some(Instant::now());
                 }
@@ -675,7 +767,7 @@ impl ClaudeManager {
             let final_status = if exit_ok {
                 "completed"
             } else if rate_limit_reset_at.is_some() {
-                "stopped"   // not "failed" — will be auto-retried
+                "stopped" // not "failed" — will be auto-retried
             } else {
                 "failed"
             };
@@ -685,14 +777,19 @@ impl ClaudeManager {
                 status = %final_status,
                 "Session finished"
             );
-            let _ = session_repo_for_completion.update(&session_id_for_completion, UpdateSession {
-                status: Some(final_status.to_string()),
-                ended_at: Some(chrono::Utc::now()),
-                error_message: rate_limit_reset_at.as_ref().map(|dt| {
-                    format!("rate_limited:{}", dt.to_rfc3339())
-                }),
-                ..Default::default()
-            }).await;
+            let _ = session_repo_for_completion
+                .update(
+                    &session_id_for_completion,
+                    UpdateSession {
+                        status: Some(final_status.to_string()),
+                        ended_at: Some(chrono::Utc::now()),
+                        error_message: rate_limit_reset_at
+                            .as_ref()
+                            .map(|dt| format!("rate_limited:{}", dt.to_rfc3339())),
+                        ..Default::default()
+                    },
+                )
+                .await;
 
             // Emit session status via WS
             let _ = output_tx_for_completion.send(ClaudeEvent::SessionStatus {
@@ -705,7 +802,10 @@ impl ClaudeManager {
             // If Claude finished cleanly despite the rate-limit signal (exit_ok=true), fall through
             // so comments and stage advancement still happen.
             if let Some(reset_at) = rate_limit_reset_at {
-                if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
+                if let Ok(session) = session_repo_for_completion
+                    .find(&session_id_for_completion)
+                    .await
+                {
                     if let Ok(task) = task_repo_for_completion.find(&session.task_id).await {
                         let _ = output_tx_for_completion.send(ClaudeEvent::RateLimited {
                             session_id: session_id_for_completion.clone(),
@@ -725,15 +825,25 @@ impl ClaudeManager {
             // Claude is instructed to write its plan to .claude/ai-kanban-plan.md.
             // We store the plan as task.instructions so future sessions can reference it.
             if exit_ok {
-                let plan_path = format!("{}/.claude/ai-kanban-plan.md", project_path_for_completion);
+                let plan_path =
+                    format!("{}/.claude/ai-kanban-plan.md", project_path_for_completion);
                 if let Ok(plan_content) = std::fs::read_to_string(&plan_path) {
                     let plan_content = plan_content.trim().to_string();
                     if !plan_content.is_empty() {
-                        if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
-                            match task_repo_for_completion.update(&session.task_id, UpdateTask {
-                                instructions: Some(Some(plan_content.clone())),
-                                ..Default::default()
-                            }).await {
+                        if let Ok(session) = session_repo_for_completion
+                            .find(&session_id_for_completion)
+                            .await
+                        {
+                            match task_repo_for_completion
+                                .update(
+                                    &session.task_id,
+                                    UpdateTask {
+                                        instructions: Some(Some(plan_content.clone())),
+                                        ..Default::default()
+                                    },
+                                )
+                                .await
+                            {
                                 Ok(_) => {
                                     info!(
                                         task_id = %session.task_id,
@@ -741,22 +851,29 @@ impl ClaudeManager {
                                     );
                                     // Emit PlanCreated event with first 200 chars as preview
                                     let preview: String = plan_content.chars().take(200).collect();
-                                    let _ = output_tx_for_completion.send(ClaudeEvent::PlanCreated {
-                                        session_id: session_id_for_completion.clone(),
-                                        task_id: session.task_id.clone(),
-                                        preview,
-                                    });
+                                    let _ =
+                                        output_tx_for_completion.send(ClaudeEvent::PlanCreated {
+                                            session_id: session_id_for_completion.clone(),
+                                            task_id: session.task_id.clone(),
+                                            preview,
+                                        });
                                     // Notify frontend so Instructions section refreshes
-                                    if let Ok(updated_task) = task_repo_for_completion.find(&session.task_id).await {
+                                    if let Ok(updated_task) =
+                                        task_repo_for_completion.find(&session.task_id).await
+                                    {
                                         if let Ok(task_json) = serde_json::to_value(&updated_task) {
-                                            let _ = output_tx_for_completion.send(ClaudeEvent::TaskStageChanged {
-                                                task_id: session.task_id.clone(),
-                                                task_json,
-                                            });
+                                            let _ = output_tx_for_completion.send(
+                                                ClaudeEvent::TaskStageChanged {
+                                                    task_id: session.task_id.clone(),
+                                                    task_json,
+                                                },
+                                            );
                                         }
                                     }
                                 }
-                                Err(e) => warn!(task_id = %session.task_id, error = %e, "Failed to store plan as instructions"),
+                                Err(e) => {
+                                    warn!(task_id = %session.task_id, error = %e, "Failed to store plan as instructions")
+                                }
                             }
                         }
                     }
@@ -765,28 +882,43 @@ impl ClaudeManager {
 
             // On success: advance task to review stage
             if exit_ok {
-                match session_repo_for_completion.find(&session_id_for_completion).await {
+                match session_repo_for_completion
+                    .find(&session_id_for_completion)
+                    .await
+                {
                     Ok(session) => {
-                        if let Err(e) = task_repo_for_completion.update(&session.task_id, UpdateTask {
-                            stage: Some("review".to_string()),
-                            ..Default::default()
-                        }).await {
+                        if let Err(e) = task_repo_for_completion
+                            .update(
+                                &session.task_id,
+                                UpdateTask {
+                                    stage: Some("review".to_string()),
+                                    ..Default::default()
+                                },
+                            )
+                            .await
+                        {
                             warn!(task_id = %session.task_id, error = %e, "Failed to set task stage to review");
                         } else {
                             match task_repo_for_completion.find(&session.task_id).await {
                                 Ok(task) => {
                                     if let Ok(task_json) = serde_json::to_value(&task) {
-                                        let _ = output_tx_for_completion.send(ClaudeEvent::TaskStageChanged {
-                                            task_id: session.task_id.clone(),
-                                            task_json,
-                                        });
+                                        let _ = output_tx_for_completion.send(
+                                            ClaudeEvent::TaskStageChanged {
+                                                task_id: session.task_id.clone(),
+                                                task_json,
+                                            },
+                                        );
                                     }
                                 }
-                                Err(e) => warn!(task_id = %session.task_id, error = %e, "Failed to fetch task after review update"),
+                                Err(e) => {
+                                    warn!(task_id = %session.task_id, error = %e, "Failed to fetch task after review update")
+                                }
                             }
                         }
                     }
-                    Err(e) => warn!(session_id = %session_id_for_completion, error = %e, "Failed to fetch session for task review update"),
+                    Err(e) => {
+                        warn!(session_id = %session_id_for_completion, error = %e, "Failed to fetch session for task review update")
+                    }
                 }
             }
 
@@ -795,16 +927,29 @@ impl ClaudeManager {
                 if let Some(ref text) = result_text {
                     if !text.is_empty() {
                         // We need the task_id — fetch it from the session record
-                        if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
+                        if let Ok(session) = session_repo_for_completion
+                            .find(&session_id_for_completion)
+                            .await
+                        {
                             use crate::models::CreateComment;
                             let content_len = text.len();
                             let preview = text.chars().take(120).collect::<String>();
-                            let preview = if content_len > 120 { format!("{}…", preview) } else { preview };
-                            match comment_repo_for_completion.create(
-                                &session.task_id,
-                                "claude",
-                                CreateComment { content: text.clone(), parent_id: None },
-                            ).await {
+                            let preview = if content_len > 120 {
+                                format!("{}…", preview)
+                            } else {
+                                preview
+                            };
+                            match comment_repo_for_completion
+                                .create(
+                                    &session.task_id,
+                                    "claude",
+                                    CreateComment {
+                                        content: text.clone(),
+                                        parent_id: None,
+                                    },
+                                )
+                                .await
+                            {
                                 Ok(comment) => info!(
                                     session_id = %session_id_for_completion,
                                     task_id = %session.task_id,
@@ -828,11 +973,15 @@ impl ClaudeManager {
 
                 // Post-session: generate LiteLLM summary of what Claude did
                 if let Some(ref ctx_mgr) = context_manager_for_completion {
-                    if let Ok(session) = session_repo_for_completion.find(&session_id_for_completion).await {
+                    if let Ok(session) = session_repo_for_completion
+                        .find(&session_id_for_completion)
+                        .await
+                    {
                         // Session summary (always runs if flag enabled)
-                        let summary_enabled = settings_repo_for_completion
-                            .as_ref()
-                            .map(|r| async move { r.get_flag("litellm_session_summary").await.unwrap_or(true) });
+                        let summary_enabled =
+                            settings_repo_for_completion.as_ref().map(|r| async move {
+                                r.get_flag("litellm_session_summary").await.unwrap_or(true)
+                            });
                         let do_summary = match summary_enabled {
                             Some(f) => f.await,
                             None => true, // default on
@@ -841,29 +990,36 @@ impl ClaudeManager {
                             let session_duration_secs = session.ended_at.map(|ended| {
                                 (ended - session.started_at).num_seconds().max(0) as u64
                             });
-                            let _ = ctx_mgr.summarize_session(
-                                &session_id_for_completion,
-                                &session.task_id,
-                                &task_title_for_completion,
-                                &stage_for_completion,
-                                session_duration_secs,
-                                peak_input_tokens,
-                                0i64,
-                                &display_lines,
-                                result_text.as_deref(),
-                            ).await;
+                            let _ = ctx_mgr
+                                .summarize_session(
+                                    &session_id_for_completion,
+                                    &session.task_id,
+                                    &task_title_for_completion,
+                                    &stage_for_completion,
+                                    session_duration_secs,
+                                    peak_input_tokens,
+                                    0i64,
+                                    &display_lines,
+                                    result_text.as_deref(),
+                                )
+                                .await;
                         }
 
                         // Context compression when token usage approaches the threshold
-                        let compress_enabled = settings_repo_for_completion
-                            .as_ref()
-                            .and_then(|r| if peak_input_tokens >= COMPRESSION_TOKEN_THRESHOLD {
-                                Some(r)
-                            } else {
-                                None
+                        let compress_enabled =
+                            settings_repo_for_completion.as_ref().and_then(|r| {
+                                if peak_input_tokens >= COMPRESSION_TOKEN_THRESHOLD {
+                                    Some(r)
+                                } else {
+                                    None
+                                }
                             });
                         if let Some(repo) = compress_enabled {
-                            if repo.get_flag("litellm_context_compression").await.unwrap_or(false) {
+                            if repo
+                                .get_flag("litellm_context_compression")
+                                .await
+                                .unwrap_or(false)
+                            {
                                 info!(
                                     session_id = %session_id_for_completion,
                                     task_id = %session.task_id,
@@ -871,20 +1027,26 @@ impl ClaudeManager {
                                     threshold = COMPRESSION_TOKEN_THRESHOLD,
                                     "Token threshold reached — compressing context"
                                 );
-                                let _ = ctx_mgr.compress_context(
-                                    &session_id_for_completion,
-                                    &session.task_id,
-                                    &task_title_for_completion,
-                                    &display_lines,
-                                    result_text.as_deref(),
-                                ).await;
+                                let _ = ctx_mgr
+                                    .compress_context(
+                                        &session_id_for_completion,
+                                        &session.task_id,
+                                        &task_title_for_completion,
+                                        &display_lines,
+                                        result_text.as_deref(),
+                                    )
+                                    .await;
                                 // Notify frontend so context section refreshes
-                                if let Ok(updated) = task_repo_for_completion.find(&session.task_id).await {
+                                if let Ok(updated) =
+                                    task_repo_for_completion.find(&session.task_id).await
+                                {
                                     if let Ok(task_json) = serde_json::to_value(&updated) {
-                                        let _ = output_tx_for_completion.send(ClaudeEvent::TaskStageChanged {
-                                            task_id: session.task_id.clone(),
-                                            task_json,
-                                        });
+                                        let _ = output_tx_for_completion.send(
+                                            ClaudeEvent::TaskStageChanged {
+                                                task_id: session.task_id.clone(),
+                                                task_json,
+                                            },
+                                        );
                                     }
                                 }
                             }
@@ -916,11 +1078,16 @@ impl ClaudeManager {
 
         if removed.is_some() {
             // Update DB (no lock held)
-            self.session_repo.update(session_id, crate::models::UpdateSession {
-                status: Some("stopped".to_string()),
-                ended_at: Some(chrono::Utc::now()),
-                ..Default::default()
-            }).await?;
+            self.session_repo
+                .update(
+                    session_id,
+                    crate::models::UpdateSession {
+                        status: Some("stopped".to_string()),
+                        ended_at: Some(chrono::Utc::now()),
+                        ..Default::default()
+                    },
+                )
+                .await?;
 
             // Notify WS clients that the session has stopped
             let _ = self.output_tx.send(ClaudeEvent::SessionStatus {
@@ -957,7 +1124,8 @@ impl ClaudeManager {
 
     pub async fn get_active_session_for_task(&self, task_id: &str) -> Option<String> {
         let sessions = self.active_sessions.read().await;
-        sessions.iter()
+        sessions
+            .iter()
             .find(|(_, rs)| rs.task.id == task_id)
             .map(|(session_id, _)| session_id.clone())
     }
@@ -1020,22 +1188,33 @@ pub fn write_task_context_file(
     }
 
     // Include comments and replies so Claude has full conversation context
-    let user_comments: Vec<_> = comments.iter()
+    let user_comments: Vec<_> = comments
+        .iter()
         .filter(|c| c.comment.author != "litellm")
         .collect();
     if !user_comments.is_empty() {
         lines.push(String::new());
         lines.push("## Discussion".to_string());
-        lines.push("(Previous comments and replies — most recent context for this task)".to_string());
+        lines.push(
+            "(Previous comments and replies — most recent context for this task)".to_string(),
+        );
         for thread in &user_comments {
             let c = &thread.comment;
-            let author_label = if c.author == "claude" { "Claude" } else { "User" };
+            let author_label = if c.author == "claude" {
+                "Claude"
+            } else {
+                "User"
+            };
             let ts = c.created_at.format("%Y-%m-%d %H:%M UTC").to_string();
             lines.push(String::new());
             lines.push(format!("**{}** [{}]:", author_label, ts));
             lines.push(c.content.clone());
             for reply in &thread.replies {
-                let reply_author = if reply.author == "claude" { "Claude" } else { "User" };
+                let reply_author = if reply.author == "claude" {
+                    "Claude"
+                } else {
+                    "User"
+                };
                 let reply_ts = reply.created_at.format("%Y-%m-%d %H:%M UTC").to_string();
                 lines.push(String::new());
                 lines.push(format!("  > **{}** [{}]:", reply_author, reply_ts));
@@ -1050,14 +1229,22 @@ pub fn write_task_context_file(
         lines.push(String::new());
         lines.push("## Attached Files".to_string());
         for att in attachments {
-            lines.push(format!("- `.claude/attachments/{}-{}` ({})", att.id, att.filename, att.mime_type));
+            lines.push(format!(
+                "- `.claude/attachments/{}-{}` ({})",
+                att.id, att.filename, att.mime_type
+            ));
         }
         lines.push(String::new());
-        lines.push("Please review the attached files as they are relevant to this task.".to_string());
+        lines.push(
+            "Please review the attached files as they are relevant to this task.".to_string(),
+        );
     }
 
     lines.push(String::new());
-    lines.push(format!("<!-- Task ID: {} | Stage: {} -->", task.id, task.stage));
+    lines.push(format!(
+        "<!-- Task ID: {} | Stage: {} -->",
+        task.id, task.stage
+    ));
 
     let content = lines.join("\n");
     let file_path = claude_dir.join("ai-kanban.md");
@@ -1084,7 +1271,9 @@ fn count_project_files(project_path: &str) -> (i64, i64) {
     let mut loc: i64 = 0;
 
     fn visit_dir(path: &std::path::Path, file_count: &mut i64, loc: &mut i64) {
-        let Ok(entries) = fs::read_dir(path) else { return };
+        let Ok(entries) = fs::read_dir(path) else {
+            return;
+        };
         for entry in entries.flatten() {
             let p = entry.path();
             if let Some(name) = p.file_name().and_then(|n| n.to_str()) {
@@ -1103,6 +1292,10 @@ fn count_project_files(project_path: &str) -> (i64, i64) {
         }
     }
 
-    visit_dir(std::path::Path::new(project_path), &mut file_count, &mut loc);
+    visit_dir(
+        std::path::Path::new(project_path),
+        &mut file_count,
+        &mut loc,
+    );
     (file_count, loc)
 }

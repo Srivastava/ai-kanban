@@ -1,8 +1,22 @@
 use ai_kanban_backend::api::{AppState, LogApiState, SessionApiState, TaskApiState};
-use ai_kanban_backend::db::{create_pool, AttachmentRepository, CommentRepository, LogRepository, OtelMetricsRepository, SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository, TokenEventRepository};
+use ai_kanban_backend::db::{
+    create_pool, AttachmentRepository, CommentRepository, LogRepository, OtelMetricsRepository,
+    SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository,
+    TokenEventRepository,
+};
 use ai_kanban_backend::models::{CreateLog, CreateTask, Log, LogFilter, Stage, Task, UpdateTask};
 
-async fn setup_test_db() -> (TaskRepository, LogRepository, SessionRepository, CommentRepository, TokenEventRepository, SessionMetricsRepository, SettingsRepository, OtelMetricsRepository, AttachmentRepository) {
+async fn setup_test_db() -> (
+    TaskRepository,
+    LogRepository,
+    SessionRepository,
+    CommentRepository,
+    TokenEventRepository,
+    SessionMetricsRepository,
+    SettingsRepository,
+    OtelMetricsRepository,
+    AttachmentRepository,
+) {
     let db_path = format!("/tmp/test-{}.db", uuid::Uuid::new_v4());
     let pool = create_pool(&db_path).await.expect("Failed to create pool");
     (
@@ -437,16 +451,25 @@ fn test_level_to_str_unknown() {
 async fn test_task_repository_update_only_title() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let task = repo.create(CreateTask {
-        title: "Original".to_string(),
-        description: Some("Original desc".to_string()),
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: "Original".to_string(),
+            description: Some("Original desc".to_string()),
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let updated = repo.update(&task.id, UpdateTask {
-        title: Some("New Title".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let updated = repo
+        .update(
+            &task.id,
+            UpdateTask {
+                title: Some("New Title".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     assert_eq!(updated.title, "New Title");
     assert_eq!(updated.description, Some("Original desc".to_string())); // Unchanged
@@ -457,16 +480,25 @@ async fn test_task_repository_update_only_title() {
 async fn test_task_repository_update_only_priority() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let task = repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let updated = repo.update(&task.id, UpdateTask {
-        priority: Some(10),
-        ..Default::default()
-    }).await.unwrap();
+    let updated = repo
+        .update(
+            &task.id,
+            UpdateTask {
+                priority: Some(10),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     assert_eq!(updated.priority, 10);
     assert_eq!(updated.title, "Test"); // Unchanged
@@ -476,16 +508,25 @@ async fn test_task_repository_update_only_priority() {
 async fn test_task_repository_update_only_stage() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let task = repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let updated = repo.update(&task.id, UpdateTask {
-        stage: Some("done".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let updated = repo
+        .update(
+            &task.id,
+            UpdateTask {
+                stage: Some("done".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     assert_eq!(updated.stage, "done");
 }
@@ -494,10 +535,15 @@ async fn test_task_repository_update_only_stage() {
 async fn test_task_repository_update_nonexistent() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let result = repo.update("nonexistent-id", UpdateTask {
-        title: Some("New Title".to_string()),
-        ..Default::default()
-    }).await;
+    let result = repo
+        .update(
+            "nonexistent-id",
+            UpdateTask {
+                title: Some("New Title".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
 
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("not found"));
@@ -517,20 +563,42 @@ async fn test_task_repository_list_ordering_by_priority() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     // Create tasks with different priorities (via update)
-    let task1 = repo.create(CreateTask {
-        title: "Low Priority".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task1 = repo
+        .create(CreateTask {
+            title: "Low Priority".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    let task2 = repo.create(CreateTask {
-        title: "High Priority".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task2 = repo
+        .create(CreateTask {
+            title: "High Priority".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
-    repo.update(&task2.id, UpdateTask { priority: Some(10), ..Default::default() }).await.unwrap();
-    repo.update(&task1.id, UpdateTask { priority: Some(1), ..Default::default() }).await.unwrap();
+    repo.update(
+        &task2.id,
+        UpdateTask {
+            priority: Some(10),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    repo.update(
+        &task1.id,
+        UpdateTask {
+            priority: Some(1),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
 
     let tasks = repo.list(None).await.unwrap();
 
@@ -543,11 +611,14 @@ async fn test_task_repository_list_ordering_by_priority() {
 async fn test_task_repository_move_records_history() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let task = repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     // Move through multiple stages
     repo.move_to_stage(&task.id, "planning").await.unwrap();
@@ -562,11 +633,14 @@ async fn test_task_repository_move_records_history() {
 async fn test_task_repository_move_to_same_stage() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let task = repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     // Move to same stage (should work)
     let result = repo.move_to_stage(&task.id, "backlog").await;
@@ -577,11 +651,14 @@ async fn test_task_repository_move_to_same_stage() {
 async fn test_task_repository_empty_description() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let task = repo.create(CreateTask {
-        title: "No Description".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: "No Description".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     let found = repo.find(&task.id).await.unwrap();
     assert_eq!(found.description, None);
@@ -592,11 +669,14 @@ async fn test_task_repository_context_field() {
     let (repo, _, _, _, _, _, _, _, _) = setup_test_db().await;
 
     // Create task without context
-    let task = repo.create(CreateTask {
-        title: "Test Context".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: "Test Context".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     // Verify context is None initially
     let found = repo.find(&task.id).await.unwrap();
@@ -604,10 +684,16 @@ async fn test_task_repository_context_field() {
 
     // Update with context
     let markdown_context = "# Task Context\n\nThis is some markdown content.\n\n- Item 1\n- Item 2";
-    let updated = repo.update(&task.id, UpdateTask {
-        context: Some(markdown_context.to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let updated = repo
+        .update(
+            &task.id,
+            UpdateTask {
+                context: Some(markdown_context.to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
 
     assert_eq!(updated.context, Some(markdown_context.to_string()));
 
@@ -622,11 +708,14 @@ async fn test_task_repository_long_title() {
 
     let long_title = "a".repeat(1000);
 
-    let task = repo.create(CreateTask {
-        title: long_title.clone(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: long_title.clone(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     assert_eq!(task.title.len(), 1000);
 }
@@ -638,11 +727,14 @@ async fn test_task_repository_special_characters() {
     let special_title = "Test with emojis and \"quotes\" and 'apostrophes'";
     let special_desc = "Line1\nLine2\tTabbed";
 
-    let task = repo.create(CreateTask {
-        title: special_title.to_string(),
-        description: Some(special_desc.to_string()),
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = repo
+        .create(CreateTask {
+            title: special_title.to_string(),
+            description: Some(special_desc.to_string()),
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     let found = repo.find(&task.id).await.unwrap();
     assert_eq!(found.title, special_title);
@@ -657,13 +749,17 @@ async fn test_task_repository_multiple_tasks_different_projects() {
         title: "Project A Task".to_string(),
         description: None,
         project_path: "/projects/a".to_string(),
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
     repo.create(CreateTask {
         title: "Project B Task".to_string(),
         description: None,
         project_path: "/projects/b".to_string(),
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
     let tasks = repo.list(None).await.unwrap();
     assert_eq!(tasks.len(), 2);
@@ -676,24 +772,30 @@ async fn test_log_repository_multiple_levels() {
     let (_, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
     for level in ["DEBUG", "INFO", "WARN", "ERROR"] {
-        log_repo.create(CreateLog {
-            level: level.to_string(),
-            message: format!("{} message", level),
-            target: None,
-            source: None,
-            task_id: None,
-            session_id: None,
-            metadata: None,
-        }).await.unwrap();
+        log_repo
+            .create(CreateLog {
+                level: level.to_string(),
+                message: format!("{} message", level),
+                target: None,
+                source: None,
+                task_id: None,
+                session_id: None,
+                metadata: None,
+            })
+            .await
+            .unwrap();
     }
 
     let all_logs = log_repo.list(LogFilter::default()).await.unwrap();
     assert!(all_logs.len() >= 4);
 
-    let error_logs = log_repo.list(LogFilter {
-        level: Some("ERROR".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let error_logs = log_repo
+        .list(LogFilter {
+            level: Some("ERROR".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     assert_eq!(error_logs.len(), 1);
 }
 
@@ -701,15 +803,18 @@ async fn test_log_repository_multiple_levels() {
 async fn test_log_repository_empty_message() {
     let (_, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let log = log_repo.create(CreateLog {
-        level: "INFO".to_string(),
-        message: "".to_string(),
-        target: None,
-        source: None,
-        task_id: None,
-        session_id: None,
-        metadata: None,
-    }).await.unwrap();
+    let log = log_repo
+        .create(CreateLog {
+            level: "INFO".to_string(),
+            message: "".to_string(),
+            target: None,
+            source: None,
+            task_id: None,
+            session_id: None,
+            metadata: None,
+        })
+        .await
+        .unwrap();
 
     assert_eq!(log.message, "");
 }
@@ -720,15 +825,18 @@ async fn test_log_repository_long_message() {
 
     let long_message = "a".repeat(10000);
 
-    let log = log_repo.create(CreateLog {
-        level: "INFO".to_string(),
-        message: long_message.clone(),
-        target: None,
-        source: None,
-        task_id: None,
-        session_id: None,
-        metadata: None,
-    }).await.unwrap();
+    let log = log_repo
+        .create(CreateLog {
+            level: "INFO".to_string(),
+            message: long_message.clone(),
+            target: None,
+            source: None,
+            task_id: None,
+            session_id: None,
+            metadata: None,
+        })
+        .await
+        .unwrap();
 
     assert_eq!(log.message.len(), 10000);
 }
@@ -746,20 +854,24 @@ async fn test_log_repository_metadata_json() {
         }
     });
 
-    let log = log_repo.create(CreateLog {
-        level: "INFO".to_string(),
-        message: "User action".to_string(),
-        target: None,
-        source: Some("frontend".to_string()),
-        task_id: None,
-        session_id: None,
-        metadata: Some(metadata.clone()),
-    }).await.unwrap();
+    let log = log_repo
+        .create(CreateLog {
+            level: "INFO".to_string(),
+            message: "User action".to_string(),
+            target: None,
+            source: Some("frontend".to_string()),
+            task_id: None,
+            session_id: None,
+            metadata: Some(metadata.clone()),
+        })
+        .await
+        .unwrap();
 
     assert!(log.metadata.is_some());
 
     // Verify we can parse it back
-    let parsed: serde_json::Value = serde_json::from_str(log.metadata.unwrap().trim_matches('"')).unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_str(log.metadata.unwrap().trim_matches('"')).unwrap();
     assert_eq!(parsed["user_id"], 123);
 }
 
@@ -769,31 +881,40 @@ async fn test_log_repository_limit_boundary() {
 
     // Create 200 logs
     for i in 0..200 {
-        log_repo.create(CreateLog {
-            level: "INFO".to_string(),
-            message: format!("Log {}", i),
-            target: None,
-            source: Some("frontend".to_string()),
-            task_id: None,
-            session_id: None,
-            metadata: None,
-        }).await.unwrap();
+        log_repo
+            .create(CreateLog {
+                level: "INFO".to_string(),
+                message: format!("Log {}", i),
+                target: None,
+                source: Some("frontend".to_string()),
+                task_id: None,
+                session_id: None,
+                metadata: None,
+            })
+            .await
+            .unwrap();
     }
 
     // Test limit is respected
-    let logs = log_repo.list(LogFilter {
-        limit: Some(50),
-        source: Some("frontend".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let logs = log_repo
+        .list(LogFilter {
+            limit: Some(50),
+            source: Some("frontend".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     assert_eq!(logs.len(), 50);
 
     // Test max limit (1000)
-    let all_logs = log_repo.list(LogFilter {
-        limit: Some(2000), // Request more than max
-        source: Some("frontend".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let all_logs = log_repo
+        .list(LogFilter {
+            limit: Some(2000), // Request more than max
+            source: Some("frontend".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     assert_eq!(all_logs.len(), 200); // Should return all 200, not cap at 1000 since we have less
 }
 
@@ -803,32 +924,41 @@ async fn test_log_repository_offset_pagination() {
 
     // Create 10 logs
     for i in 0..10 {
-        log_repo.create(CreateLog {
-            level: "INFO".to_string(),
-            message: format!("Log {}", i),
-            target: None,
-            source: Some("frontend".to_string()),
-            task_id: None,
-            session_id: None,
-            metadata: None,
-        }).await.unwrap();
+        log_repo
+            .create(CreateLog {
+                level: "INFO".to_string(),
+                message: format!("Log {}", i),
+                target: None,
+                source: Some("frontend".to_string()),
+                task_id: None,
+                session_id: None,
+                metadata: None,
+            })
+            .await
+            .unwrap();
     }
 
     // Get first page
-    let page1 = log_repo.list(LogFilter {
-        limit: Some(5),
-        offset: Some(0),
-        source: Some("frontend".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let page1 = log_repo
+        .list(LogFilter {
+            limit: Some(5),
+            offset: Some(0),
+            source: Some("frontend".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
 
     // Get second page
-    let page2 = log_repo.list(LogFilter {
-        limit: Some(5),
-        offset: Some(5),
-        source: Some("frontend".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let page2 = log_repo
+        .list(LogFilter {
+            limit: Some(5),
+            offset: Some(5),
+            source: Some("frontend".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
 
     // Pages should not overlap
     let ids1: std::collections::HashSet<_> = page1.iter().map(|l| l.id).collect();
@@ -841,49 +971,64 @@ async fn test_log_repository_offset_pagination() {
 async fn test_log_repository_combined_filters() {
     let (task_repo, log_repo, _, _, _, _, _, _, _) = setup_test_db().await;
 
-    let task = task_repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     // Create logs with different combinations
-    log_repo.create(CreateLog {
-        level: "ERROR".to_string(),
-        message: "Backend error".to_string(),
-        target: None,
-        source: Some("backend".to_string()),
-        task_id: Some(task.id.clone()),
-        session_id: Some("s1".to_string()),
-        metadata: None,
-    }).await.unwrap();
+    log_repo
+        .create(CreateLog {
+            level: "ERROR".to_string(),
+            message: "Backend error".to_string(),
+            target: None,
+            source: Some("backend".to_string()),
+            task_id: Some(task.id.clone()),
+            session_id: Some("s1".to_string()),
+            metadata: None,
+        })
+        .await
+        .unwrap();
 
-    log_repo.create(CreateLog {
-        level: "INFO".to_string(),
-        message: "Frontend info".to_string(),
-        target: None,
-        source: Some("frontend".to_string()),
-        task_id: Some(task.id.clone()),
-        session_id: Some("s1".to_string()),
-        metadata: None,
-    }).await.unwrap();
+    log_repo
+        .create(CreateLog {
+            level: "INFO".to_string(),
+            message: "Frontend info".to_string(),
+            target: None,
+            source: Some("frontend".to_string()),
+            task_id: Some(task.id.clone()),
+            session_id: Some("s1".to_string()),
+            metadata: None,
+        })
+        .await
+        .unwrap();
 
-    log_repo.create(CreateLog {
-        level: "ERROR".to_string(),
-        message: "Other error".to_string(),
-        target: None,
-        source: Some("backend".to_string()),
-        task_id: None,
-        session_id: None,
-        metadata: None,
-    }).await.unwrap();
+    log_repo
+        .create(CreateLog {
+            level: "ERROR".to_string(),
+            message: "Other error".to_string(),
+            target: None,
+            source: Some("backend".to_string()),
+            task_id: None,
+            session_id: None,
+            metadata: None,
+        })
+        .await
+        .unwrap();
 
     // Filter by task + level
-    let filtered = log_repo.list(LogFilter {
-        task_id: Some(task.id.clone()),
-        level: Some("ERROR".to_string()),
-        ..Default::default()
-    }).await.unwrap();
+    let filtered = log_repo
+        .list(LogFilter {
+            task_id: Some(task.id.clone()),
+            level: Some("ERROR".to_string()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     assert_eq!(filtered.len(), 1);
     assert_eq!(filtered[0].message, "Backend error");
 }
@@ -892,9 +1037,29 @@ async fn test_log_repository_combined_filters() {
 
 #[tokio::test]
 async fn test_app_state_new() {
-    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo) = setup_test_db().await;
+    let (
+        task_repo,
+        log_repo,
+        session_repo,
+        comment_repo,
+        token_event_repo,
+        session_metrics_repo,
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    ) = setup_test_db().await;
 
-    let state = AppState::new(task_repo.clone(), log_repo.clone(), session_repo.clone(), comment_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone(), settings_repo, otel_metrics_repo, attachment_repo);
+    let state = AppState::new(
+        task_repo.clone(),
+        log_repo.clone(),
+        session_repo.clone(),
+        comment_repo.clone(),
+        token_event_repo.clone(),
+        session_metrics_repo.clone(),
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    );
 
     // Verify the state is created (repositories are Clone)
     let _ = state.tasks;
@@ -905,38 +1070,86 @@ async fn test_app_state_new() {
 
 #[tokio::test]
 async fn test_app_state_into_task_api_state() {
-    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo) = setup_test_db().await;
+    let (
+        task_repo,
+        log_repo,
+        session_repo,
+        comment_repo,
+        token_event_repo,
+        session_metrics_repo,
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    ) = setup_test_db().await;
 
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo);
+    let state = AppState::new(
+        task_repo,
+        log_repo,
+        session_repo,
+        comment_repo,
+        token_event_repo,
+        session_metrics_repo,
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    );
     let task_api_state: TaskApiState = state.into();
 
     // Verify we can use the task repository
-    let task = task_api_state.repo.create(CreateTask {
-        title: "Test".to_string(),
-        description: None,
-        project_path: "/tmp/test".to_string(),
-    }).await.unwrap();
+    let task = task_api_state
+        .repo
+        .create(CreateTask {
+            title: "Test".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
 
     assert!(!task.id.is_empty());
 }
 
 #[tokio::test]
 async fn test_app_state_into_log_api_state() {
-    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo) = setup_test_db().await;
+    let (
+        task_repo,
+        log_repo,
+        session_repo,
+        comment_repo,
+        token_event_repo,
+        session_metrics_repo,
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    ) = setup_test_db().await;
 
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo);
+    let state = AppState::new(
+        task_repo,
+        log_repo,
+        session_repo,
+        comment_repo,
+        token_event_repo,
+        session_metrics_repo,
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    );
     let log_api_state: LogApiState = state.into();
 
     // Verify we can use the log repository
-    let log = log_api_state.repo.create(CreateLog {
-        level: "INFO".to_string(),
-        message: "Test".to_string(),
-        target: None,
-        source: None,
-        task_id: None,
-        session_id: None,
-        metadata: None,
-    }).await.unwrap();
+    let log = log_api_state
+        .repo
+        .create(CreateLog {
+            level: "INFO".to_string(),
+            message: "Test".to_string(),
+            target: None,
+            source: None,
+            task_id: None,
+            session_id: None,
+            metadata: None,
+        })
+        .await
+        .unwrap();
 
     assert!(log.id > 0);
 }
@@ -946,15 +1159,42 @@ async fn test_app_state_into_session_api_state() {
     use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
     use std::sync::Arc;
 
-    let (task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo) = setup_test_db().await;
+    let (
+        task_repo,
+        log_repo,
+        session_repo,
+        comment_repo,
+        token_event_repo,
+        session_metrics_repo,
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    ) = setup_test_db().await;
 
     let manager = Arc::new(ClaudeManager::new(
-        session_repo.clone(), token_event_repo.clone(), session_metrics_repo.clone(),
-        comment_repo.clone(), task_repo.clone(), otel_metrics_repo.clone(), None, None,
+        session_repo.clone(),
+        token_event_repo.clone(),
+        session_metrics_repo.clone(),
+        comment_repo.clone(),
+        task_repo.clone(),
+        otel_metrics_repo.clone(),
+        None,
+        None,
         attachment_repo.clone(),
     ));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
-    let state = AppState::new(task_repo, log_repo, session_repo, comment_repo, token_event_repo, session_metrics_repo, settings_repo, otel_metrics_repo, attachment_repo).with_queue(queue);
+    let state = AppState::new(
+        task_repo,
+        log_repo,
+        session_repo,
+        comment_repo,
+        token_event_repo,
+        session_metrics_repo,
+        settings_repo,
+        otel_metrics_repo,
+        attachment_repo,
+    )
+    .with_queue(queue);
     let session_api_state: SessionApiState = state.into();
 
     // Verify the queue is accessible

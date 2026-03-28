@@ -97,7 +97,8 @@ fn test_write_task_context_file_contains_plan() {
     let project_path = unique_tmp_dir("ctx-test-plan");
 
     let mut task = make_task("Refactor DB layer");
-    task.instructions = Some("# Plan\n- Step 1: Extract repository\n- Step 2: Add tests".to_string());
+    task.instructions =
+        Some("# Plan\n- Step 1: Extract repository\n- Step 2: Add tests".to_string());
 
     let tx = make_broadcast();
     write_task_context_file(&project_path, &task, &[], &[], &tx, "session-1");
@@ -152,7 +153,10 @@ fn test_write_task_context_file_emits_event_on_success() {
 
     // Should have received a ContextFileUpdated event
     match rx.try_recv() {
-        Ok(ai_kanban_backend::claude::ClaudeEvent::ContextFileUpdated { session_id, task_id }) => {
+        Ok(ai_kanban_backend::claude::ClaudeEvent::ContextFileUpdated {
+            session_id,
+            task_id,
+        }) => {
             assert_eq!(session_id, "session-abc");
             assert_eq!(task_id, task.id);
         }

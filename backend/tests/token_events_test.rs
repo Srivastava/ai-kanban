@@ -1,8 +1,12 @@
-use ai_kanban_backend::db::{create_pool, SessionMetricsRepository, TokenEventRepository, TaskRepository, SessionRepository};
-use ai_kanban_backend::models::{CreateTokenEvent, CreateTask, CreateSession};
+use ai_kanban_backend::db::{
+    create_pool, SessionMetricsRepository, SessionRepository, TaskRepository, TokenEventRepository,
+};
+use ai_kanban_backend::models::{CreateSession, CreateTask, CreateTokenEvent};
 
 async fn setup_db() -> sqlx::SqlitePool {
-    create_pool(":memory:").await.expect("Failed to create test pool")
+    create_pool(":memory:")
+        .await
+        .expect("Failed to create test pool")
 }
 
 async fn create_parent_rows(pool: &sqlx::SqlitePool) -> (String, String) {
@@ -96,7 +100,12 @@ async fn test_list_by_session() {
 
     // Create second session for comparison
     let session_repo = SessionRepository::new(pool.clone());
-    let session_b = session_repo.create(CreateSession { task_id: task_id.clone() }).await.unwrap();
+    let session_b = session_repo
+        .create(CreateSession {
+            task_id: task_id.clone(),
+        })
+        .await
+        .unwrap();
 
     repo.create(CreateTokenEvent {
         session_id: session_b.id.clone(),
@@ -164,7 +173,9 @@ async fn test_list_by_task() {
         cache_creation_tokens: 0,
         model: None,
         sequence_no: Some(0),
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
     repo.create(CreateTokenEvent {
         session_id: session_id_b.clone(),
@@ -178,7 +189,9 @@ async fn test_list_by_task() {
         cache_creation_tokens: 0,
         model: None,
         sequence_no: Some(0),
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 
     let events = repo.list_by_task(&task_id_a).await.unwrap();
     assert_eq!(events.len(), 1);
@@ -233,7 +246,10 @@ async fn test_add_lines_deleted() {
     let (_, session_id) = create_parent_rows(&pool).await;
 
     metrics_repo.upsert(&session_id, 10, 1000).await.unwrap();
-    metrics_repo.add_lines_deleted(&session_id, 5).await.unwrap();
+    metrics_repo
+        .add_lines_deleted(&session_id, 5)
+        .await
+        .unwrap();
 
     let metrics = metrics_repo.find(&session_id).await.unwrap().unwrap();
     assert_eq!(metrics.lines_deleted, 5);

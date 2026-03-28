@@ -1,8 +1,8 @@
-mod manager;
 pub mod jsonl_parser;
+mod manager;
 mod prompts;
 mod queue;
 
-pub use manager::{ClaudeManager, ClaudeEvent, write_task_context_file};
+pub use manager::{write_task_context_file, ClaudeEvent, ClaudeManager};
 pub use prompts::build_prompt;
 pub use queue::{QueuedTask, SessionQueue};

@@ -127,7 +127,9 @@ pub fn parse_claude_usage_output(raw: &str) -> ClaudeCliUsage {
     let pct_re = Regex::new(r"(\d+)%\s*used").unwrap();
 
     // Split output into the 5hr section (before "Current week") and the weekly section (after).
-    let week_marker_pos = collapsed.find("Current week").or_else(|| collapsed.find("current week"));
+    let week_marker_pos = collapsed
+        .find("Current week")
+        .or_else(|| collapsed.find("current week"));
 
     let (section_5hr, section_week) = if let Some(pos) = week_marker_pos {
         (&collapsed[..pos], &collapsed[pos..])
@@ -162,7 +164,12 @@ pub fn parse_claude_usage_output(raw: &str) -> ClaudeCliUsage {
         })
         .and_then(|l| parse_reset_time(l));
 
-    ClaudeCliUsage { pct_5hr, pct_week, reset_5hr, reset_week }
+    ClaudeCliUsage {
+        pct_5hr,
+        pct_week,
+        reset_5hr,
+        reset_week,
+    }
 }
 
 /// Parse a reset-time string into a UTC ISO-8601 timestamp.
@@ -177,8 +184,9 @@ fn parse_reset_time(line: &str) -> Option<String> {
 
     // Try "Mar21,11am" style first (date + time)
     let date_time_re = Regex::new(
-        r"(?i)(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(\d{1,2}),(\d{1,2})(am|pm)"
-    ).unwrap();
+        r"(?i)(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)(\d{1,2}),(\d{1,2})(am|pm)",
+    )
+    .unwrap();
     if let Some(caps) = date_time_re.captures(&compact) {
         let month_str = &caps[1];
         let day: u32 = caps[2].parse().ok()?;
@@ -192,8 +200,7 @@ fn parse_reset_time(line: &str) -> Option<String> {
             now_utc.year()
         };
         let hour24 = to_24h(hour, ampm);
-        let naive = NaiveDate::from_ymd_opt(year, month, day)?
-            .and_hms_opt(hour24, 0, 0)?;
+        let naive = NaiveDate::from_ymd_opt(year, month, day)?.and_hms_opt(hour24, 0, 0)?;
         let la_dt = Los_Angeles.from_local_datetime(&naive).single()?;
         return Some(la_dt.with_timezone(&Utc).to_rfc3339());
     }
@@ -207,14 +214,12 @@ fn parse_reset_time(line: &str) -> Option<String> {
 
         // Try compact form if normal line didn't match
         let la_now = now_utc.with_timezone(&Los_Angeles);
-        let naive_today = la_now
-            .date_naive()
-            .and_hms_opt(hour24, 0, 0)?;
+        let naive_today = la_now.date_naive().and_hms_opt(hour24, 0, 0)?;
         let la_today = Los_Angeles.from_local_datetime(&naive_today).single()?;
         // If that time is in the past (or within 1 min), use tomorrow
         let candidate = if la_today.with_timezone(&Utc) <= now_utc + Duration::minutes(1) {
-            let naive_tomorrow = (la_now.date_naive() + Duration::days(1))
-                .and_hms_opt(hour24, 0, 0)?;
+            let naive_tomorrow =
+                (la_now.date_naive() + Duration::days(1)).and_hms_opt(hour24, 0, 0)?;
             Los_Angeles.from_local_datetime(&naive_tomorrow).single()?
         } else {
             la_today
@@ -233,8 +238,8 @@ fn parse_reset_time(line: &str) -> Option<String> {
         let naive_today = la_now.date_naive().and_hms_opt(hour24, 0, 0)?;
         let la_today = Los_Angeles.from_local_datetime(&naive_today).single()?;
         let candidate = if la_today.with_timezone(&Utc) <= now_utc + Duration::minutes(1) {
-            let naive_tomorrow = (la_now.date_naive() + Duration::days(1))
-                .and_hms_opt(hour24, 0, 0)?;
+            let naive_tomorrow =
+                (la_now.date_naive() + Duration::days(1)).and_hms_opt(hour24, 0, 0)?;
             Los_Angeles.from_local_datetime(&naive_tomorrow).single()?
         } else {
             la_today
@@ -247,18 +252,38 @@ fn parse_reset_time(line: &str) -> Option<String> {
 
 fn month_to_u32(m: &str) -> Option<u32> {
     match m.to_lowercase().as_str() {
-        "jan" => Some(1), "feb" => Some(2), "mar" => Some(3),
-        "apr" => Some(4), "may" => Some(5), "jun" => Some(6),
-        "jul" => Some(7), "aug" => Some(8), "sep" => Some(9),
-        "oct" => Some(10), "nov" => Some(11), "dec" => Some(12),
+        "jan" => Some(1),
+        "feb" => Some(2),
+        "mar" => Some(3),
+        "apr" => Some(4),
+        "may" => Some(5),
+        "jun" => Some(6),
+        "jul" => Some(7),
+        "aug" => Some(8),
+        "sep" => Some(9),
+        "oct" => Some(10),
+        "nov" => Some(11),
+        "dec" => Some(12),
         _ => None,
     }
 }
 
 fn to_24h(hour: u32, ampm: &str) -> u32 {
     match ampm.to_lowercase().as_str() {
-        "am" => if hour == 12 { 0 } else { hour },
-        _    => if hour == 12 { 12 } else { hour + 12 },
+        "am" => {
+            if hour == 12 {
+                0
+            } else {
+                hour
+            }
+        }
+        _ => {
+            if hour == 12 {
+                12
+            } else {
+                hour + 12
+            }
+        }
     }
 }
 
@@ -295,8 +320,10 @@ pub fn start_usage_daemon(queue: Option<Arc<SessionQueue>>) -> SharedUsageCache 
 
             let has_data = match &result {
                 Ok(new) => {
-                    new.pct_5hr.is_some() || new.pct_week.is_some()
-                        || new.reset_5hr.is_some() || new.reset_week.is_some()
+                    new.pct_5hr.is_some()
+                        || new.pct_week.is_some()
+                        || new.reset_5hr.is_some()
+                        || new.reset_week.is_some()
                 }
                 Err(_) => false,
             };
@@ -335,13 +362,18 @@ pub fn start_usage_daemon(queue: Option<Arc<SessionQueue>>) -> SharedUsageCache 
             // - Idle: 1 hour
             let interval_secs: u64 = if !has_data {
                 // Rate limited — sleep until reset_5hr if known, else 1h
-                let reset_str = cache_clone.read().ok()
+                let reset_str = cache_clone
+                    .read()
+                    .ok()
                     .and_then(|c| c.data.reset_5hr.clone());
                 if let Some(s) = reset_str {
                     if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&s) {
                         let secs = (dt.with_timezone(&Utc) - Utc::now()).num_seconds();
                         if secs > 60 {
-                            info!("Usage daemon: rate limited, sleeping {}s (capped at 6h)", secs.min(6 * 3600));
+                            info!(
+                                "Usage daemon: rate limited, sleeping {}s (capped at 6h)",
+                                secs.min(6 * 3600)
+                            );
                             secs.min(6 * 3600) as u64
                         } else {
                             3600
@@ -414,7 +446,8 @@ Resets Apr 21, 11am (America/Los_Angeles)
 
     #[test]
     fn test_parse_zero_pct_returns_some_zero() {
-        let raw = "Current session\n0% used\nResets 1am (America/Los_Angeles)\nCurrent week\n0% used\n";
+        let raw =
+            "Current session\n0% used\nResets 1am (America/Los_Angeles)\nCurrent week\n0% used\n";
         let u = parse_claude_usage_output(raw);
         assert_eq!(u.pct_5hr, Some(0.0));
         assert_eq!(u.pct_week, Some(0.0));

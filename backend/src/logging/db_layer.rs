@@ -1,10 +1,10 @@
 use crate::db::LogRepository;
 use crate::models::CreateLog;
-use crossbeam_channel::{Receiver, Sender, unbounded};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
-use tracing::{Event, Subscriber};
 use tracing::span;
+use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
 use tracing_subscriber::registry::LookupSpan;
 use tracing_subscriber::Layer;
@@ -54,15 +54,18 @@ impl DbLayer {
                     }
 
                     for msg in messages {
-                        if let Err(e) = repo.create(CreateLog {
-                            level: msg.level,
-                            message: msg.message,
-                            target: Some(msg.target),
-                            source: Some("backend".to_string()),
-                            task_id: msg.task_id,
-                            session_id: msg.session_id,
-                            metadata: msg.metadata,
-                        }).await {
+                        if let Err(e) = repo
+                            .create(CreateLog {
+                                level: msg.level,
+                                message: msg.message,
+                                target: Some(msg.target),
+                                source: Some("backend".to_string()),
+                                task_id: msg.task_id,
+                                session_id: msg.session_id,
+                                metadata: msg.metadata,
+                            })
+                            .await
+                        {
                             eprintln!("Failed to write log to database: {}", e);
                         }
                     }
@@ -129,7 +132,8 @@ where
             .lookup_current()
             .and_then(|span| {
                 let ext = span.extensions();
-                ext.get::<SpanContext>().map(|c| (c.task_id.clone(), c.session_id.clone()))
+                ext.get::<SpanContext>()
+                    .map(|c| (c.task_id.clone(), c.session_id.clone()))
             })
             .unwrap_or((None, None));
 
@@ -169,7 +173,9 @@ impl tracing::field::Visit for SpanFieldVisitor<'_> {
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
         let s = format!("{:?}", value);
         // Strip surrounding quotes that Debug adds to strings
-        let s = s.strip_prefix('"').and_then(|s| s.strip_suffix('"'))
+        let s = s
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
             .map(|s| s.to_string())
             .unwrap_or(s);
         match field.name() {
@@ -196,7 +202,10 @@ impl tracing::field::Visit for EventVisitor {
             "task_id" => self.task_id = Some(value.to_string()),
             "session_id" => self.session_id = Some(value.to_string()),
             name => {
-                self.extra.insert(name.to_string(), serde_json::Value::String(value.to_string()));
+                self.extra.insert(
+                    name.to_string(),
+                    serde_json::Value::String(value.to_string()),
+                );
             }
         }
     }
@@ -204,7 +213,9 @@ impl tracing::field::Visit for EventVisitor {
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
         let s = format!("{:?}", value);
         // Strip surrounding quotes that Debug adds for Display (%)-formatted string fields
-        let clean = s.strip_prefix('"').and_then(|s| s.strip_suffix('"'))
+        let clean = s
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
             .map(|s| s.to_string())
             .unwrap_or_else(|| s.clone());
         match field.name() {
@@ -212,21 +223,25 @@ impl tracing::field::Visit for EventVisitor {
             "task_id" => self.task_id = Some(clean),
             "session_id" => self.session_id = Some(clean),
             name => {
-                self.extra.insert(name.to_string(), serde_json::Value::String(s));
+                self.extra
+                    .insert(name.to_string(), serde_json::Value::String(s));
             }
         }
     }
 
     fn record_i64(&mut self, field: &tracing::field::Field, value: i64) {
-        self.extra.insert(field.name().to_string(), serde_json::json!(value));
+        self.extra
+            .insert(field.name().to_string(), serde_json::json!(value));
     }
 
     fn record_u64(&mut self, field: &tracing::field::Field, value: u64) {
-        self.extra.insert(field.name().to_string(), serde_json::json!(value));
+        self.extra
+            .insert(field.name().to_string(), serde_json::json!(value));
     }
 
     fn record_bool(&mut self, field: &tracing::field::Field, value: bool) {
-        self.extra.insert(field.name().to_string(), serde_json::json!(value));
+        self.extra
+            .insert(field.name().to_string(), serde_json::json!(value));
     }
 }
 

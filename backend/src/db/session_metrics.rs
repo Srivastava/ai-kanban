@@ -12,7 +12,12 @@ impl SessionMetricsRepository {
         Self { pool }
     }
 
-    pub async fn upsert(&self, session_id: &str, project_files: i64, project_loc: i64) -> Result<()> {
+    pub async fn upsert(
+        &self,
+        session_id: &str,
+        project_files: i64,
+        project_loc: i64,
+    ) -> Result<()> {
         let now = chrono::Utc::now();
         sqlx::query(
             r#"

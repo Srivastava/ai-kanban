@@ -1,13 +1,10 @@
 use ai_kanban_backend::db::{create_pool, LogRepository, TaskRepository};
-use ai_kanban_backend::models::{CreateLog, CreateTask, LogFilter, Log, level_to_str};
+use ai_kanban_backend::models::{level_to_str, CreateLog, CreateTask, Log, LogFilter};
 
 async fn setup_test_db() -> (TaskRepository, LogRepository) {
     let db_path = format!("/tmp/test-logs-{}.db", uuid::Uuid::new_v4());
     let pool = create_pool(&db_path).await.expect("Failed to create pool");
-    (
-        TaskRepository::new(pool.clone()),
-        LogRepository::new(pool),
-    )
+    (TaskRepository::new(pool.clone()), LogRepository::new(pool))
 }
 
 #[tokio::test]

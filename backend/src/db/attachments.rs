@@ -31,7 +31,7 @@ impl AttachmentRepository {
 
     pub async fn list_for_task(&self, task_id: &str) -> Result<Vec<TaskAttachment>> {
         let rows = sqlx::query_as::<_, TaskAttachment>(
-            "SELECT * FROM task_attachments WHERE task_id = ? ORDER BY created_at ASC"
+            "SELECT * FROM task_attachments WHERE task_id = ? ORDER BY created_at ASC",
         )
         .bind(task_id)
         .fetch_all(&self.pool)
@@ -40,12 +40,11 @@ impl AttachmentRepository {
     }
 
     pub async fn get(&self, id: &str) -> Result<Option<TaskAttachment>> {
-        let row = sqlx::query_as::<_, TaskAttachment>(
-            "SELECT * FROM task_attachments WHERE id = ?"
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row =
+            sqlx::query_as::<_, TaskAttachment>("SELECT * FROM task_attachments WHERE id = ?")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(row)
     }
 

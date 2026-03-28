@@ -22,8 +22,7 @@ struct LogQuery {
 }
 
 pub fn log_routes() -> Router<LogApiState> {
-    Router::new()
-        .route("/", get(list_logs).post(create_log))
+    Router::new().route("/", get(list_logs).post(create_log))
 }
 
 #[instrument(skip(state))]

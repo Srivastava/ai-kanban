@@ -187,24 +187,24 @@ pub struct PlanTier {
 
 #[derive(Debug, Serialize)]
 pub struct RoiMetrics {
-    pub cost_per_commit:   Option<f64>,
-    pub cost_per_pr:       Option<f64>,
-    pub cost_per_loc:      Option<f64>,
-    pub total_commits:     i64,
-    pub total_prs:         i64,
-    pub total_loc:         i64,
+    pub cost_per_commit: Option<f64>,
+    pub cost_per_pr: Option<f64>,
+    pub cost_per_loc: Option<f64>,
+    pub total_commits: i64,
+    pub total_prs: i64,
+    pub total_loc: i64,
     pub total_active_time_secs: f64,
     pub avg_session_duration_secs: f64,
-    pub total_cost_usd:    f64,
+    pub total_cost_usd: f64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct ContextWindowUsage {
-    pub session_id:       String,
-    pub task_title:       String,
+    pub session_id: String,
+    pub task_title: String,
     pub tokens_in_window: i64,
-    pub context_limit:    i64,
-    pub pct_used:         f64,
+    pub context_limit: i64,
+    pub pct_used: f64,
 }
 
 #[derive(Debug, serde::Serialize)]
