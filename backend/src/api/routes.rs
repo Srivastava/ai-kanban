@@ -7,6 +7,7 @@ use crate::api::prometheus::metrics_handler;
 use crate::api::sessions::session_routes;
 use crate::api::settings::settings_routes;
 use crate::api::tasks::task_routes;
+use crate::static_files::static_handler;
 use crate::ws::ws_handler;
 use axum::Router;
 
@@ -59,4 +60,5 @@ pub fn create_router(state: AppState) -> Router {
         )
         // Filesystem utility routes (stateless)
         .route("/api/fs/projects", axum::routing::get(crate::api::fs::list_projects))
+        .fallback(static_handler)
 }
