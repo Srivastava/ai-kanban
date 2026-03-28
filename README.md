@@ -2,6 +2,12 @@
 
 A local-first AI task automation platform that orchestrates Claude CLI agents on a Kanban board. Run multiple AI agents in parallel, track token usage, and manage tasks through a clean dashboard.
 
+![Task List](docs/screenshots/task-list.png)
+
+![Kanban Board](docs/screenshots/kanban-board.png)
+
+![Analytics](docs/screenshots/analytics.png)
+
 ## Prerequisites
 
 - [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) installed and authenticated (`claude` must be on your PATH)
