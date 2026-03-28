@@ -1,9 +1,6 @@
 name: Nightly Release
 
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/release.yml']
   schedule:
     - cron: '0 2 * * *'
   workflow_dispatch:
