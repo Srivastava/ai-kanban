@@ -39,10 +39,14 @@ jobs:
 
       - name: Clippy
         working-directory: backend
+        env:
+          DATABASE_PATH: ai_kanban.db
         run: cargo clippy -- -D warnings
 
       - name: Test
         working-directory: backend
+        env:
+          DATABASE_PATH: ai_kanban.db
         run: cargo test
 
   frontend:
