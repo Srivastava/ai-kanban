@@ -35,6 +35,10 @@ interface KanbanContentProps {
 function KanbanContent({ onCreateTask }: KanbanContentProps) {
   const { data: tasks = [], isLoading, error, refetch } = useTasks();
 
+  if (isLoading) {
+    return <KanbanBoardSkeleton />;
+  }
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3 text-center">
