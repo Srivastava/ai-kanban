@@ -1,0 +1,23 @@
+[Unit]
+Description=AI Kanban
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/utility/Projects/ai-kanban
+ExecStart=/home/utility/Projects/ai-kanban/ai-kanban
+Restart=on-failure
+RestartSec=5
+
+# Ensure claude CLI and cargo are reachable (not in systemd's default PATH)
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/utility/.cargo/bin:/home/utility/.local/bin
+Environment=HOME=/home/utility
+
+# Load DATABASE_URL from backend .env (- prefix means ignore if missing)
+EnvironmentFile=-/home/utility/Projects/ai-kanban/backend/.env
+
+StandardOutput=append:/home/utility/Projects/ai-kanban/logs/backend.log
+StandardError=append:/home/utility/Projects/ai-kanban/logs/backend.log
+
+[Install]
+WantedBy=default.target
