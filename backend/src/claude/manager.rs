@@ -98,7 +98,11 @@ pub struct ClaudeManager {
     attachment_repo: AttachmentRepository,
 }
 
-const COMPRESSION_TOKEN_THRESHOLD: i64 = 100_000;
+/// Minimum peak context size (input + cache_read + cache_creation tokens in any single turn)
+/// that triggers LiteLLM context compression at session end.
+/// Set to 150K — well below the 200K context window limit, giving enough headroom
+/// for the next session to build on the compressed context without immediately hitting limits.
+pub const COMPRESSION_TOKEN_THRESHOLD: i64 = 150_000;
 
 impl ClaudeManager {
     pub fn new(
@@ -1009,50 +1013,90 @@ impl ClaudeManager {
                                 .await;
                         }
 
-                        // Context compression when token usage approaches the threshold
-                        let compress_enabled =
-                            settings_repo_for_completion.as_ref().and_then(|r| {
-                                if peak_input_tokens >= COMPRESSION_TOKEN_THRESHOLD {
-                                    Some(r)
+                        // Context compression when peak context size approaches the threshold.
+                        // "peak_input_tokens" = max(input + cache_read + cache_creation) across
+                        // all JSONL turns — it reflects the largest context window used this session.
+                        let pct_of_threshold = (peak_input_tokens as f64
+                            / COMPRESSION_TOKEN_THRESHOLD as f64
+                            * 100.0)
+                            .round() as i64;
+                        if peak_input_tokens >= COMPRESSION_TOKEN_THRESHOLD {
+                            if let Some(repo) = settings_repo_for_completion.as_ref() {
+                                let flag_enabled = repo
+                                    .get_flag("litellm_context_compression")
+                                    .await
+                                    .unwrap_or(false);
+                                if flag_enabled {
+                                    info!(
+                                        session_id = %session_id_for_completion,
+                                        task_id = %session.task_id,
+                                        peak_input_tokens = peak_input_tokens,
+                                        threshold = COMPRESSION_TOKEN_THRESHOLD,
+                                        pct_of_threshold = pct_of_threshold,
+                                        "Token threshold reached — compressing context"
+                                    );
+                                    if let Err(e) = ctx_mgr
+                                        .compress_context(
+                                            &session_id_for_completion,
+                                            &session.task_id,
+                                            &task_title_for_completion,
+                                            &display_lines,
+                                            result_text.as_deref(),
+                                        )
+                                        .await
+                                    {
+                                        warn!(
+                                            session_id = %session_id_for_completion,
+                                            task_id = %session.task_id,
+                                            error = %e,
+                                            "Context compression failed — next session will run without compressed context"
+                                        );
+                                    } else {
+                                        // Notify frontend so context section refreshes
+                                        if let Ok(updated) =
+                                            task_repo_for_completion.find(&session.task_id).await
+                                        {
+                                            if let Ok(task_json) = serde_json::to_value(&updated) {
+                                                let _ = output_tx_for_completion.send(
+                                                    ClaudeEvent::TaskStageChanged {
+                                                        task_id: session.task_id.clone(),
+                                                        task_json,
+                                                    },
+                                                );
+                                            }
+                                        }
+                                    }
                                 } else {
-                                    None
+                                    warn!(
+                                        session_id = %session_id_for_completion,
+                                        task_id = %session.task_id,
+                                        peak_input_tokens = peak_input_tokens,
+                                        threshold = COMPRESSION_TOKEN_THRESHOLD,
+                                        pct_of_threshold = pct_of_threshold,
+                                        "Token threshold reached but litellm_context_compression flag is disabled — context will NOT be compressed"
+                                    );
                                 }
-                            });
-                        if let Some(repo) = compress_enabled {
-                            if repo
-                                .get_flag("litellm_context_compression")
-                                .await
-                                .unwrap_or(false)
-                            {
+                            }
+                        } else {
+                            // Log at debug for low-token sessions, info for sessions
+                            // within 20% of the threshold so we can spot trends.
+                            if pct_of_threshold >= 80 {
                                 info!(
                                     session_id = %session_id_for_completion,
                                     task_id = %session.task_id,
                                     peak_input_tokens = peak_input_tokens,
                                     threshold = COMPRESSION_TOKEN_THRESHOLD,
-                                    "Token threshold reached — compressing context"
+                                    pct_of_threshold = pct_of_threshold,
+                                    "Session used {}% of compression threshold — approaching limit",
+                                    pct_of_threshold
                                 );
-                                let _ = ctx_mgr
-                                    .compress_context(
-                                        &session_id_for_completion,
-                                        &session.task_id,
-                                        &task_title_for_completion,
-                                        &display_lines,
-                                        result_text.as_deref(),
-                                    )
-                                    .await;
-                                // Notify frontend so context section refreshes
-                                if let Ok(updated) =
-                                    task_repo_for_completion.find(&session.task_id).await
-                                {
-                                    if let Ok(task_json) = serde_json::to_value(&updated) {
-                                        let _ = output_tx_for_completion.send(
-                                            ClaudeEvent::TaskStageChanged {
-                                                task_id: session.task_id.clone(),
-                                                task_json,
-                                            },
-                                        );
-                                    }
-                                }
+                            } else {
+                                tracing::debug!(
+                                    session_id = %session_id_for_completion,
+                                    peak_input_tokens = peak_input_tokens,
+                                    pct_of_threshold = pct_of_threshold,
+                                    "Session ended below compression threshold"
+                                );
                             }
                         }
                     }
