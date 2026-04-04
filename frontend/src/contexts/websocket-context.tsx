@@ -31,9 +31,15 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [status, setStatus] = useState<WebSocketStatus>('connecting');
   const listenersRef = useRef<Map<string, Set<(data: unknown) => void>>>(new Map());
+  // Hold the live socket in a ref so cleanup always sees the current instance,
+  // avoiding the stale-closure bug where useEffect cleanup captures null.
+  const wsRef = useRef<WebSocket | null>(null);
+  // Hold the pending reconnect timer so it can be cancelled on unmount.
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const connect = useCallback(() => {
     const socket = new WebSocket(WS_URL);
+    wsRef.current = socket;
 
     socket.onopen = () => {
       logger.info('WebSocket connected', { url: WS_URL });
@@ -45,8 +51,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       logger.warn('WebSocket disconnected, reconnecting in 3s');
       setStatus('disconnected');
       setWs(null);
+      wsRef.current = null;
       // Reconnect after 3 seconds
-      setTimeout(connect, 3000);
+      reconnectTimerRef.current = setTimeout(connect, 3000);
     };
 
     socket.onmessage = (event) => {
@@ -115,7 +122,14 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     connect();
     return () => {
-      ws?.close();
+      // Cancel any pending reconnect timer to avoid reconnecting after unmount
+      if (reconnectTimerRef.current !== null) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+      // Close the live socket via ref — not via state, which is stale here
+      wsRef.current?.close();
+      wsRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -19,6 +19,7 @@ pub struct AppState {
     pub otel_metrics: OtelMetricsRepository,
     pub attachments: AttachmentRepository,
     pub queue: Option<Arc<SessionQueue>>,
+    pub usage_cache: crate::api::claude_usage_cli::SharedUsageCache,
 }
 
 #[derive(Clone)]
@@ -63,6 +64,7 @@ impl AppState {
         settings: SettingsRepository,
         otel_metrics: OtelMetricsRepository,
         attachments: AttachmentRepository,
+        usage_cache: crate::api::claude_usage_cli::SharedUsageCache,
     ) -> Self {
         Self {
             tasks,
@@ -75,6 +77,7 @@ impl AppState {
             otel_metrics,
             attachments,
             queue: None,
+            usage_cache,
         }
     }
 

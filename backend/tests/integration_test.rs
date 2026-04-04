@@ -1,3 +1,4 @@
+use ai_kanban_backend::api::claude_usage_cli::SharedUsageCache;
 use ai_kanban_backend::api::{AppState, LogApiState, SessionApiState, TaskApiState};
 use ai_kanban_backend::db::{
     create_pool, AttachmentRepository, CommentRepository, LogRepository, OtelMetricsRepository,
@@ -1049,6 +1050,8 @@ async fn test_app_state_new() {
         attachment_repo,
     ) = setup_test_db().await;
 
+    let usage_cache: SharedUsageCache =
+        std::sync::Arc::new(std::sync::RwLock::new(Default::default()));
     let state = AppState::new(
         task_repo.clone(),
         log_repo.clone(),
@@ -1059,6 +1062,7 @@ async fn test_app_state_new() {
         settings_repo,
         otel_metrics_repo,
         attachment_repo,
+        usage_cache,
     );
 
     // Verify the state is created (repositories are Clone)
@@ -1082,6 +1086,8 @@ async fn test_app_state_into_task_api_state() {
         attachment_repo,
     ) = setup_test_db().await;
 
+    let usage_cache: SharedUsageCache =
+        std::sync::Arc::new(std::sync::RwLock::new(Default::default()));
     let state = AppState::new(
         task_repo,
         log_repo,
@@ -1092,6 +1098,7 @@ async fn test_app_state_into_task_api_state() {
         settings_repo,
         otel_metrics_repo,
         attachment_repo,
+        usage_cache,
     );
     let task_api_state: TaskApiState = state.into();
 
@@ -1123,6 +1130,8 @@ async fn test_app_state_into_log_api_state() {
         attachment_repo,
     ) = setup_test_db().await;
 
+    let usage_cache: SharedUsageCache =
+        std::sync::Arc::new(std::sync::RwLock::new(Default::default()));
     let state = AppState::new(
         task_repo,
         log_repo,
@@ -1133,6 +1142,7 @@ async fn test_app_state_into_log_api_state() {
         settings_repo,
         otel_metrics_repo,
         attachment_repo,
+        usage_cache,
     );
     let log_api_state: LogApiState = state.into();
 
@@ -1183,6 +1193,8 @@ async fn test_app_state_into_session_api_state() {
         attachment_repo.clone(),
     ));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
+    let usage_cache: SharedUsageCache =
+        std::sync::Arc::new(std::sync::RwLock::new(Default::default()));
     let state = AppState::new(
         task_repo,
         log_repo,
@@ -1193,6 +1205,7 @@ async fn test_app_state_into_session_api_state() {
         settings_repo,
         otel_metrics_repo,
         attachment_repo,
+        usage_cache,
     )
     .with_queue(queue);
     let session_api_state: SessionApiState = state.into();

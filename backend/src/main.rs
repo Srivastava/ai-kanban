@@ -1,6 +1,6 @@
 use ai_kanban_backend::ai::context_manager::ContextManager;
 use ai_kanban_backend::ai::litellm::LitellmClient;
-use ai_kanban_backend::api::{create_router, otlp_router, AppState, OtlpState};
+use ai_kanban_backend::api::{claude_usage_cli, create_router, otlp_router, AppState, OtlpState};
 use ai_kanban_backend::claude::ClaudeManager;
 use ai_kanban_backend::db::{
     create_pool, AttachmentRepository, CommentRepository, LogRepository, OtelLogsRepository,
@@ -185,6 +185,10 @@ async fn main() -> anyhow::Result<()> {
         });
     }
 
+    // Start the usage-polling daemon once, here in main, so it is not accidentally
+    // spawned multiple times if AppState is ever cloned into multiple router states.
+    let usage_cache = claude_usage_cli::start_usage_daemon(Some(queue.clone()));
+
     // Create state with queue
     let state = AppState::new(
         task_repo,
@@ -196,6 +200,7 @@ async fn main() -> anyhow::Result<()> {
         settings_repo,
         otel_repo,
         attachment_repo,
+        usage_cache,
     )
     .with_queue(queue);
     tracing::debug!("Application state created");

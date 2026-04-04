@@ -506,6 +506,7 @@ impl ClaudeManager {
             let mut result_text: Option<String> = None;
             let mut display_lines: Vec<String> = Vec::new();
             let mut peak_input_tokens: i64 = 0;
+            let mut total_output_tokens: i64 = 0;
             let mut first_tool_seen = false;
             let mut claude_session_id_captured = false;
             // Deduplication buffer: keep only the LAST event per message_id.
@@ -587,6 +588,8 @@ impl ClaudeManager {
                         if total_context > peak_input_tokens {
                             peak_input_tokens = total_context;
                         }
+                        // Accumulate output tokens for post-session summarization
+                        total_output_tokens += parsed.output_tokens;
 
                         let event = CreateTokenEvent {
                             session_id: session_id.clone(),
@@ -686,7 +689,7 @@ impl ClaudeManager {
                     });
                 }
             }
-            (result_text, display_lines, peak_input_tokens)
+            (result_text, display_lines, peak_input_tokens, total_output_tokens)
         });
 
         let session_id = session.id.clone();
@@ -724,10 +727,11 @@ impl ClaudeManager {
         let project_path_for_completion = project_path.clone();
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
-            let (result_text, display_lines, peak_input_tokens) = match stdout_handle.await {
-                Ok(triple) => triple,
-                Err(_) => (None, Vec::new(), 0i64),
-            };
+            let (result_text, display_lines, peak_input_tokens, total_output_tokens) =
+                match stdout_handle.await {
+                    Ok(quad) => quad,
+                    Err(_) => (None, Vec::new(), 0i64, 0i64),
+                };
             let _ = stderr_handle.await;
 
             // Take the child out of active_sessions
@@ -998,7 +1002,7 @@ impl ClaudeManager {
                                     &stage_for_completion,
                                     session_duration_secs,
                                     peak_input_tokens,
-                                    0i64,
+                                    total_output_tokens,
                                     &display_lines,
                                     result_text.as_deref(),
                                 )

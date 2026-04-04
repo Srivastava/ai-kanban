@@ -1,3 +1,4 @@
+use ai_kanban_backend::api::claude_usage_cli::SharedUsageCache;
 use ai_kanban_backend::api::AppState;
 use ai_kanban_backend::claude::{ClaudeManager, SessionQueue};
 use ai_kanban_backend::db::{
@@ -33,6 +34,8 @@ async fn setup_test_server() -> TestServer {
         attachment_repo.clone(),
     ));
     let queue = Arc::new(SessionQueue::new(manager, task_repo.clone()));
+    let usage_cache: SharedUsageCache =
+        std::sync::Arc::new(std::sync::RwLock::new(Default::default()));
     let state = AppState::new(
         task_repo,
         log_repo,
@@ -43,6 +46,7 @@ async fn setup_test_server() -> TestServer {
         settings_repo,
         otel_metrics_repo,
         attachment_repo,
+        usage_cache,
     )
     .with_queue(queue);
     TestServer::new(ai_kanban_backend::api::create_router(state)).unwrap()

@@ -149,33 +149,45 @@ impl TaskRepository {
         // First verify task exists
         let task = self.find(id).await?;
 
-        // Delete related records in child tables
+        // All deletions run inside a single transaction so a crash mid-delete
+        // can't leave the DB in a partially-deleted state.
+        let mut tx = self.pool.begin().await?;
+
+        // Delete tables that have FK references to tasks without ON DELETE CASCADE.
+        // (Tables with ON DELETE CASCADE — task_comments, token_events, task_attachments —
+        // are handled automatically by SQLite's FK enforcement.)
+        sqlx::query("DELETE FROM otel_metrics WHERE task_id = ?")
+            .bind(&task.id)
+            .execute(&mut *tx)
+            .await?;
         sqlx::query("DELETE FROM stage_history WHERE task_id = ?")
             .bind(&task.id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         sqlx::query("DELETE FROM token_usage WHERE task_id = ?")
             .bind(&task.id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         sqlx::query("DELETE FROM snapshots WHERE task_id = ?")
             .bind(&task.id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         sqlx::query("DELETE FROM sessions WHERE task_id = ?")
             .bind(&task.id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
-        // Then delete the task
+        // Then delete the task (triggers ON DELETE CASCADE for remaining child tables)
         let result = sqlx::query("DELETE FROM tasks WHERE id = ?")
             .bind(&task.id)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
 
         if result.rows_affected() == 0 {
             return Err(anyhow!("Task not found: {}", id));
         }
+
+        tx.commit().await?;
 
         info!(task_id = %id, "Task deleted successfully");
         Ok(())

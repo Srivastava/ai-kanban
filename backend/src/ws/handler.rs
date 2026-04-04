@@ -7,6 +7,7 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use std::sync::Arc;
+use tokio::sync::broadcast::error::RecvError;
 use tracing::{debug, error, info, warn};
 
 pub async fn ws_handler(
@@ -29,9 +30,45 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
         Arc::new(tokio::sync::RwLock::new(None));
     let sub_send = subscribed_session.clone();
 
+    // Channel for the recv task to inject direct-reply messages (e.g. Pong) into the send task.
+    let (reply_tx, mut reply_rx) = tokio::sync::mpsc::channel::<ServerMessage>(8);
+
     // Task to send messages to client
     let mut send_task = tokio::spawn(async move {
-        while let Ok(event) = output_rx.recv().await {
+        loop {
+            let event = tokio::select! {
+                // Direct replies (Pong, etc.) take priority
+                Some(msg) = reply_rx.recv() => {
+                    let json = match serde_json::to_string(&msg) {
+                        Ok(j) => j,
+                        Err(e) => { error!("Failed to serialize reply: {}", e); continue; }
+                    };
+                    if sender.send(Message::Text(json)).await.is_err() {
+                        debug!("Client disconnected (reply send)");
+                        break;
+                    }
+                    continue;
+                }
+                result = output_rx.recv() => result,
+            };
+
+            let event = match event {
+                Ok(ev) => ev,
+                Err(RecvError::Lagged(n)) => {
+                    warn!("WS client lagged, dropped {} broadcast events", n);
+                    // Notify the client that output was lost, then continue
+                    let lag_msg = ServerMessage::error(format!(
+                        "Output stream lagged: {} events were dropped. Reconnect to this session to see current state.",
+                        n
+                    ));
+                    if let Ok(json) = serde_json::to_string(&lag_msg) {
+                        let _ = sender.send(Message::Text(json)).await;
+                    }
+                    continue;
+                }
+                Err(RecvError::Closed) => break,
+            };
+
             let msg: Option<ServerMessage> = {
                 let sub = sub_send.read().await;
                 let subscribed_id = sub.as_deref();
@@ -190,6 +227,7 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                     }
                     Ok(ClientMessage::Ping) => {
                         debug!("Ping received");
+                        let _ = reply_tx.send(ServerMessage::pong()).await;
                     }
                     Ok(client_msg) => {
                         debug!("Received: {:?}", client_msg);

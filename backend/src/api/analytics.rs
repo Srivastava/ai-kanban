@@ -24,7 +24,7 @@ impl From<AppState> for AnalyticsApiState {
         AnalyticsApiState {
             analytics: AnalyticsRepository::new(pool.clone()),
             otel_repo: OtelMetricsRepository::new(pool),
-            usage_cache: crate::api::claude_usage_cli::start_usage_daemon(state.queue),
+            usage_cache: state.usage_cache,
         }
     }
 }
