@@ -12,6 +12,7 @@ pub struct Session {
     pub last_snapshot_id: Option<String>,
     pub error_message: Option<String>,
     pub claude_session_id: Option<String>,
+    pub peak_context_tokens: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -67,4 +68,5 @@ pub struct UpdateSession {
     /// `continue_session` starts fresh and actually uses the compressed context
     /// rather than re-inheriting the full 150 K+ token history via `--resume`).
     pub claude_session_id: Option<Option<String>>,
+    pub peak_context_tokens: Option<i64>,
 }

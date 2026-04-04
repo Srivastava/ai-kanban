@@ -42,6 +42,7 @@ impl SessionRepository {
             last_snapshot_id: None,
             error_message: None,
             claude_session_id: None,
+            peak_context_tokens: None,
         })
     }
 
@@ -97,11 +98,14 @@ impl SessionRepository {
             // None(outer) = no change, Some(Some(v)) = set to v, Some(None) = clear to NULL
             session.claude_session_id = new_csid;
         }
+        if let Some(peak) = update.peak_context_tokens {
+            session.peak_context_tokens = Some(peak);
+        }
 
         sqlx::query(
             r#"
             UPDATE sessions
-            SET status = ?, ended_at = ?, last_snapshot_id = ?, error_message = ?, claude_session_id = ?
+            SET status = ?, ended_at = ?, last_snapshot_id = ?, error_message = ?, claude_session_id = ?, peak_context_tokens = ?
             WHERE id = ?
             "#,
         )
@@ -110,6 +114,7 @@ impl SessionRepository {
         .bind(&session.last_snapshot_id)
         .bind(&session.error_message)
         .bind(&session.claude_session_id)
+        .bind(session.peak_context_tokens)
         .bind(id)
         .execute(&self.pool)
         .await?;

@@ -581,3 +581,39 @@ async fn test_find_by_claude_session_id_returns_correct_session() {
         .unwrap();
     assert_eq!(found_b.id, s2.id);
 }
+
+#[tokio::test]
+async fn test_session_peak_context_tokens_persisted() {
+    let (task_repo, repo) = setup_test_db().await;
+
+    let task = task_repo
+        .create(ai_kanban_backend::models::CreateTask {
+            title: "Peak Tokens Test Task".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .expect("create task");
+
+    let session = repo
+        .create(CreateSession { task_id: task.id.clone() })
+        .await
+        .expect("create");
+    assert!(session.peak_context_tokens.is_none(), "starts as None");
+
+    let updated = repo
+        .update(
+            &session.id,
+            UpdateSession {
+                peak_context_tokens: Some(145_000),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("update");
+    assert_eq!(updated.peak_context_tokens, Some(145_000));
+
+    // Verify round-trip from DB
+    let fetched = repo.find(&session.id).await.expect("find");
+    assert_eq!(fetched.peak_context_tokens, Some(145_000));
+}
