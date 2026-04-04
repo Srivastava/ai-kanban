@@ -93,8 +93,9 @@ impl SessionRepository {
         if let Some(error) = update.error_message {
             session.error_message = Some(error);
         }
-        if let Some(claude_session_id) = update.claude_session_id {
-            session.claude_session_id = Some(claude_session_id);
+        if let Some(new_csid) = update.claude_session_id {
+            // None(outer) = no change, Some(Some(v)) = set to v, Some(None) = clear to NULL
+            session.claude_session_id = new_csid;
         }
 
         sqlx::query(

@@ -61,5 +61,10 @@ pub struct UpdateSession {
     pub ended_at: Option<DateTime<Utc>>,
     pub last_snapshot_id: Option<String>,
     pub error_message: Option<String>,
-    pub claude_session_id: Option<String>,
+    /// `None` = do not touch the column.
+    /// `Some(Some(id))` = set to the given session ID.
+    /// `Some(None)` = clear to NULL (used after context compression so the next
+    /// `continue_session` starts fresh and actually uses the compressed context
+    /// rather than re-inheriting the full 150 K+ token history via `--resume`).
+    pub claude_session_id: Option<Option<String>>,
 }

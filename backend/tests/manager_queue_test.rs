@@ -227,7 +227,7 @@ async fn test_session_claude_id_stored_and_retrievable_via_repo() {
         .update(
             &session.id,
             UpdateSession {
-                claude_session_id: Some(expected_claude_id.to_string()),
+                claude_session_id: Some(Some(expected_claude_id.to_string())),
                 status: Some("completed".to_string()),
                 ..Default::default()
             },

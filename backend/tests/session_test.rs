@@ -395,7 +395,7 @@ async fn test_session_update_claude_session_id() {
         .update(
             &session.id,
             UpdateSession {
-                claude_session_id: Some("claude-abc-123".to_string()),
+                claude_session_id: Some(Some("claude-abc-123".to_string())),
                 ..Default::default()
             },
         )
@@ -493,7 +493,7 @@ async fn test_find_by_claude_session_id_found() {
         .update(
             &session.id,
             UpdateSession {
-                claude_session_id: Some(claude_id.to_string()),
+                claude_session_id: Some(Some(claude_id.to_string())),
                 ..Default::default()
             },
         )
@@ -550,7 +550,7 @@ async fn test_find_by_claude_session_id_returns_correct_session() {
         .update(
             &s1.id,
             UpdateSession {
-                claude_session_id: Some("claude-aaa".to_string()),
+                claude_session_id: Some(Some("claude-aaa".to_string())),
                 ..Default::default()
             },
         )
@@ -560,7 +560,7 @@ async fn test_find_by_claude_session_id_returns_correct_session() {
         .update(
             &s2.id,
             UpdateSession {
-                claude_session_id: Some("claude-bbb".to_string()),
+                claude_session_id: Some(Some("claude-bbb".to_string())),
                 ..Default::default()
             },
         )

@@ -548,7 +548,7 @@ impl ClaudeManager {
                                     .update(
                                         &session_id_c,
                                         crate::models::UpdateSession {
-                                            claude_session_id: Some(claude_sid_c.clone()),
+                                            claude_session_id: Some(Some(claude_sid_c.clone())),
                                             ..Default::default()
                                         },
                                     )
@@ -1052,6 +1052,31 @@ impl ClaudeManager {
                                             "Context compression failed — next session will run without compressed context"
                                         );
                                     } else {
+                                        // Compression succeeded.
+                                        //
+                                        // CRITICAL: clear claude_session_id so the next
+                                        // continue_session starts FRESH (no --resume).
+                                        //
+                                        // If we kept the claude_session_id, continue_session
+                                        // would use --resume and Claude would restore its full
+                                        // 150K+ token history, making the compression pointless.
+                                        // With claude_session_id cleared, continue_session falls
+                                        // through to the context-injection path and injects the
+                                        // LiteLLM-compressed text instead — actually reducing tokens.
+                                        let _ = session_repo_for_completion
+                                            .update(
+                                                &session_id_for_completion,
+                                                UpdateSession {
+                                                    claude_session_id: Some(None), // clear
+                                                    ..Default::default()
+                                                },
+                                            )
+                                            .await;
+                                        info!(
+                                            session_id = %session_id_for_completion,
+                                            "Cleared claude_session_id after compression — next session will use compressed context instead of --resume"
+                                        );
+
                                         // Notify frontend so context section refreshes
                                         if let Ok(updated) =
                                             task_repo_for_completion.find(&session.task_id).await
