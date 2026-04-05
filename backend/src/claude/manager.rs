@@ -729,6 +729,7 @@ impl ClaudeManager {
         let task_title_for_completion = task_title;
         let stage_for_completion = stage.to_string();
         let project_path_for_completion = project_path.clone();
+        let claude_bin_for_completion = claude_bin.clone();
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
             let (result_text, display_lines, peak_input_tokens, total_output_tokens) =
@@ -794,6 +795,7 @@ impl ClaudeManager {
                         error_message: rate_limit_reset_at
                             .as_ref()
                             .map(|dt| format!("rate_limited:{}", dt.to_rfc3339())),
+                        peak_context_tokens: Some(peak_input_tokens),
                         ..Default::default()
                     },
                 )
