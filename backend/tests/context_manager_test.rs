@@ -1,6 +1,5 @@
 use ai_kanban_backend::ai::context_manager::ContextManager;
 use ai_kanban_backend::ai::litellm::LitellmClient;
-use ai_kanban_backend::claude::COMPRESSION_TOKEN_THRESHOLD;
 use ai_kanban_backend::db::{create_pool, AttachmentRepository, CommentRepository, TaskRepository};
 use ai_kanban_backend::models::CreateTask;
 use wiremock::matchers::{method, path};
@@ -338,14 +337,22 @@ async fn generate_briefing_llm_error_returns_err() {
 }
 
 // ---------------------------------------------------------------------------
-// COMPRESSION_TOKEN_THRESHOLD — value is 150_000
+// CONTEXT_WARN_THRESHOLD and CONTEXT_HANDOVER_THRESHOLD — correct values
 // ---------------------------------------------------------------------------
 
 #[test]
-fn compression_threshold_is_150k() {
+fn context_thresholds_are_correct() {
     assert_eq!(
-        COMPRESSION_TOKEN_THRESHOLD, 150_000,
-        "threshold must be 150_000; update this test if intentionally changed"
+        ai_kanban_backend::claude::CONTEXT_WARN_THRESHOLD, 120_000,
+        "Zone 2 warn threshold must be 120_000"
+    );
+    assert_eq!(
+        ai_kanban_backend::claude::CONTEXT_HANDOVER_THRESHOLD, 160_000,
+        "Zone 3 handover threshold must be 160_000"
+    );
+    assert!(
+        ai_kanban_backend::claude::CONTEXT_WARN_THRESHOLD < ai_kanban_backend::claude::CONTEXT_HANDOVER_THRESHOLD,
+        "warn threshold must be below handover threshold"
     );
 }
 
