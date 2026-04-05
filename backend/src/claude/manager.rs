@@ -1207,6 +1207,91 @@ impl ClaudeManager {
 }
 
 /// Write (or overwrite) `.claude/ai-kanban.md` in the project directory.
+const HANDOVER_PROMPT: &str = "\
+Write a structured handover document for the next Claude session continuing this task. \
+The next session will start fresh with ONLY this document as context — be specific and complete.\n\n\
+## What Was Completed\n\
+(exact changes made: functions added/modified, files edited — use specific names and paths)\n\n\
+## Current State\n\
+(where things stand right now: what works, what is half-done, what is broken)\n\n\
+## Files Changed\n\
+(each file that was modified and a one-line description of what changed)\n\n\
+## Exact Next Steps\n\
+(ordered, concrete list of what the next session should do immediately)\n\n\
+## Key Decisions & Constraints\n\
+(important choices made, user preferences stated, technical gotchas discovered)\n\n\
+## Quick-Start Checklist\n\
+(3–5 specific files or functions to read first to get oriented fast)\n\n\
+Keep the whole document under 1500 words. Use exact file paths, function names, and line numbers.";
+
+/// Spawn a short `claude --print --resume <claude_session_id>` session whose only job
+/// is to write a structured handover document for the next work session.
+///
+/// Returns the handover text on success, `None` on timeout or any error.
+/// The spawned process runs with a 90-second timeout.
+pub async fn generate_claude_handover(
+    claude_bin: &str,
+    project_path: &str,
+    claude_session_id: &str,
+) -> Option<String> {
+    use crate::claude::jsonl_parser::extract_result_text;
+
+    let claude_bin = claude_bin.to_string();
+    let project_path = project_path.to_string();
+    let claude_session_id = claude_session_id.to_string();
+
+    let blocking_result = tokio::time::timeout(
+        Duration::from_secs(90),
+        tokio::task::spawn_blocking(move || {
+            Command::new(&claude_bin)
+                .args([
+                    "--print",
+                    "--dangerously-skip-permissions",
+                    "--output-format",
+                    "stream-json",
+                    "--resume",
+                    &claude_session_id,
+                    HANDOVER_PROMPT,
+                ])
+                .current_dir(&project_path)
+                .env_remove("CLAUDECODE")
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .output()
+        }),
+    )
+    .await;
+
+    let output = match blocking_result {
+        Ok(Ok(Ok(o))) => o,
+        Ok(Ok(Err(e))) => {
+            warn!("generate_claude_handover: Claude spawn failed: {e}");
+            return None;
+        }
+        Ok(Err(e)) => {
+            warn!("generate_claude_handover: spawn_blocking panicked: {e}");
+            return None;
+        }
+        Err(_) => {
+            warn!("generate_claude_handover: timed out after 90s");
+            return None;
+        }
+    };
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut handover = None;
+    for line in stdout.lines() {
+        if let Some(text) = extract_result_text(line) {
+            handover = Some(text);
+        }
+    }
+
+    if handover.is_none() {
+        warn!("generate_claude_handover: no result_text found in output");
+    }
+    handover
+}
+
 ///
 /// Claude Code reads the entire `.claude/` directory at startup and re-reads it
 /// after context compaction, so this file survives within-session compaction without

@@ -754,3 +754,16 @@ async fn summarize_session_comment_includes_perf_line() {
     assert!(content.contains("20 out"), "should include output token count");
     assert!(content.contains("tok/s"), "should include throughput metric");
 }
+
+// ---------------------------------------------------------------------------
+// generate_claude_handover — function signature compiles and is async
+// ---------------------------------------------------------------------------
+
+#[test]
+fn generate_claude_handover_signature_is_correct() {
+    // Verify the function exists and accepts (&str, &str, &str).
+    // Creating the future (without awaiting) is sufficient to verify arity + types.
+    let _fut = ai_kanban_backend::claude::generate_claude_handover("bin", "path", "session-id");
+    // If this compiles, the function exists with the right arity.
+    drop(_fut);
+}
