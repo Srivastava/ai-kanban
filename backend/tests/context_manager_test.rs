@@ -343,15 +343,18 @@ async fn generate_briefing_llm_error_returns_err() {
 #[test]
 fn context_thresholds_are_correct() {
     assert_eq!(
-        ai_kanban_backend::claude::CONTEXT_WARN_THRESHOLD, 120_000,
+        ai_kanban_backend::claude::CONTEXT_WARN_THRESHOLD,
+        120_000,
         "Zone 2 warn threshold must be 120_000"
     );
     assert_eq!(
-        ai_kanban_backend::claude::CONTEXT_HANDOVER_THRESHOLD, 160_000,
+        ai_kanban_backend::claude::CONTEXT_HANDOVER_THRESHOLD,
+        160_000,
         "Zone 3 handover threshold must be 160_000"
     );
     assert!(
-        ai_kanban_backend::claude::CONTEXT_WARN_THRESHOLD < ai_kanban_backend::claude::CONTEXT_HANDOVER_THRESHOLD,
+        ai_kanban_backend::claude::CONTEXT_WARN_THRESHOLD
+            < ai_kanban_backend::claude::CONTEXT_HANDOVER_THRESHOLD,
         "warn threshold must be below handover threshold"
     );
 }
@@ -675,12 +678,7 @@ async fn summarize_session_result_text_alone_calls_llm() {
         .await
         .expect("create task");
 
-    let ctx = make_ctx(
-        &mock_server.uri(),
-        comment_repo,
-        task_repo,
-        attachment_repo,
-    );
+    let ctx = make_ctx(&mock_server.uri(), comment_repo, task_repo, attachment_repo);
 
     // Empty lines but non-empty result_text should NOT be skipped
     let result = ctx
@@ -757,9 +755,18 @@ async fn summarize_session_comment_includes_perf_line() {
 
     // Performance line should include LiteLLM attribution and token counts
     assert!(content.contains("LiteLLM"), "should contain LiteLLM label");
-    assert!(content.contains("55 in"), "should include input token count");
-    assert!(content.contains("20 out"), "should include output token count");
-    assert!(content.contains("tok/s"), "should include throughput metric");
+    assert!(
+        content.contains("55 in"),
+        "should include input token count"
+    );
+    assert!(
+        content.contains("20 out"),
+        "should include output token count"
+    );
+    assert!(
+        content.contains("tok/s"),
+        "should include throughput metric"
+    );
 }
 
 // ---------------------------------------------------------------------------

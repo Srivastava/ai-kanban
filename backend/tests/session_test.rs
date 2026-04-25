@@ -596,7 +596,9 @@ async fn test_session_peak_context_tokens_persisted() {
         .expect("create task");
 
     let session = repo
-        .create(CreateSession { task_id: task.id.clone() })
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
         .await
         .expect("create");
     assert!(session.peak_context_tokens.is_none(), "starts as None");

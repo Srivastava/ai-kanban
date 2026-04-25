@@ -695,7 +695,12 @@ impl ClaudeManager {
                     });
                 }
             }
-            (result_text, display_lines, peak_input_tokens, total_output_tokens)
+            (
+                result_text,
+                display_lines,
+                peak_input_tokens,
+                total_output_tokens,
+            )
         });
 
         let session_id = session.id.clone();
@@ -1022,7 +1027,8 @@ impl ClaudeManager {
                         // Zone 1 (< CONTEXT_WARN_THRESHOLD): normal --resume, no intervention.
                         // Zone 2 (CONTEXT_WARN_THRESHOLD <= peak < CONTEXT_HANDOVER_THRESHOLD): LiteLLM prep, --resume kept.
                         // Zone 3 (peak >= CONTEXT_HANDOVER_THRESHOLD): Claude handover, --resume cleared.
-                        let pct_of_warn = (peak_input_tokens as f64 / CONTEXT_WARN_THRESHOLD as f64 * 100.0)
+                        let pct_of_warn = (peak_input_tokens as f64 / CONTEXT_WARN_THRESHOLD as f64
+                            * 100.0)
                             .round() as i64;
 
                         if peak_input_tokens >= CONTEXT_HANDOVER_THRESHOLD {
@@ -1074,10 +1080,13 @@ impl ClaudeManager {
                                                     session_id = %session_id_for_completion,
                                                     "Cleared claude_session_id — next session will start fresh with handover"
                                                 );
-                                                if let Ok(updated) =
-                                                    task_repo_for_completion.find(&session.task_id).await
+                                                if let Ok(updated) = task_repo_for_completion
+                                                    .find(&session.task_id)
+                                                    .await
                                                 {
-                                                    if let Ok(task_json) = serde_json::to_value(&updated) {
+                                                    if let Ok(task_json) =
+                                                        serde_json::to_value(&updated)
+                                                    {
                                                         let _ = output_tx_for_completion.send(
                                                             ClaudeEvent::TaskStageChanged {
                                                                 task_id: session.task_id.clone(),
