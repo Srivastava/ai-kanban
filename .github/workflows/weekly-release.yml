@@ -1,0 +1,224 @@
+name: Weekly Release
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday at 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    name: Check for new commits
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      new_tag: ${{ steps.bump.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect new commits since last stable tag
+        id: check
+        run: |
+          LATEST_TAG=$(git tag -l "v*" | sort -V | tail -1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No existing stable tag — will create first release"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "latest_tag=" >> "$GITHUB_OUTPUT"
+          else
+            COMMITS=$(git log "${LATEST_TAG}..HEAD" --oneline | wc -l)
+            echo "Commits since ${LATEST_TAG}: ${COMMITS}"
+            if [ "$COMMITS" -eq 0 ]; then
+              echo "Nothing new — skipping release"
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "should_release=true" >> "$GITHUB_OUTPUT"
+            fi
+            echo "latest_tag=${LATEST_TAG}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute next patch version
+        id: bump
+        if: steps.check.outputs.should_release == 'true'
+        run: |
+          LATEST_TAG="${{ steps.check.outputs.latest_tag }}"
+          if [ -z "$LATEST_TAG" ]; then
+            NEW_TAG="v0.1.0"
+          else
+            IFS='.' read -r major minor patch <<< "${LATEST_TAG#v}"
+            NEW_TAG="v${major}.${minor}.$((patch + 1))"
+          fi
+          echo "new_tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+          echo "Next release: ${NEW_TAG}"
+
+  build-frontend:
+    name: Build Frontend
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build static export
+        working-directory: frontend
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-out
+          path: frontend/out/
+          retention-days: 1
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: [check, build-frontend]
+    if: needs.check.outputs.should_release == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary: ai-kanban-linux-x86_64
+
+          - name: macos-x86_64
+            runner: macos-13
+            target: x86_64-apple-darwin
+            binary: ai-kanban-macos-x86_64
+
+          - name: macos-arm64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            binary: ai-kanban-macos-arm64
+
+          - name: windows-x86_64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: ai-kanban-windows-x86_64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-out
+          path: frontend/out/
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-${{ matrix.target }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.target }}-cargo-
+
+      - name: Build release binary
+        working-directory: backend
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename binary (Unix)
+        if: matrix.runner != 'windows-latest'
+        run: cp backend/target/${{ matrix.target }}/release/ai-kanban-backend ${{ matrix.binary }}
+
+      - name: Rename binary (Windows)
+        if: matrix.runner == 'windows-latest'
+        run: copy backend\target\${{ matrix.target }}\release\ai-kanban-backend.exe ${{ matrix.binary }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          path: ${{ matrix.binary }}
+          retention-days: 1
+
+  release:
+    name: Tag and Release
+    needs: [check, build]
+    if: needs.check.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NEW_TAG: ${{ needs.check.outputs.new_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump npm package version and push tag
+        run: |
+          NEW_VERSION="${NEW_TAG#v}"
+          jq --arg v "$NEW_VERSION" '.version = $v' npm-package/package.json > /tmp/pkg.json
+          mv /tmp/pkg.json npm-package/package.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add npm-package/package.json
+          git commit -m "chore: release ${NEW_TAG}"
+          git tag "${NEW_TAG}"
+          git push origin main
+          git push origin "${NEW_TAG}"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          pattern: 'ai-kanban-*'
+          merge-multiple: true
+
+      - name: Compute checksums
+        working-directory: dist
+        run: |
+          sha256sum ai-kanban-linux-x86_64 \
+                    ai-kanban-macos-x86_64 \
+                    ai-kanban-macos-arm64 \
+                    ai-kanban-windows-x86_64.exe \
+            > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.NEW_TAG }}
+          name: ${{ env.NEW_TAG }}
+          prerelease: false
+          body: |
+            ## Install via npm
+            ```
+            npm install -g ai-kanban
+            ```
+
+            ## Direct download
+            | Platform | Binary |
+            |----------|--------|
+            | Linux x86_64 | `ai-kanban-linux-x86_64` |
+            | macOS Intel | `ai-kanban-macos-x86_64` |
+            | macOS Apple Silicon | `ai-kanban-macos-arm64` |
+            | Windows x86_64 | `ai-kanban-windows-x86_64.exe` |
+
+            Verify with `checksums.txt`.
+
+            ## Prerequisite
+            [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) must be installed and authenticated.
+          files: |
+            dist/ai-kanban-linux-x86_64
+            dist/ai-kanban-macos-x86_64
+            dist/ai-kanban-macos-arm64
+            dist/ai-kanban-windows-x86_64.exe
+            dist/checksums.txt
