@@ -422,9 +422,9 @@ Resets Apr 21, 11am (America/Los_Angeles)
         assert_eq!(u.pct_5hr, Some(88.0));
         assert_eq!(u.pct_week, Some(15.0));
         assert!(u.reset_week.is_some());
-        // reset_week should be April 21
+        // reset_week should be April 21 (year-agnostic — date resolves to next occurrence)
         let rw = u.reset_week.unwrap();
-        assert!(rw.contains("2026-04-21"), "got: {rw}");
+        assert!(rw.contains("-04-21"), "got: {rw}");
     }
 
     #[test]
