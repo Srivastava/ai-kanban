@@ -12,6 +12,17 @@ A local-first AI task automation platform that orchestrates Claude CLI agents on
 
 - [Claude CLI](https://docs.anthropic.com/en/docs/claude-cli) installed and authenticated (`claude` must be on your PATH)
 
+## Quick Start — npm
+
+The easiest way to install on any platform:
+
+```bash
+npm install -g ai-kanban
+ai-kanban
+```
+
+Open `http://localhost:3001` in your browser.
+
 ## Quick Start — Download Binary
 
 ### Linux
