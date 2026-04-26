@@ -1,6 +1,6 @@
 {
   "name": "ai-kanban",
-  "version": "0.1.0",
+  "version": "0.0.2",
   "description": "Local-first AI task automation platform that orchestrates Claude agents on a Kanban board",
   "bin": {
     "ai-kanban": "run.js"
@@ -12,7 +12,14 @@
     "type": "git",
     "url": "https://github.com/Srivastava/ai-kanban"
   },
-  "keywords": ["ai", "claude", "kanban", "automation", "agents", "cli"],
+  "keywords": [
+    "ai",
+    "claude",
+    "kanban",
+    "automation",
+    "agents",
+    "cli"
+  ],
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=16"
