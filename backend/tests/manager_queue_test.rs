@@ -326,8 +326,14 @@ async fn test_stop_zombie_session_updates_db_to_stopped() {
     manager.stop_session(&session.id).await.unwrap();
 
     let updated = session_repo.find(&session.id).await.unwrap();
-    assert_eq!(updated.status, "stopped", "zombie session must be marked stopped in DB");
-    assert!(updated.ended_at.is_some(), "ended_at must be set after stop");
+    assert_eq!(
+        updated.status, "stopped",
+        "zombie session must be marked stopped in DB"
+    );
+    assert!(
+        updated.ended_at.is_some(),
+        "ended_at must be set after stop"
+    );
 }
 
 /// Watchdog must detect a zombie session (running in DB, absent from active map) and mark it stopped.
@@ -364,7 +370,10 @@ async fn test_watchdog_reconcile_zombie_sessions() {
 
     // Watchdog should find 1 zombie and clean it up.
     let recovered = manager.reconcile_zombie_sessions().await.unwrap();
-    assert_eq!(recovered, 1, "watchdog should have recovered 1 zombie session");
+    assert_eq!(
+        recovered, 1,
+        "watchdog should have recovered 1 zombie session"
+    );
 
     let updated = session_repo.find(&session.id).await.unwrap();
     assert_eq!(updated.status, "stopped");
@@ -404,7 +413,10 @@ async fn test_watchdog_ignores_pending_sessions() {
 
     // Watchdog only looks at "running" sessions — pending must be untouched.
     let recovered = manager.reconcile_zombie_sessions().await.unwrap();
-    assert_eq!(recovered, 0, "pending sessions must not be treated as zombies");
+    assert_eq!(
+        recovered, 0,
+        "pending sessions must not be treated as zombies"
+    );
 }
 
 /// Stopping the same zombie session twice must be idempotent — the second call
@@ -446,7 +458,10 @@ async fn test_stop_zombie_session_twice_is_idempotent() {
 
     // Second stop — must also succeed (idempotent).
     let result = manager.stop_session(&session.id).await;
-    assert!(result.is_ok(), "second stop on an already-stopped session must not error");
+    assert!(
+        result.is_ok(),
+        "second stop on an already-stopped session must not error"
+    );
 
     let after_second = session_repo.find(&session.id).await.unwrap();
     assert_eq!(after_second.status, "stopped");

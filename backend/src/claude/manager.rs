@@ -1293,9 +1293,7 @@ impl ClaudeManager {
                     crate::models::UpdateSession {
                         status: Some("stopped".to_string()),
                         ended_at: Some(chrono::Utc::now()),
-                        error_message: Some(
-                            "Session orphaned — detected by watchdog".to_string(),
-                        ),
+                        error_message: Some("Session orphaned — detected by watchdog".to_string()),
                         ..Default::default()
                     },
                 )

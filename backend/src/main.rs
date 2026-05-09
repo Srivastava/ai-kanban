@@ -132,7 +132,10 @@ async fn main() -> anyhow::Result<()> {
                     )
                     .await;
             }
-            tracing::info!(count = orphaned.len(), "Orphaned sessions marked as stopped");
+            tracing::info!(
+                count = orphaned.len(),
+                "Orphaned sessions marked as stopped"
+            );
         }
     }
 
@@ -209,8 +212,7 @@ async fn main() -> anyhow::Result<()> {
     {
         let manager_watchdog = claude_manager.clone();
         tokio::spawn(async move {
-            let mut interval =
-                tokio::time::interval(tokio::time::Duration::from_secs(300));
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300));
             interval.tick().await; // skip the immediate first tick
             loop {
                 interval.tick().await;
