@@ -30,11 +30,12 @@ function ageMinutes(iso: string): number {
 interface Props {
   onSessionClick: (sessionId: string) => void;
   onTaskClick: (taskId: string) => void;
+  taskId?: string;
 }
 
 type StatusFilter = 'all' | 'failed' | 'pending' | 'stuck';
 
-export function SessionDiagnosticsPanel({ onSessionClick, onTaskClick }: Props) {
+export function SessionDiagnosticsPanel({ onSessionClick, onTaskClick, taskId }: Props) {
   const [open, setOpen] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const { data: sessions = [], isLoading } = useAllSessions(['failed', 'pending'], 200);
@@ -43,6 +44,7 @@ export function SessionDiagnosticsPanel({ onSessionClick, onTaskClick }: Props) 
   const taskMap = new Map(tasks.map((t) => [t.id, t.title]));
 
   const filtered = sessions.filter((s: Session) => {
+    if (taskId && s.task_id !== taskId) return false;
     if (statusFilter === 'failed') return s.status === 'failed';
     if (statusFilter === 'pending') return s.status === 'pending';
     if (statusFilter === 'stuck') return s.status === 'pending' && ageMinutes(s.started_at) > 5;

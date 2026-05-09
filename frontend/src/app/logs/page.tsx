@@ -247,7 +247,7 @@ export default function LogsPage() {
 
           {/* Log context breakdown — always visible, derived from loaded logs */}
           <LogContextBreakdown
-            logs={allLogs}
+            logs={serverFilter.task_id ? logs : allLogs}
             onTaskClick={handleTaskClick}
             onSessionClick={handleSessionClick}
             activeTaskId={serverFilter.task_id}
@@ -258,6 +258,7 @@ export default function LogsPage() {
           <SessionDiagnosticsPanel
             onSessionClick={handleSessionClick}
             onTaskClick={handleTaskClick}
+            taskId={serverFilter.task_id}
           />
 
           {/* Session Lifecycle — always visible with task picker */}
