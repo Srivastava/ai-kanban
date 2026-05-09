@@ -123,22 +123,22 @@ graph TB
 
     subgraph Binary["ai-kanban binary (Rust / Axum)"]
         HTTP[HTTP API :3001]
-        WS_Server[WebSocket /ws]
-        Queue[Session Queue\nmax 3 concurrent]
+        WS_Server["WebSocket /ws"]
+        Queue["Session Queue\nmax 3 concurrent"]
         Manager[Claude Manager]
         DB[(SQLite WAL\nai-kanban.db)]
-        DbLayer[Tracing DB Layer\nasync batch writer]
-        Metrics[Prometheus /metrics]
-        Health[/health endpoint]
-        Watchdog[Zombie Session\nWatchdog ×5 min]
+        DbLayer["Tracing DB Layer\nasync batch writer"]
+        Metrics["Prometheus /metrics"]
+        Health["/health endpoint"]
+        Watchdog["Zombie Session\nWatchdog ×5 min"]
     end
 
     subgraph Claude["Claude CLI process (spawned per session)"]
-        ClaudeProc[claude --print\n--output-format stream-json]
+        ClaudeProc["claude --print\n--output-format stream-json"]
     end
 
     subgraph Optional["Optional — LiteLLM (self-hosted)"]
-        LiteLLM[LiteLLM proxy\nport 4000/14000]
+        LiteLLM["LiteLLM proxy\nport 4000/14000"]
     end
 
     UI -->|REST| HTTP
