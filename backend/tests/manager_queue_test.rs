@@ -4,7 +4,7 @@ use ai_kanban_backend::db::{
     SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository,
     TokenEventRepository,
 };
-use ai_kanban_backend::models::CreateTask;
+use ai_kanban_backend::models::{CreateSession, CreateTask, UpdateSession};
 use std::sync::Arc;
 
 async fn setup() -> (Arc<ClaudeManager>, Arc<SessionQueue>, TaskRepository) {
@@ -30,6 +30,37 @@ async fn setup() -> (Arc<ClaudeManager>, Arc<SessionQueue>, TaskRepository) {
     ));
     let queue = Arc::new(SessionQueue::new(manager.clone(), task_repo.clone()));
     (manager, queue, task_repo)
+}
+
+async fn setup_with_session_repo() -> (
+    Arc<ClaudeManager>,
+    Arc<SessionQueue>,
+    TaskRepository,
+    SessionRepository,
+) {
+    let db_path = format!("/tmp/test-mgr-{}.db", uuid::Uuid::new_v4());
+    let pool = create_pool(&db_path).await.unwrap();
+    let session_repo = SessionRepository::new(pool.clone());
+    let token_repo = TokenEventRepository::new(pool.clone());
+    let metrics_repo = SessionMetricsRepository::new(pool.clone());
+    let comment_repo = CommentRepository::new(pool.clone());
+    let task_repo = TaskRepository::new(pool.clone());
+    let otel_repo = OtelMetricsRepository::new(pool.clone());
+    let attachment_repo = AttachmentRepository::new(pool.clone());
+    let session_repo_clone = session_repo.clone();
+    let manager = Arc::new(ClaudeManager::new(
+        session_repo,
+        token_repo,
+        metrics_repo,
+        comment_repo,
+        task_repo.clone(),
+        otel_repo,
+        None,
+        None,
+        attachment_repo,
+    ));
+    let queue = Arc::new(SessionQueue::new(manager.clone(), task_repo.clone()));
+    (manager, queue, task_repo, session_repo_clone)
 }
 
 #[tokio::test]
@@ -249,4 +280,102 @@ async fn test_session_claude_id_stored_and_retrievable_via_repo() {
         .unwrap();
     assert!(by_claude_id.is_some());
     assert_eq!(by_claude_id.unwrap().id, session.id);
+}
+
+// ==================== Zombie Session Tests ====================
+
+/// Regression test: stop_session must update the DB to "stopped" even when the session
+/// is NOT in the in-memory active_sessions map (zombie session). This was the bug that
+/// caused the stop button to silently do nothing on stuck sessions.
+#[tokio::test]
+async fn test_stop_zombie_session_updates_db_to_stopped() {
+    let (manager, _, task_repo, session_repo) = setup_with_session_repo().await;
+
+    let task = task_repo
+        .create(CreateTask {
+            title: "Zombie Session Task".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
+
+    // Create a session and manually set it to "running" — simulating a session
+    // that was active before a crash and was never cleaned up.
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+    session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                status: Some("running".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    // Verify the session is NOT in the manager's active map (it's a zombie).
+    assert!(!manager.is_active(&session.id).await);
+
+    // Stop the zombie session — must succeed and update the DB.
+    manager.stop_session(&session.id).await.unwrap();
+
+    let updated = session_repo.find(&session.id).await.unwrap();
+    assert_eq!(updated.status, "stopped", "zombie session must be marked stopped in DB");
+    assert!(updated.ended_at.is_some(), "ended_at must be set after stop");
+}
+
+/// Watchdog must detect a zombie session (running in DB, absent from active map) and mark it stopped.
+#[tokio::test]
+async fn test_watchdog_reconcile_zombie_sessions() {
+    let (manager, _, task_repo, session_repo) = setup_with_session_repo().await;
+
+    let task = task_repo
+        .create(CreateTask {
+            title: "Watchdog Zombie Task".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
+
+    // Create session and set it running — but never add to active_sessions.
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+    session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                status: Some("running".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    // Watchdog should find 1 zombie and clean it up.
+    let recovered = manager.reconcile_zombie_sessions().await.unwrap();
+    assert_eq!(recovered, 1, "watchdog should have recovered 1 zombie session");
+
+    let updated = session_repo.find(&session.id).await.unwrap();
+    assert_eq!(updated.status, "stopped");
+}
+
+/// Watchdog must not touch sessions that are legitimately active in the manager.
+#[tokio::test]
+async fn test_watchdog_does_not_touch_non_zombie_sessions() {
+    let (manager, _, _, _) = setup_with_session_repo().await;
+
+    // With no running sessions in DB at all, watchdog must report 0 zombies.
+    let recovered = manager.reconcile_zombie_sessions().await.unwrap();
+    assert_eq!(recovered, 0, "no zombies should be found in a fresh DB");
 }

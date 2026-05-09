@@ -97,27 +97,42 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Database initialized at {}", db_path);
     tracing::info!("Logging system initialized");
 
-    // Startup recovery: any session still "pending" after a restart was orphaned mid-start.
-    // Mark them failed so the UI doesn't show them as stuck indefinitely.
+    // Startup recovery: sessions left in "pending" or "running" state from a previous
+    // backend instance are orphaned — their processes no longer exist.
+    // Mark them stopped so the UI doesn't show them as stuck indefinitely.
     {
-        let pending = session_repo
+        let mut orphaned = session_repo
             .list_by_status("pending")
             .await
             .unwrap_or_default();
-        if !pending.is_empty() {
+        orphaned.extend(
+            session_repo
+                .list_by_status("running")
+                .await
+                .unwrap_or_default(),
+        );
+        if !orphaned.is_empty() {
             tracing::warn!(
-                count = pending.len(),
-                "Recovering orphaned pending sessions from prior run"
+                count = orphaned.len(),
+                "Recovering orphaned sessions from prior run"
             );
-            for s in &pending {
-                let _ = session_repo.update(&s.id, ai_kanban_backend::models::UpdateSession {
-                    status: Some("failed".to_string()),
-                    error_message: Some("Session was pending at startup — likely orphaned during LiteLLM enrichment or backend restart".to_string()),
-                    ended_at: Some(chrono::Utc::now()),
-                    ..Default::default()
-                }).await;
+            for s in &orphaned {
+                let _ = session_repo
+                    .update(
+                        &s.id,
+                        ai_kanban_backend::models::UpdateSession {
+                            status: Some("stopped".to_string()),
+                            error_message: Some(
+                                "Session orphaned — backend restarted while session was active"
+                                    .to_string(),
+                            ),
+                            ended_at: Some(chrono::Utc::now()),
+                            ..Default::default()
+                        },
+                    )
+                    .await;
             }
-            tracing::info!(count = pending.len(), "Orphaned sessions marked as failed");
+            tracing::info!(count = orphaned.len(), "Orphaned sessions marked as stopped");
         }
     }
 
@@ -189,6 +204,27 @@ async fn main() -> anyhow::Result<()> {
     // spawned multiple times if AppState is ever cloned into multiple router states.
     let usage_cache = claude_usage_cli::start_usage_daemon(Some(queue.clone()));
 
+    // Watchdog: every 5 minutes, find sessions that are "running" in the DB but no longer
+    // in the in-memory active map (zombies from crashes/restarts) and mark them stopped.
+    {
+        let manager_watchdog = claude_manager.clone();
+        tokio::spawn(async move {
+            let mut interval =
+                tokio::time::interval(tokio::time::Duration::from_secs(300));
+            interval.tick().await; // skip the immediate first tick
+            loop {
+                interval.tick().await;
+                match manager_watchdog.reconcile_zombie_sessions().await {
+                    Ok(0) => {}
+                    Ok(n) => tracing::warn!(count = n, "Watchdog: zombie sessions recovered"),
+                    Err(e) => {
+                        tracing::error!(error = %e, "Watchdog: session reconciliation failed")
+                    }
+                }
+            }
+        });
+    }
+
     // Create state with queue
     let state = AppState::new(
         task_repo,
@@ -202,7 +238,8 @@ async fn main() -> anyhow::Result<()> {
         attachment_repo,
         usage_cache,
     )
-    .with_queue(queue);
+    .with_queue(queue)
+    .with_pool(pool);
     tracing::debug!("Application state created");
 
     // Build app with CORS and Extension for WebSocket

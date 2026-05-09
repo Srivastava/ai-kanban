@@ -4,6 +4,7 @@ use crate::db::{
     SessionMetricsRepository, SessionRepository, SettingsRepository, TaskRepository,
     TokenEventRepository,
 };
+use sqlx::SqlitePool;
 use std::sync::Arc;
 
 // Define state types first before the submodules
@@ -20,6 +21,13 @@ pub struct AppState {
     pub attachments: AttachmentRepository,
     pub queue: Option<Arc<SessionQueue>>,
     pub usage_cache: crate::api::claude_usage_cli::SharedUsageCache,
+    pub pool: Option<SqlitePool>,
+}
+
+#[derive(Clone)]
+pub struct HealthApiState {
+    pub pool: Option<SqlitePool>,
+    pub queue: Option<Arc<SessionQueue>>,
 }
 
 #[derive(Clone)]
@@ -78,12 +86,27 @@ impl AppState {
             attachments,
             queue: None,
             usage_cache,
+            pool: None,
         }
     }
 
     pub fn with_queue(mut self, queue: Arc<SessionQueue>) -> Self {
         self.queue = Some(queue);
         self
+    }
+
+    pub fn with_pool(mut self, pool: SqlitePool) -> Self {
+        self.pool = Some(pool);
+        self
+    }
+}
+
+impl From<AppState> for HealthApiState {
+    fn from(state: AppState) -> Self {
+        HealthApiState {
+            pool: state.pool,
+            queue: state.queue,
+        }
     }
 }
 

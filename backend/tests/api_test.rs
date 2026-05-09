@@ -61,7 +61,13 @@ async fn test_health_endpoint() {
     let response = server.get("/health").await;
 
     assert_eq!(response.status_code(), StatusCode::OK);
-    assert_eq!(response.text(), "ok");
+    let body: serde_json::Value = response.json();
+    assert_eq!(body["status"], "ok");
+    assert!(body["active_sessions"].is_number());
+    assert!(body["queued_tasks"].is_number());
+    assert!(body["pool_timeouts_since_startup"].is_number());
+    assert!(body["zombie_sessions_recovered"].is_number());
+    assert!(body["version"].is_string());
 }
 
 // ==================== Task API Tests ====================

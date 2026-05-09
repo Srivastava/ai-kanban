@@ -18,10 +18,14 @@ pub async fn create_pool(db_path: &str) -> anyhow::Result<SqlitePool> {
         .busy_timeout(Duration::from_secs(30))
         .foreign_keys(true);
 
-    // SQLite is single-writer; one write connection avoids lock contention.
-    // Reads are fast and infrequent enough that a small pool is sufficient.
+    // WAL mode allows multiple concurrent readers with one writer.
+    // 5 connections prevents pool starvation when the logging layer and API
+    // handlers compete for connections simultaneously.
+    // Exception: `:memory:` creates a separate isolated DB per connection,
+    // so tests that use in-memory DBs must stay at 1 connection.
+    let max_conn = if db_path == ":memory:" { 1 } else { 5 };
     let pool = PoolOptions::new()
-        .max_connections(1)
+        .max_connections(max_conn)
         .connect_with(options)
         .await?;
 

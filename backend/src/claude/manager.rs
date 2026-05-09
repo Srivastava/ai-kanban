@@ -1188,40 +1188,55 @@ impl ClaudeManager {
 
     #[instrument(skip(self))]
     pub async fn stop_session(&self, session_id: &str) -> Result<()> {
-        // Remove from active sessions and kill child (under write lock)
-        let removed = {
+        {
             let mut sessions = self.active_sessions.write().await;
-            sessions.remove(session_id).map(|mut rs| {
+            if let Some(mut rs) = sessions.remove(session_id) {
                 info!(
                     session_id = %session_id,
                     task_id = %rs.task.id,
                     task_title = %rs.task.title,
-                    "Stopping session"
+                    "Stopping active session"
                 );
-                let _ = rs.child.kill();
-                rs
-            })
-        }; // write lock dropped here
+                if let Err(e) = rs.child.kill() {
+                    warn!(session_id = %session_id, error = %e, "stop_session: kill() failed — process may have already exited");
+                }
+            } else {
+                info!(
+                    session_id = %session_id,
+                    "stop_session: session not in active map — updating DB to clear zombie"
+                );
+            }
+        } // write lock dropped here
 
-        if removed.is_some() {
-            // Update DB (no lock held)
-            self.session_repo
-                .update(
-                    session_id,
-                    crate::models::UpdateSession {
-                        status: Some("stopped".to_string()),
-                        ended_at: Some(chrono::Utc::now()),
-                        ..Default::default()
-                    },
-                )
-                .await?;
-
-            // Notify WS clients that the session has stopped
-            let _ = self.output_tx.send(ClaudeEvent::SessionStatus {
-                session_id: session_id.to_string(),
-                status: "stopped".to_string(),
-            });
+        // Always update DB to stopped — handles both normal stop and zombie cleanup.
+        // If the session is not found in the DB at all, treat it as already gone (idempotent).
+        match self
+            .session_repo
+            .update(
+                session_id,
+                crate::models::UpdateSession {
+                    status: Some("stopped".to_string()),
+                    ended_at: Some(chrono::Utc::now()),
+                    ..Default::default()
+                },
+            )
+            .await
+        {
+            Ok(_) => {}
+            Err(e) if e.to_string().contains("not found") => {
+                info!(session_id = %session_id, "stop_session: session not in DB, already gone");
+            }
+            Err(e) => return Err(e),
         }
+
+        // Notify WS clients regardless of whether process was active
+        if let Err(e) = self.output_tx.send(ClaudeEvent::SessionStatus {
+            session_id: session_id.to_string(),
+            status: "stopped".to_string(),
+        }) {
+            warn!(session_id = %session_id, error = %e, "stop_session: no WS subscribers to notify");
+        }
+
         Ok(())
     }
 
@@ -1255,6 +1270,49 @@ impl ClaudeManager {
             .iter()
             .find(|(_, rs)| rs.task.id == task_id)
             .map(|(session_id, _)| session_id.clone())
+    }
+
+    /// Finds sessions that are "running" in the DB but absent from the in-memory active map
+    /// (zombies), marks them stopped, and emits WS events. Returns the count cleaned up.
+    pub async fn reconcile_zombie_sessions(&self) -> Result<usize> {
+        let running_in_db = self.session_repo.list_by_status("running").await?;
+        let zombie_ids: Vec<String> = {
+            let active = self.active_sessions.read().await;
+            running_in_db
+                .iter()
+                .filter(|s| !active.contains_key(&s.id))
+                .map(|s| s.id.clone())
+                .collect()
+        };
+        for id in &zombie_ids {
+            warn!(session_id = %id, "Watchdog: zombie session detected, marking stopped");
+            if let Err(e) = self
+                .session_repo
+                .update(
+                    id,
+                    crate::models::UpdateSession {
+                        status: Some("stopped".to_string()),
+                        ended_at: Some(chrono::Utc::now()),
+                        error_message: Some(
+                            "Session orphaned — detected by watchdog".to_string(),
+                        ),
+                        ..Default::default()
+                    },
+                )
+                .await
+            {
+                warn!(session_id = %id, error = %e, "Watchdog: failed to mark zombie session stopped");
+            } else if let Err(e) = self.output_tx.send(ClaudeEvent::SessionStatus {
+                session_id: id.clone(),
+                status: "stopped".to_string(),
+            }) {
+                warn!(session_id = %id, error = %e, "Watchdog: no WS subscribers to notify about zombie cleanup");
+            }
+        }
+        if !zombie_ids.is_empty() {
+            crate::metrics::record_zombie_recovered(zombie_ids.len() as u64);
+        }
+        Ok(zombie_ids.len())
     }
 }
 

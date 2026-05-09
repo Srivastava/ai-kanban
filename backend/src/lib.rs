@@ -3,6 +3,7 @@ pub mod api;
 pub mod claude;
 pub mod db;
 pub mod logging;
+pub mod metrics;
 pub mod models;
 pub mod static_files;
 pub mod ws;

@@ -77,20 +77,13 @@ export function AnalyticsPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTaskId]);
 
-  // Auto-refresh analytics queries when sessions complete
+  // Auto-refresh analytics queries when session status changes (complete/stop/fail)
   useEffect(() => {
     const invalidateAll = () => {
       queryClient.invalidateQueries({ queryKey: ['analytics'] });
     };
-
-    const unsubCompleted = subscribe('session_completed', invalidateAll);
-    const unsubFailed = subscribe('session_failed', invalidateAll);
-    const unsubStopped = subscribe('session_stopped', invalidateAll);
-    return () => {
-      unsubCompleted();
-      unsubFailed();
-      unsubStopped();
-    };
+    const unsub = subscribe('session_status', invalidateAll);
+    return unsub;
   }, [subscribe, queryClient]);
 
   return (

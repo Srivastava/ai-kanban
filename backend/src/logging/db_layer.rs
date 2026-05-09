@@ -3,6 +3,7 @@ use crate::models::CreateLog;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use std::thread;
 use std::time::Duration;
+use tokio::runtime::Handle;
 use tracing::span;
 use tracing::{Event, Subscriber};
 use tracing_subscriber::layer::Context;
@@ -28,31 +29,34 @@ impl DbLayer {
     pub fn new(repo: LogRepository) -> Self {
         let (sender, receiver): (Sender<LogMessage>, Receiver<LogMessage>) = unbounded();
 
-        // Spawn a background thread to write logs to the database
+        // Capture the main runtime's handle so log inserts run on the same runtime as all
+        // other DB operations. Creating a second tokio runtime here would share the sqlx pool
+        // across runtimes — sqlx uses tokio::sync::Semaphore internally, which is NOT safe
+        // across multiple runtimes and causes permanent pool deadlocks.
+        let handle = Handle::current();
+
         thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("Failed to create Tokio runtime for logging");
+            loop {
+                let mut messages = Vec::new();
 
-            rt.block_on(async {
-                loop {
-                    let mut messages = Vec::new();
-
-                    match receiver.recv_timeout(Duration::from_millis(100)) {
-                        Ok(msg) => {
+                match receiver.recv_timeout(Duration::from_millis(100)) {
+                    Ok(msg) => {
+                        messages.push(msg);
+                        while let Ok(msg) = receiver.try_recv() {
                             messages.push(msg);
-                            while let Ok(msg) = receiver.try_recv() {
-                                messages.push(msg);
-                                if messages.len() >= 100 {
-                                    break;
-                                }
+                            if messages.len() >= 100 {
+                                break;
                             }
                         }
-                        Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
-                        Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
                     }
+                    Err(crossbeam_channel::RecvTimeoutError::Timeout) => continue,
+                    Err(crossbeam_channel::RecvTimeoutError::Disconnected) => break,
+                }
 
+                // Spawn the whole batch as one async task on the main runtime so
+                // pool acquires are serialised within a single runtime context.
+                let repo = repo.clone();
+                handle.spawn(async move {
                     for msg in messages {
                         if let Err(e) = repo
                             .create(CreateLog {
@@ -66,11 +70,14 @@ impl DbLayer {
                             })
                             .await
                         {
-                            eprintln!("Failed to write log to database: {}", e);
+                            let s = e.to_string();
+                            if s.contains("pool timed out") || s.contains("PoolTimedOut") {
+                                crate::metrics::record_pool_timeout();
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         });
 
         Self { sender }

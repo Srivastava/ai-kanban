@@ -1,5 +1,7 @@
 use crate::db::{OtelMetricsRepository, TokenEventRepository};
+use crate::metrics::{DB_POOL_TIMEOUTS, ZOMBIE_SESSIONS_RECOVERED};
 use axum::{extract::State, response::IntoResponse};
+use std::sync::atomic::Ordering;
 use tracing::warn;
 
 #[derive(Clone)]
@@ -106,6 +108,21 @@ pub async fn metrics_handler(State(state): State<PrometheusState>) -> impl IntoR
         }
         Err(e) => warn!(error = %e, "Failed to query active time"),
     }
+
+    // --- Runtime health counters ---
+    let pool_timeouts = DB_POOL_TIMEOUTS.load(Ordering::Relaxed);
+    out.push_str(
+        "# HELP ai_kanban_db_pool_timeouts_total DB connection pool timeout errors since last startup\n",
+    );
+    out.push_str("# TYPE ai_kanban_db_pool_timeouts_total counter\n");
+    out.push_str(&format!("ai_kanban_db_pool_timeouts_total {pool_timeouts}\n\n"));
+
+    let zombies = ZOMBIE_SESSIONS_RECOVERED.load(Ordering::Relaxed);
+    out.push_str("# HELP ai_kanban_zombie_sessions_recovered_total Sessions auto-stopped by the watchdog because they were running in DB but no longer active in memory\n");
+    out.push_str("# TYPE ai_kanban_zombie_sessions_recovered_total counter\n");
+    out.push_str(&format!(
+        "ai_kanban_zombie_sessions_recovered_total {zombies}\n\n"
+    ));
 
     (
         [(
