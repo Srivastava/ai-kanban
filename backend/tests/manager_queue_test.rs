@@ -379,3 +379,116 @@ async fn test_watchdog_does_not_touch_non_zombie_sessions() {
     let recovered = manager.reconcile_zombie_sessions().await.unwrap();
     assert_eq!(recovered, 0, "no zombies should be found in a fresh DB");
 }
+
+/// Watchdog must not touch "pending" sessions — only "running" sessions are zombies.
+#[tokio::test]
+async fn test_watchdog_ignores_pending_sessions() {
+    let (manager, _, task_repo, session_repo) = setup_with_session_repo().await;
+
+    let task = task_repo
+        .create(CreateTask {
+            title: "Pending Task".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
+
+    // Create a "pending" session (default status from session_repo.create)
+    let _session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+
+    // Watchdog only looks at "running" sessions — pending must be untouched.
+    let recovered = manager.reconcile_zombie_sessions().await.unwrap();
+    assert_eq!(recovered, 0, "pending sessions must not be treated as zombies");
+}
+
+/// Stopping the same zombie session twice must be idempotent — the second call
+/// should succeed even though the first already set it to "stopped".
+#[tokio::test]
+async fn test_stop_zombie_session_twice_is_idempotent() {
+    let (manager, _, task_repo, session_repo) = setup_with_session_repo().await;
+
+    let task = task_repo
+        .create(CreateTask {
+            title: "Idempotent Stop Task".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
+
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+    session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                status: Some("running".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    // First stop — should succeed.
+    manager.stop_session(&session.id).await.unwrap();
+    let after_first = session_repo.find(&session.id).await.unwrap();
+    assert_eq!(after_first.status, "stopped");
+
+    // Second stop — must also succeed (idempotent).
+    let result = manager.stop_session(&session.id).await;
+    assert!(result.is_ok(), "second stop on an already-stopped session must not error");
+
+    let after_second = session_repo.find(&session.id).await.unwrap();
+    assert_eq!(after_second.status, "stopped");
+}
+
+/// Watchdog followed by stop must be fully idempotent — watchdog cleans up zombie,
+/// then stop_session is called again and must succeed without error.
+#[tokio::test]
+async fn test_watchdog_then_stop_is_idempotent() {
+    let (manager, _, task_repo, session_repo) = setup_with_session_repo().await;
+
+    let task = task_repo
+        .create(CreateTask {
+            title: "Watchdog then Stop".to_string(),
+            description: None,
+            project_path: "/tmp/test".to_string(),
+        })
+        .await
+        .unwrap();
+
+    let session = session_repo
+        .create(CreateSession {
+            task_id: task.id.clone(),
+        })
+        .await
+        .unwrap();
+    session_repo
+        .update(
+            &session.id,
+            UpdateSession {
+                status: Some("running".to_string()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+
+    // Watchdog cleans up first.
+    let recovered = manager.reconcile_zombie_sessions().await.unwrap();
+    assert_eq!(recovered, 1);
+
+    // Now the user also clicks stop — must not error.
+    let result = manager.stop_session(&session.id).await;
+    assert!(result.is_ok(), "stop after watchdog cleanup must not error");
+}

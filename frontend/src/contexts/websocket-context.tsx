@@ -91,13 +91,14 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             .info('WS: session started', { task_id: message.task_id, session_id: message.session_id });
         }
 
-        if (message.type === 'session_completed' || message.type === 'session_failed' || message.type === 'session_stopped') {
-          logger.withContext({ task_id: message.task_id, session_id: message.session_id })
-            .info(`WS: ${message.type}`, {
-              task_id: message.task_id,
-              session_id: message.session_id,
-              error: message.error,
-            });
+        // session_status carries status changes (running→stopped, running→completed, etc.)
+        // Invalidate the session cache so the UI immediately reflects the new state
+        // without waiting for the polling interval.
+        if (message.type === 'session_status' && message.session_id) {
+          logger.withContext({ session_id: message.session_id })
+            .info(`WS: session_status=${message.status}`, { session_id: message.session_id, status: message.status });
+          queryClientRef.current.invalidateQueries({ queryKey: ['sessions', message.session_id] });
+          queryClientRef.current.invalidateQueries({ queryKey: ['tasks'] });
         }
 
         const callbacks = listenersRef.current.get(message.type);

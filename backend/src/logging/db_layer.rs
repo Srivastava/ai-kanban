@@ -54,7 +54,7 @@ impl DbLayer {
                 }
 
                 // Spawn the whole batch as one async task on the main runtime so
-                // pool acquires are serialised within a single runtime context.
+                // pool acquires are serialized within a single runtime context.
                 let repo = repo.clone();
                 handle.spawn(async move {
                     for msg in messages {

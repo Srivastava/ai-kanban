@@ -48,7 +48,8 @@ async fn setup_test_server() -> TestServer {
         attachment_repo,
         usage_cache,
     )
-    .with_queue(queue);
+    .with_queue(queue)
+    .with_pool(pool);
     TestServer::new(ai_kanban_backend::api::create_router(state)).unwrap()
 }
 
@@ -63,8 +64,9 @@ async fn test_health_endpoint() {
     assert_eq!(response.status_code(), StatusCode::OK);
     let body: serde_json::Value = response.json();
     assert_eq!(body["status"], "ok");
-    assert!(body["active_sessions"].is_number());
-    assert!(body["queued_tasks"].is_number());
+    assert_eq!(body["db"], "ok", "pool is configured so DB check must pass");
+    assert_eq!(body["active_sessions"], 0u64);
+    assert_eq!(body["queued_tasks"], 0u64);
     assert!(body["pool_timeouts_since_startup"].is_number());
     assert!(body["zombie_sessions_recovered"].is_number());
     assert!(body["version"].is_string());

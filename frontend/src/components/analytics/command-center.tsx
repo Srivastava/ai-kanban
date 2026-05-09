@@ -76,17 +76,15 @@ export function CommandCenter() {
         .catch(() => setHasRunning(false));
     };
 
-    const unsubStarted   = subscribe('session_started',   onStarted);
-    const unsubCompleted = subscribe('session_completed',  onEnded);
-    const unsubFailed    = subscribe('session_failed',     onEnded);
-    const unsubStopped   = subscribe('session_stopped',    onEnded);
+    // session_status is the only session lifecycle event the backend emits.
+    // status="running" → session just started; anything else → session ended.
+    const unsubStatus = subscribe('session_status', (data: unknown) => {
+      const msg = data as { status?: string };
+      if (msg.status === 'running') onStarted();
+      else onEnded();
+    });
 
-    return () => {
-      unsubStarted();
-      unsubCompleted();
-      unsubFailed();
-      unsubStopped();
-    };
+    return () => unsubStatus();
   }, [subscribe, queryClient]);
 
   // Poll overview faster when running (10s), respecting rate limits
