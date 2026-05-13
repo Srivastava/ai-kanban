@@ -746,7 +746,7 @@ impl ClaudeManager {
         let stage_for_completion = stage.to_string();
         let project_path_for_completion = project_path.clone();
         let claude_bin_for_completion = claude_bin.clone();
-        let retry_attempt_for_completion = retry_attempt;  // u32 is Copy
+        let retry_attempt_for_completion = retry_attempt; // u32 is Copy
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
             let (result_text, display_lines, peak_input_tokens, total_output_tokens) =
@@ -865,7 +865,8 @@ impl ClaudeManager {
                     .await
                 {
                     if let Ok(task) = task_repo_for_completion.find(&session.task_id).await {
-                        let will_retry = crate::claude::queue::should_retry(retry_attempt_for_completion);
+                        let will_retry =
+                            crate::claude::queue::should_retry(retry_attempt_for_completion);
                         let _ = output_tx_for_completion.send(ClaudeEvent::SessionFailed {
                             session_id: session_id_for_completion.clone(),
                             task_id: session.task_id.clone(),
@@ -1587,8 +1588,14 @@ impl crate::claude::queue::ManagesSession for ClaudeManager {
         resume_claude_session_id: Option<String>,
         retry_attempt: u32,
     ) -> anyhow::Result<String> {
-        self.start_session(task, stage, conversation_context, resume_claude_session_id, retry_attempt)
-            .await
+        self.start_session(
+            task,
+            stage,
+            conversation_context,
+            resume_claude_session_id,
+            retry_attempt,
+        )
+        .await
     }
 
     async fn is_active(&self, session_id: &str) -> bool {

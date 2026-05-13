@@ -90,7 +90,13 @@ impl<M: ManagesSession> SessionQueue<M> {
                 "Starting task immediately"
             );
             self.manager
-                .start_session(task, &stage, conversation_context, resume_claude_session_id, retry_attempt)
+                .start_session(
+                    task,
+                    &stage,
+                    conversation_context,
+                    resume_claude_session_id,
+                    retry_attempt,
+                )
                 .await?;
         } else {
             let queue_len = self.pending.lock().await.len();
@@ -329,10 +335,7 @@ mod tests {
             }
         }
 
-        fn is_active(
-            &self,
-            _session_id: &str,
-        ) -> impl std::future::Future<Output = bool> + Send {
+        fn is_active(&self, _session_id: &str) -> impl std::future::Future<Output = bool> + Send {
             async { false }
         }
 

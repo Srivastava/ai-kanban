@@ -223,7 +223,12 @@ async fn main() -> anyhow::Result<()> {
                         }
                         queue_for_failure
                             .clone()
-                            .schedule_failure_retry(task_id, stage, claude_session_id, retry_attempt)
+                            .schedule_failure_retry(
+                                task_id,
+                                stage,
+                                claude_session_id,
+                                retry_attempt,
+                            )
                             .await;
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,

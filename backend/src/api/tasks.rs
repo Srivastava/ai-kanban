@@ -422,7 +422,13 @@ async fn continue_session(
         "Enqueuing continue session"
     );
     match queue
-        .enqueue(task, stage, conversation_context, resume_claude_session_id, 0)
+        .enqueue(
+            task,
+            stage,
+            conversation_context,
+            resume_claude_session_id,
+            0,
+        )
         .await
     {
         Ok(()) => {
