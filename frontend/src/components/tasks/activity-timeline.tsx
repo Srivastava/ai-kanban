@@ -15,7 +15,7 @@ interface ActivityTimelineProps {
 
 interface TimelineEntry {
   id: string;
-  type: 'created' | 'stage' | 'session_started' | 'context_updated' | 'plan_created' | 'session_completed' | 'rate_limited' | 'summary';
+  type: 'created' | 'stage' | 'session_started' | 'context_updated' | 'plan_created' | 'session_completed' | 'rate_limited' | 'session_failed' | 'summary';
   description: string;
   detail?: string;
   timestamp: Date;
@@ -31,6 +31,7 @@ function DotIcon({ type }: { type: TimelineEntry['type'] }) {
     plan_created: 'bg-green-500',
     session_completed: 'bg-green-500',
     rate_limited: 'bg-amber-500',
+    session_failed: 'bg-red-500',
     summary: 'bg-purple-500',
   };
   return (
@@ -172,6 +173,29 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
     return unsub;
   }, [task.id, subscribe]);
 
+  // Subscribe to session_failed events for this task (no sessionId guard needed — broadcast)
+  useEffect(() => {
+    const unsub = subscribe('session_failed', (data: unknown) => {
+      const msg = data as {
+        session_id?: string;
+        task_id?: string;
+        retry_attempt?: number;
+        max_retries?: number;
+        will_retry?: boolean;
+      };
+      if (msg.task_id !== task.id) return;
+      const description = msg.will_retry
+        ? `Session failed — retrying (attempt ${(msg.retry_attempt ?? 0) + 1} of ${msg.max_retries ?? 3})`
+        : 'Session failed — max retries reached';
+      setDynamicEntries((prev) => {
+        const id = `session_failed_${Date.now()}`;
+        if (prev.some((e) => e.id === id)) return prev;
+        return [{ id, type: 'session_failed' as const, description, timestamp: new Date() }, ...prev];
+      });
+    });
+    return unsub;
+  }, [task.id, subscribe]);
+
   // Subscribe to session-specific WS events for live timeline updates
   useEffect(() => {
     if (!sessionId) return;
@@ -257,8 +281,30 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
       };
     });
 
+  // Build historical session_failed entries from past sessions stored in DB
+  const historicalFailedEntries: TimelineEntry[] = taskSessions
+    .filter(
+      (s) =>
+        s.error_message?.startsWith('failed:retry:') ||
+        s.error_message === 'failed:exhausted'
+    )
+    .map((s) => {
+      const isExhausted = s.error_message === 'failed:exhausted';
+      const attemptStr = isExhausted ? null : s.error_message!.replace('failed:retry:', '');
+      const attempt = attemptStr !== null ? parseInt(attemptStr, 10) : null;
+      const description = isExhausted
+        ? 'Session failed — max retries reached'
+        : `Session failed — retrying (attempt ${(attempt ?? 0) + 1} of 3)`;
+      return {
+        id: `session_failed_${s.id}`,
+        type: 'session_failed' as const,
+        description,
+        timestamp: new Date(s.ended_at ?? s.started_at),
+      };
+    });
+
   // Merge and sort all entries
-  const allEntries = [...dynamicEntries, ...staticEntries, ...historicalRateLimitEntries].sort(
+  const allEntries = [...dynamicEntries, ...staticEntries, ...historicalRateLimitEntries, ...historicalFailedEntries].sort(
     (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
   );
 

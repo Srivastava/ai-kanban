@@ -73,7 +73,7 @@ async fn test_enqueue_with_bad_path_fails_gracefully() {
 
     // Enqueue should return Err (bad path) but not panic
     let result = queue
-        .enqueue(task, "planning".to_string(), None, None)
+        .enqueue(task, "planning".to_string(), None, None, 0)
         .await;
     assert!(result.is_err(), "enqueue with nonexistent path should fail");
 

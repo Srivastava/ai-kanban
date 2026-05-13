@@ -213,7 +213,7 @@ async fn start_session(
 
     let stage = task.stage.clone();
     info!(task_id = %id, title = %task.title, stage = %stage, "Enqueuing task for Claude session");
-    match queue.enqueue(task, stage, None, None).await {
+    match queue.enqueue(task, stage, None, None, 0).await {
         Ok(()) => {
             info!(task_id = %id, "Task enqueued for Claude session");
             Json(serde_json::json!({ "status": "queued" })).into_response()
@@ -422,7 +422,7 @@ async fn continue_session(
         "Enqueuing continue session"
     );
     match queue
-        .enqueue(task, stage, conversation_context, resume_claude_session_id)
+        .enqueue(task, stage, conversation_context, resume_claude_session_id, 0)
         .await
     {
         Ok(()) => {

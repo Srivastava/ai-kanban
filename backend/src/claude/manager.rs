@@ -50,6 +50,14 @@ pub enum ClaudeEvent {
         claude_session_id: Option<String>, // for --resume on retry
         reset_at: chrono::DateTime<chrono::Utc>,
     },
+    SessionFailed {
+        session_id: String,
+        task_id: String,
+        stage: String,
+        claude_session_id: Option<String>,
+        retry_attempt: u32,
+        will_retry: bool,
+    },
     /// Emitted at session start — tells frontend which mode Claude is operating in
     StageContextSet {
         session_id: String,
@@ -153,6 +161,7 @@ impl ClaudeManager {
         stage: &str,
         conversation_context: Option<String>,
         resume_claude_session_id: Option<String>,
+        retry_attempt: u32,
     ) -> Result<String> {
         let session = self
             .session_repo
@@ -737,6 +746,7 @@ impl ClaudeManager {
         let stage_for_completion = stage.to_string();
         let project_path_for_completion = project_path.clone();
         let claude_bin_for_completion = claude_bin.clone();
+        let retry_attempt_for_completion = retry_attempt;  // u32 is Copy
         tokio::spawn(async move {
             // Wait for both I/O reader threads to finish (they exit when streams close)
             let (result_text, display_lines, peak_input_tokens, total_output_tokens) =
@@ -793,15 +803,25 @@ impl ClaudeManager {
                 status = %final_status,
                 "Session finished"
             );
+            let error_message_for_db = if let Some(dt) = rate_limit_reset_at.as_ref() {
+                Some(format!("rate_limited:{}", dt.to_rfc3339()))
+            } else if final_status == "failed" {
+                if crate::claude::queue::should_retry(retry_attempt_for_completion) {
+                    Some(format!("failed:retry:{}", retry_attempt_for_completion))
+                } else {
+                    Some("failed:exhausted".to_string())
+                }
+            } else {
+                None
+            };
+
             let _ = session_repo_for_completion
                 .update(
                     &session_id_for_completion,
                     UpdateSession {
                         status: Some(final_status.to_string()),
                         ended_at: Some(chrono::Utc::now()),
-                        error_message: rate_limit_reset_at
-                            .as_ref()
-                            .map(|dt| format!("rate_limited:{}", dt.to_rfc3339())),
+                        error_message: error_message_for_db,
                         peak_context_tokens: Some(peak_input_tokens),
                         ..Default::default()
                     },
@@ -836,6 +856,27 @@ impl ClaudeManager {
                 if !exit_ok {
                     return; // Claude was interrupted — skip comment posting and stage advancement
                 }
+            }
+
+            // If failed (non-rate-limit): emit SessionFailed for auto-retry logic.
+            if final_status == "failed" {
+                if let Ok(session) = session_repo_for_completion
+                    .find(&session_id_for_completion)
+                    .await
+                {
+                    if let Ok(task) = task_repo_for_completion.find(&session.task_id).await {
+                        let will_retry = crate::claude::queue::should_retry(retry_attempt_for_completion);
+                        let _ = output_tx_for_completion.send(ClaudeEvent::SessionFailed {
+                            session_id: session_id_for_completion.clone(),
+                            task_id: session.task_id.clone(),
+                            stage: task.stage.clone(),
+                            claude_session_id: session.claude_session_id,
+                            retry_attempt: retry_attempt_for_completion,
+                            will_retry,
+                        });
+                    }
+                }
+                return; // Don't proceed to comment posting or stage advancement on failure
             }
 
             // On success: read back plan file if Claude wrote one during the planning phase.
@@ -1530,6 +1571,40 @@ pub fn write_task_context_file(
             session_id: session_id.to_string(),
             task_id: task.id.clone(),
         });
+    }
+}
+
+impl crate::claude::queue::ManagesSession for ClaudeManager {
+    async fn active_count(&self) -> usize {
+        self.active_count().await
+    }
+
+    async fn start_session(
+        &self,
+        task: crate::models::Task,
+        stage: &str,
+        conversation_context: Option<String>,
+        resume_claude_session_id: Option<String>,
+        retry_attempt: u32,
+    ) -> anyhow::Result<String> {
+        self.start_session(task, stage, conversation_context, resume_claude_session_id, retry_attempt)
+            .await
+    }
+
+    async fn is_active(&self, session_id: &str) -> bool {
+        self.is_active(session_id).await
+    }
+
+    async fn stop_session(&self, session_id: &str) -> anyhow::Result<()> {
+        self.stop_session(session_id).await
+    }
+
+    async fn recently_active(&self) -> bool {
+        self.recently_active().await
+    }
+
+    async fn get_active_session_for_task(&self, task_id: &str) -> Option<String> {
+        self.get_active_session_for_task(task_id).await
     }
 }
 

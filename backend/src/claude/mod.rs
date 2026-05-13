@@ -8,4 +8,4 @@ pub use manager::{
     CONTEXT_HANDOVER_THRESHOLD, CONTEXT_WARN_THRESHOLD,
 };
 pub use prompts::build_prompt;
-pub use queue::{QueuedTask, SessionQueue};
+pub use queue::{ManagesSession, QueuedTask, SessionQueue};

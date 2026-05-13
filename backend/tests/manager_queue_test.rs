@@ -154,7 +154,7 @@ async fn test_queue_enqueue_fails_gracefully_without_claude_binary() {
         .unwrap();
     // Will error (no Claude binary / bad path) — must not panic
     let _result = queue
-        .enqueue(task, "planning".to_string(), None, None)
+        .enqueue(task, "planning".to_string(), None, None, 0)
         .await;
 }
 
@@ -182,7 +182,7 @@ async fn test_queue_enqueue_with_resume_claude_session_id_does_not_panic() {
         .unwrap();
     let resume_id = Some("claude-session-abc-123".to_string());
     let _result = queue
-        .enqueue(task, "planning".to_string(), None, resume_id)
+        .enqueue(task, "planning".to_string(), None, resume_id, 0)
         .await;
     // Must not panic regardless of Claude binary availability
 }
@@ -199,7 +199,7 @@ async fn test_queue_enqueue_with_none_resume_id_does_not_panic() {
         .await
         .unwrap();
     let _result = queue
-        .enqueue(task, "planning".to_string(), None, None)
+        .enqueue(task, "planning".to_string(), None, None, 0)
         .await;
 }
 
@@ -218,7 +218,7 @@ async fn test_queue_enqueue_with_conversation_context_and_resume_id() {
     let context = Some("Previous conversation context here".to_string());
     let resume_id = Some("claude-prior-session-id".to_string());
     let _result = queue
-        .enqueue(task, "review".to_string(), context, resume_id)
+        .enqueue(task, "review".to_string(), context, resume_id, 0)
         .await;
 }
 

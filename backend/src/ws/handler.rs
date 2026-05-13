@@ -196,6 +196,22 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             task_id: task_id.clone(),
                         })
                     }
+                    ClaudeEvent::SessionFailed {
+                        session_id,
+                        task_id,
+                        retry_attempt,
+                        will_retry,
+                        ..
+                    } => {
+                        // Broadcast to all — frontend filters by task_id
+                        Some(ServerMessage::SessionFailed {
+                            session_id: session_id.clone(),
+                            task_id: task_id.clone(),
+                            retry_attempt: *retry_attempt,
+                            max_retries: 3u32,
+                            will_retry: *will_retry,
+                        })
+                    }
                 }
             };
 

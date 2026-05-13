@@ -151,7 +151,7 @@ async fn main() -> anyhow::Result<()> {
                         session_id,
                         status,
                     }) => {
-                        if status == "completed" || status == "failed" {
+                        if status == "completed" {
                             if let Err(e) =
                                 queue_for_completion.on_session_complete(&session_id).await
                             {
@@ -194,6 +194,36 @@ async fn main() -> anyhow::Result<()> {
                         queue_for_rl
                             .clone()
                             .schedule_rate_limit_retry(task_id, stage, claude_session_id, reset_at)
+                            .await;
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    _ => {}
+                }
+            }
+        });
+    }
+
+    // Session-failure listener: advances queue (frees slot) + schedules retry for the failed task.
+    {
+        let mut event_rx = claude_manager.subscribe();
+        let queue_for_failure = queue.clone();
+        tokio::spawn(async move {
+            loop {
+                match event_rx.recv().await {
+                    Ok(ai_kanban_backend::claude::ClaudeEvent::SessionFailed {
+                        session_id,
+                        task_id,
+                        stage,
+                        claude_session_id,
+                        retry_attempt,
+                        ..
+                    }) => {
+                        if let Err(e) = queue_for_failure.on_session_complete(&session_id).await {
+                            tracing::warn!(session_id = %session_id, error = %e, "Queue advance after session failure failed");
+                        }
+                        queue_for_failure
+                            .clone()
+                            .schedule_failure_retry(task_id, stage, claude_session_id, retry_attempt)
                             .await;
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Closed) => break,

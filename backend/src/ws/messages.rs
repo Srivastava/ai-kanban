@@ -50,6 +50,15 @@ pub enum ServerMessage {
         reset_at: String, // ISO 8601 string
     },
 
+    #[serde(rename = "session_failed")]
+    SessionFailed {
+        session_id: String,
+        task_id: String,
+        retry_attempt: u32,
+        max_retries: u32,
+        will_retry: bool,
+    },
+
     #[serde(rename = "stage_context_set")]
     StageContextSet {
         session_id: String,
