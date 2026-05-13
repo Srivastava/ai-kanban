@@ -99,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Startup recovery: sessions left in "pending" or "running" state from a previous
     // backend instance are orphaned — their processes no longer exist.
-    // Mark them stopped so the UI doesn't show them as stuck indefinitely.
+    // Mark them stopped, then re-enqueue their tasks so Claude resumes automatically.
     {
         let mut orphaned = session_repo
             .list_by_status("pending")
@@ -116,6 +116,9 @@ async fn main() -> anyhow::Result<()> {
                 count = orphaned.len(),
                 "Recovering orphaned sessions from prior run"
             );
+            // Deduplicate by task_id — only re-enqueue each task once.
+            let mut seen_tasks: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
             for s in &orphaned {
                 let _ = session_repo
                     .update(
@@ -131,10 +134,30 @@ async fn main() -> anyhow::Result<()> {
                         },
                     )
                     .await;
+
+                // Re-enqueue the task if we haven't already done so for this task.
+                if seen_tasks.insert(s.task_id.clone()) {
+                    if let Ok(task) = task_repo.find(&s.task_id).await {
+                        let stage = task.stage.clone();
+                        // Use the session's claude_session_id so --resume restores context.
+                        let resume_id = s.claude_session_id.clone();
+                        let queue_for_recovery = queue.clone();
+                        tokio::spawn(async move {
+                            queue_for_recovery
+                                .enqueue(task, stage, None, resume_id, 0)
+                                .await;
+                        });
+                        tracing::info!(
+                            session_id = %s.id,
+                            task_id = %s.task_id,
+                            "Re-enqueued task after orphaned session recovery"
+                        );
+                    }
+                }
             }
             tracing::info!(
                 count = orphaned.len(),
-                "Orphaned sessions marked as stopped"
+                "Orphaned sessions marked as stopped and tasks re-enqueued"
             );
         }
     }

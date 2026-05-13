@@ -15,7 +15,7 @@ interface ActivityTimelineProps {
 
 interface TimelineEntry {
   id: string;
-  type: 'created' | 'stage' | 'session_started' | 'context_updated' | 'plan_created' | 'session_completed' | 'rate_limited' | 'session_failed' | 'summary' | 'summary_failed' | 'enrichment_failed';
+  type: 'created' | 'stage' | 'session_started' | 'context_updated' | 'plan_created' | 'session_completed' | 'rate_limited' | 'session_failed' | 'summary' | 'summary_failed' | 'enrichment_failed' | 'session_orphaned';
   description: string;
   detail?: string;
   timestamp: Date;
@@ -44,6 +44,7 @@ function DotIcon({ type }: { type: TimelineEntry['type'] }) {
     summary: 'bg-purple-500',
     summary_failed: 'bg-red-500',
     enrichment_failed: 'bg-amber-500',
+    session_orphaned: 'bg-gray-500',
   };
   return (
     <div className={cn('h-2.5 w-2.5 rounded-full mt-1.5 shrink-0', colorMap[type])} />
@@ -364,8 +365,18 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
       };
     });
 
+  // Build entries for sessions orphaned by a backend restart
+  const historicalOrphanedEntries: TimelineEntry[] = taskSessions
+    .filter((s) => s.error_message?.startsWith('Session orphaned'))
+    .map((s) => ({
+      id: `session_orphaned_${s.id}`,
+      type: 'session_orphaned' as const,
+      description: 'Session interrupted — backend restarted, resuming…',
+      timestamp: new Date(s.ended_at ?? s.started_at),
+    }));
+
   // Merge and sort all entries
-  const allEntries = [...dynamicEntries, ...staticEntries, ...historicalRateLimitEntries, ...historicalFailedEntries].sort(
+  const allEntries = [...dynamicEntries, ...staticEntries, ...historicalRateLimitEntries, ...historicalFailedEntries, ...historicalOrphanedEntries].sort(
     (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
   );
 
