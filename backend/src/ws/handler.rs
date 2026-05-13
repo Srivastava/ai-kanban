@@ -201,6 +201,7 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                         task_id,
                         retry_attempt,
                         will_retry,
+                        exit_code,
                         ..
                     } => {
                         // Broadcast to all — frontend filters by task_id
@@ -210,6 +211,7 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             retry_attempt: *retry_attempt,
                             max_retries: 3u32,
                             will_retry: *will_retry,
+                            exit_code: *exit_code,
                         })
                     }
                 }

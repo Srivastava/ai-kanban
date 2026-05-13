@@ -22,6 +22,15 @@ interface TimelineEntry {
   expandable?: boolean;
 }
 
+function exitCodeReason(code: number | null | undefined): string {
+  if (code == null) return '';
+  if (code === 143) return 'killed (SIGTERM)';
+  if (code === 137) return 'killed (SIGKILL)';
+  if (code === 1) return 'error';
+  if (code === -1) return 'process error';
+  return `exit ${code}`;
+}
+
 function DotIcon({ type }: { type: TimelineEntry['type'] }) {
   const colorMap: Record<TimelineEntry['type'], string> = {
     created: 'bg-gray-400',
@@ -182,11 +191,16 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
         retry_attempt?: number;
         max_retries?: number;
         will_retry?: boolean;
+        exit_code?: number;
       };
       if (msg.task_id !== task.id) return;
-      const description = msg.will_retry
-        ? `Session failed — retrying (attempt ${(msg.retry_attempt ?? 0) + 1} of ${msg.max_retries ?? 3})`
-        : 'Session failed — max retries reached';
+      const reason = exitCodeReason(msg.exit_code);
+      const retryPart = msg.will_retry
+        ? `retrying (attempt ${(msg.retry_attempt ?? 0) + 1} of ${msg.max_retries ?? 3})`
+        : 'max retries reached';
+      const description = reason
+        ? `Session failed (${reason}) — ${retryPart}`
+        : `Session failed — ${retryPart}`;
       setDynamicEntries((prev) => {
         const id = `session_failed_${Date.now()}`;
         if (prev.some((e) => e.id === id)) return prev;
@@ -281,20 +295,37 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
       };
     });
 
-  // Build historical session_failed entries from past sessions stored in DB
+  // Build historical session_failed entries from past sessions stored in DB.
+  // error_message format: "failed:retry:<attempt>:<exitcode>" or "failed:exhausted:<exitcode>"
+  // Also handles legacy format without exit code: "failed:retry:<attempt>" / "failed:exhausted"
   const historicalFailedEntries: TimelineEntry[] = taskSessions
     .filter(
       (s) =>
         s.error_message?.startsWith('failed:retry:') ||
-        s.error_message === 'failed:exhausted'
+        s.error_message?.startsWith('failed:exhausted')
     )
     .map((s) => {
-      const isExhausted = s.error_message === 'failed:exhausted';
-      const attemptStr = isExhausted ? null : s.error_message!.replace('failed:retry:', '');
-      const attempt = attemptStr !== null ? parseInt(attemptStr, 10) : null;
-      const description = isExhausted
-        ? 'Session failed — max retries reached'
-        : `Session failed — retrying (attempt ${(attempt ?? 0) + 1} of 3)`;
+      const isExhausted = s.error_message?.startsWith('failed:exhausted') ?? false;
+      let attempt: number | null = null;
+      let exitCode: number | null = null;
+
+      if (!isExhausted && s.error_message) {
+        const parts = s.error_message.replace('failed:retry:', '').split(':');
+        attempt = parseInt(parts[0], 10);
+        exitCode = parts[1] != null ? parseInt(parts[1], 10) : null;
+      } else if (isExhausted && s.error_message) {
+        const parts = s.error_message.replace('failed:exhausted', '').replace(/^:/, '').split(':');
+        exitCode = parts[0] ? parseInt(parts[0], 10) : null;
+      }
+
+      const reason = exitCodeReason(exitCode);
+      const retryPart = isExhausted
+        ? 'max retries reached'
+        : `retrying (attempt ${(attempt ?? 0) + 1} of 3)`;
+      const description = reason
+        ? `Session failed (${reason}) — ${retryPart}`
+        : `Session failed — ${retryPart}`;
+
       return {
         id: `session_failed_${s.id}`,
         type: 'session_failed' as const,

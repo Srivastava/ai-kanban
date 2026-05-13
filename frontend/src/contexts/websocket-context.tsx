@@ -101,6 +101,12 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           queryClientRef.current.invalidateQueries({ queryKey: ['tasks'] });
         }
 
+        // session_failed carries task_id — invalidate the sessions detail cache so the
+        // historical timeline entry appears immediately without waiting for stale-time expiry.
+        if (message.type === 'session_failed' && message.task_id) {
+          queryClientRef.current.invalidateQueries({ queryKey: ['task-sessions-detail', message.task_id] });
+        }
+
         const callbacks = listenersRef.current.get(message.type);
         if (callbacks) {
           callbacks.forEach((cb) => cb(message));

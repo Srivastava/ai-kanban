@@ -57,6 +57,7 @@ pub enum ServerMessage {
         retry_attempt: u32,
         max_retries: u32,
         will_retry: bool,
+        exit_code: i32,
     },
 
     #[serde(rename = "stage_context_set")]

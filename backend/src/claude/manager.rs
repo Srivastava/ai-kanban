@@ -57,6 +57,7 @@ pub enum ClaudeEvent {
         claude_session_id: Option<String>,
         retry_attempt: u32,
         will_retry: bool,
+        exit_code: i32,
     },
     /// Emitted at session start — tells frontend which mode Claude is operating in
     StageContextSet {
@@ -769,18 +770,19 @@ impl ClaudeManager {
             };
 
             // Wait on child to reap the zombie and get exit status
-            let exit_ok = if let Some(mut child) = child_opt {
+            let (exit_ok, exit_code) = if let Some(mut child) = child_opt {
                 match tokio::task::spawn_blocking(move || child.wait()).await {
                     Ok(Ok(status)) => {
+                        let code = status.code().unwrap_or(-1);
                         info!(
                             session_id = %session_id_for_completion,
-                            exit_code = ?status.code(),
+                            exit_code = code,
                             success = status.success(),
                             "Claude process exited"
                         );
-                        status.success()
+                        (status.success(), code)
                     }
-                    _ => false,
+                    _ => (false, -1i32),
                 }
             } else {
                 // Session was already removed (e.g. manually stopped)
@@ -807,9 +809,12 @@ impl ClaudeManager {
                 Some(format!("rate_limited:{}", dt.to_rfc3339()))
             } else if final_status == "failed" {
                 if crate::claude::queue::should_retry(retry_attempt_for_completion) {
-                    Some(format!("failed:retry:{}", retry_attempt_for_completion))
+                    Some(format!(
+                        "failed:retry:{}:{}",
+                        retry_attempt_for_completion, exit_code
+                    ))
                 } else {
-                    Some("failed:exhausted".to_string())
+                    Some(format!("failed:exhausted:{}", exit_code))
                 }
             } else {
                 None
@@ -874,6 +879,7 @@ impl ClaudeManager {
                             claude_session_id: session.claude_session_id,
                             retry_attempt: retry_attempt_for_completion,
                             will_retry,
+                            exit_code,
                         });
                     }
                 }
