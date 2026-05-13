@@ -15,7 +15,7 @@ interface ActivityTimelineProps {
 
 interface TimelineEntry {
   id: string;
-  type: 'created' | 'stage' | 'session_started' | 'context_updated' | 'plan_created' | 'session_completed' | 'rate_limited' | 'session_failed' | 'summary';
+  type: 'created' | 'stage' | 'session_started' | 'context_updated' | 'plan_created' | 'session_completed' | 'rate_limited' | 'session_failed' | 'summary' | 'summary_failed' | 'enrichment_failed';
   description: string;
   detail?: string;
   timestamp: Date;
@@ -42,6 +42,8 @@ function DotIcon({ type }: { type: TimelineEntry['type'] }) {
     rate_limited: 'bg-amber-500',
     session_failed: 'bg-red-500',
     summary: 'bg-purple-500',
+    summary_failed: 'bg-red-500',
+    enrichment_failed: 'bg-amber-500',
   };
   return (
     <div className={cn('h-2.5 w-2.5 rounded-full mt-1.5 shrink-0', colorMap[type])} />
@@ -180,6 +182,34 @@ export function ActivityTimeline({ task, sessionId }: ActivityTimelineProps) {
       });
     });
     return unsub;
+  }, [task.id, subscribe]);
+
+  // Subscribe to summary_failed and enrichment_failed events
+  useEffect(() => {
+    const unsubSummaryFailed = subscribe('summary_failed', (data: unknown) => {
+      const msg = data as { session_id?: string; task_id?: string; error?: string };
+      if (msg.task_id !== task.id) return;
+      setDynamicEntries((prev) => {
+        const id = `summary_failed_${Date.now()}`;
+        if (prev.some((e) => e.id === id)) return prev;
+        return [{ id, type: 'summary_failed' as const, description: `Session summary failed — ${msg.error ?? 'LiteLLM unavailable'}`, timestamp: new Date() }, ...prev];
+      });
+    });
+
+    const unsubEnrichmentFailed = subscribe('enrichment_failed', (data: unknown) => {
+      const msg = data as { task_id?: string; error?: string };
+      if (msg.task_id !== task.id) return;
+      setDynamicEntries((prev) => {
+        const id = `enrichment_failed_${Date.now()}`;
+        if (prev.some((e) => e.id === id)) return prev;
+        return [{ id, type: 'enrichment_failed' as const, description: `Task enrichment failed — ${msg.error ?? 'LiteLLM unavailable'}`, timestamp: new Date() }, ...prev];
+      });
+    });
+
+    return () => {
+      unsubSummaryFailed();
+      unsubEnrichmentFailed();
+    };
   }, [task.id, subscribe]);
 
   // Subscribe to session_failed events for this task (no sessionId guard needed — broadcast)

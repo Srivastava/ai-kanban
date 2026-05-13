@@ -196,6 +196,21 @@ async fn handle_socket(socket: WebSocket, manager: Arc<ClaudeManager>) {
                             task_id: task_id.clone(),
                         })
                     }
+                    ClaudeEvent::EnrichmentFailed { task_id, error } => {
+                        Some(ServerMessage::EnrichmentFailed {
+                            task_id: task_id.clone(),
+                            error: error.clone(),
+                        })
+                    }
+                    ClaudeEvent::SummaryFailed {
+                        session_id,
+                        task_id,
+                        error,
+                    } => Some(ServerMessage::SummaryFailed {
+                        session_id: session_id.clone(),
+                        task_id: task_id.clone(),
+                        error: error.clone(),
+                    }),
                     ClaudeEvent::SessionFailed {
                         session_id,
                         task_id,

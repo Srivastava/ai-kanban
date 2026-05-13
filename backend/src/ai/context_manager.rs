@@ -227,6 +227,7 @@ impl ContextManager {
                     error = %e,
                     "LiteLLM summarization failed — session summary skipped"
                 );
+                return Err(e);
             }
         }
 

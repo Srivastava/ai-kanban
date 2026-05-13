@@ -84,6 +84,17 @@ pub enum ClaudeEvent {
     EnrichmentCompleted {
         task_id: String,
     },
+    /// Emitted when LiteLLM task enrichment fails
+    EnrichmentFailed {
+        task_id: String,
+        error: String,
+    },
+    /// Emitted when LiteLLM post-session summarization fails
+    SummaryFailed {
+        session_id: String,
+        task_id: String,
+        error: String,
+    },
 }
 
 struct RunningSession {
@@ -105,6 +116,31 @@ pub struct ClaudeManager {
     context_manager: Option<Arc<ContextManager>>,
     settings_repo: Option<SettingsRepository>,
     attachment_repo: AttachmentRepository,
+}
+
+/// Condense a raw LiteLLM error string into a short human-readable reason for timeline display.
+fn summarize_litellm_error(error: &str) -> String {
+    if error.contains("500") || error.contains("Internal Server Error") {
+        "LiteLLM server error (500)".to_string()
+    } else if error.contains("connection")
+        || error.contains("Connection")
+        || error.contains("connect")
+    {
+        "LiteLLM unreachable (connection refused)".to_string()
+    } else if error.contains("timeout") || error.contains("Timeout") {
+        "LiteLLM request timed out".to_string()
+    } else if error.contains("401") || error.contains("Unauthorized") {
+        "LiteLLM authentication error".to_string()
+    } else if error.contains("429") || error.contains("rate limit") {
+        "LiteLLM rate limited".to_string()
+    } else {
+        let short = if error.len() > 80 {
+            &error[..80]
+        } else {
+            error
+        };
+        format!("LiteLLM error: {}", short.trim())
+    }
 }
 
 /// Zone 2 lower bound: LiteLLM compresses in background as prep, but --resume is still used.
@@ -306,6 +342,10 @@ impl ClaudeManager {
                             }
                             Err(e) => {
                                 warn!(task_id = %task_id_bg, error = %e, "Async task enrichment failed");
+                                let _ = tx_bg.send(ClaudeEvent::EnrichmentFailed {
+                                    task_id: task_id_bg.clone(),
+                                    error: summarize_litellm_error(&e.to_string()),
+                                });
                             }
                         }
                     });
@@ -1055,7 +1095,7 @@ impl ClaudeManager {
                             let session_duration_secs = session.ended_at.map(|ended| {
                                 (ended - session.started_at).num_seconds().max(0) as u64
                             });
-                            let _ = ctx_mgr
+                            if let Err(e) = ctx_mgr
                                 .summarize_session(
                                     &session_id_for_completion,
                                     &session.task_id,
@@ -1067,7 +1107,20 @@ impl ClaudeManager {
                                     &display_lines,
                                     result_text.as_deref(),
                                 )
-                                .await;
+                                .await
+                            {
+                                warn!(
+                                    session_id = %session_id_for_completion,
+                                    task_id = %session.task_id,
+                                    error = %e,
+                                    "LiteLLM summarization failed — session summary skipped"
+                                );
+                                let _ = output_tx_for_completion.send(ClaudeEvent::SummaryFailed {
+                                    session_id: session_id_for_completion.clone(),
+                                    task_id: session.task_id.clone(),
+                                    error: summarize_litellm_error(&e.to_string()),
+                                });
+                            }
                         }
 
                         // Three-zone context management based on peak context size.
