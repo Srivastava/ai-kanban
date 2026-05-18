@@ -1,6 +1,6 @@
 {
   "name": "ai-kanban",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Local-first AI task automation platform that orchestrates Claude agents on a Kanban board",
   "bin": {
     "ai-kanban": "run.js"
